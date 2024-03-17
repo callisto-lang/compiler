@@ -3,6 +3,7 @@ module callisto.parser;
 import std.conv;
 import std.stdio;
 import std.format;
+import std.algorithm;
 import callisto.error;
 import callisto.lexer;
 
@@ -12,7 +13,8 @@ enum NodeType {
 	Integer,
 	FuncDef,
 	Include,
-	Asm
+	Asm,
+	If
 }
 
 class Node {
@@ -101,6 +103,50 @@ class AsmNode : Node {
 		type  = NodeType.Asm;
 		error = perror;
 		code  = pcode;
+	}
+
+	override string toString() => format("asm %s", code);
+}
+
+class IfNode : Node {
+	Node[][] condition;
+	Node[][] doIf;
+	bool     hasElse;
+	Node[]   doElse;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.If;
+		error = perror;
+	}
+
+	override string toString() {
+		string ret;
+
+		auto condition2 = condition;
+		auto doIf2      = doIf;
+
+		foreach (i, ref icondition ; condition) {
+			ret ~= i == 0? "if " : "elseif ";
+
+			foreach (ref node ; icondition) {
+				ret ~= node.toString ~ ' ';
+			}
+			ret ~= "then\n";
+			
+			foreach (ref node ; doIf[i]) {
+				ret ~= node.toString() ~ '\n';
+			}
+		}
+
+		if (hasElse) {
+			ret ~= "else\n";
+
+			foreach (ref node ; doElse) {
+				ret ~= node.toString() ~ '\n';
+			}
+		}
+
+		return ret ~ "end";
 	}
 }
 
@@ -217,6 +263,73 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseIf() {
+		auto ret       = new IfNode(GetError());
+		ret.condition ~= new Node[](0);
+		ret.doIf      ~= new Node[](0);
+		Next();
+
+		while (true) {
+			if (!ret.hasElse) {
+				while (true) {
+					if (
+						(tokens[i].type == TokenType.Identifier) &&
+						(tokens[i].contents == "then")
+					) {
+						break;
+					}
+
+					ret.condition[$ - 1] ~= ParseStatement();
+					Next();
+				}
+			}
+
+			Next();
+
+			while (true) {
+				if (
+					(tokens[i].type == TokenType.Identifier) &&
+					(tokens[i].contents == "elseif")
+				) {
+					ret.condition ~= new Node[](0);
+					ret.doIf      ~= new Node[](0);
+					Next();
+					break;
+				}
+				if (
+					(tokens[i].type == TokenType.Identifier) &&
+					(tokens[i].contents == "else")
+				) {
+					ret.hasElse = true;
+
+					Next();
+					while (true) {
+						if (
+							(tokens[i].type == TokenType.Identifier) &&
+							(tokens[i].contents == "end")
+						) {
+							return ret;
+						}
+
+						ret.doElse ~= ParseStatement();
+						Next();
+					}
+				}
+				if (
+					(tokens[i].type == TokenType.Identifier) &&
+					(tokens[i].contents == "end")
+				) {
+					return ret;
+				}
+
+				ret.doIf[$ - 1] ~= ParseStatement();
+				Next();
+			}
+		}
+
+		assert(0);
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -228,6 +341,7 @@ class Parser {
 					case "inline":  return ParseFuncDef(true);
 					case "include": return ParseInclude();
 					case "asm":     return ParseAsm();
+					case "if":      return ParseIf();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

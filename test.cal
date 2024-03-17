@@ -1,5 +1,9 @@
 include "cores/rm86.cal"
 
-65 putch
-66 putch
-67 putch
+if 2 2 = then
+	65 putch
+elseif 2 3 = then
+	66 putch
+else
+	67 putch
+end

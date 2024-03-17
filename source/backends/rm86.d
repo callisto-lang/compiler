@@ -1,6 +1,7 @@
 module callisto.backends.rm86;
 
 import std.format;
+import callisto.util;
 import callisto.parser;
 import callisto.compiler;
 
@@ -11,6 +12,7 @@ private struct Word {
 
 class BackendRM86 : CompilerBackend {
 	Word[string] words;
+	uint         blockCounter; // used for block statements
 
 	override void Init() {
 		output ~= format("org 0x%.4X\n", org);
@@ -34,7 +36,7 @@ class BackendRM86 : CompilerBackend {
 			}
 		}
 		else {
-			output ~= format("call __func__%s\n", node.name);
+			output ~= format("call __func__%s\n", node.name.Sanitise());
 		}
 	}
 
@@ -48,17 +50,49 @@ class BackendRM86 : CompilerBackend {
 			words[node.name] = Word(true, node.nodes);
 		}
 		else {
-			output ~= format("jmp __func_end__%s\n", node.name);
-			output ~= format("__func__%s:\n", node.name);
+			output ~= format("jmp __func_end__%s\n", node.name.Sanitise());
+			output ~= format("__func__%s:\n", node.name.Sanitise());
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
 			}
 
 			output ~= "ret\n";
-			output ~= format("__func_end__%s:\n", node.name);
+			output ~= format("__func_end__%s:\n", node.name.Sanitise());
 
 			words[node.name] = Word(false, []);
 		}
+	}
+
+	override void CompileIf(IfNode node) {
+		++ blockCounter;
+		uint condCounter;
+
+		foreach (i, ref condition ; node.condition) {
+			foreach (ref inode ; condition) {
+				compiler.CompileNode(inode);
+			}
+			output ~= "sub si, 2\n";
+			output ~= "mov ax, [si]\n";
+			output ~= "cmp ax, 0\n";
+			output ~= format("je __if_%d_%d\n", blockCounter, condCounter + 1);
+
+			foreach (ref inode ; node.doIf[i]) {
+				compiler.CompileNode(inode);
+			}
+
+			output ~= format("jmp __if_%d_end\n", blockCounter);
+
+			++ condCounter;
+			output ~= format("__if_%d_%d:\n", blockCounter, condCounter);
+		}
+
+		if (node.hasElse) {
+			foreach (ref inode ; node.doElse) {
+				compiler.CompileNode(inode);
+			}
+		}
+
+		output ~= format("__if_%d_end:\n", blockCounter);
 	}
 }

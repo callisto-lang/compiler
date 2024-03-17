@@ -2,6 +2,7 @@ module callisto.compiler;
 
 import std.stdio;
 import std.format;
+import callisto.util;
 import callisto.error;
 import callisto.parser;
 import callisto.language;
@@ -16,6 +17,7 @@ class CompilerBackend {
 	abstract void CompileWord(WordNode node);
 	abstract void CompileInteger(IntegerNode node);
 	abstract void CompileFuncDef(FuncDefNode node);
+	abstract void CompileIf(IfNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -63,6 +65,10 @@ class Compiler {
 			case NodeType.Asm: {
 				auto node       = cast(AsmNode) inode;
 				backend.output ~= node.code;
+				break;
+			}
+			case NodeType.If: {
+				backend.CompileIf(cast(IfNode) inode);
 				break;
 			}
 			default: assert(0);

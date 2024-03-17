@@ -15,3 +15,18 @@ func putch begin
 		"int 0x10"
 	end
 end
+
+func = begin
+	__rm86_pop_ax
+	__rm86_pop_bx
+	asm
+		"cmp ax, bx"
+		"je .push_1"
+		"mov word [si], 0"
+		"add si, 2"
+		"ret"
+		".push_1:"
+		"mov word [si], 0xFFFF"
+		"add si, 2"
+	end
+end
