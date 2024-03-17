@@ -1,0 +1,5 @@
+include "cores/rm86.cal"
+
+65 putch
+66 putch
+67 putch

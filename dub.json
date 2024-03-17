@@ -1,0 +1,10 @@
+{
+	"authors": [
+		"yeti0904"
+	],
+	"copyright": "Copyright © 2024, yeti0904",
+	"description": "The Callisto compiler",
+	"license": "MIT",
+	"name": "callisto",
+	"targetName": "cac"
+}

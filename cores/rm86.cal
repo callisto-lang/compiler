@@ -1,0 +1,17 @@
+inline __rm86_pop_ax begin asm
+	"sub si, 2"
+	"mov ax, [si]"
+end end
+
+inline __rm86_pop_bx begin asm
+	"sub si, 2"
+	"mov bx, [si]"
+end end
+
+func putch begin
+	__rm86_pop_ax
+	asm
+		"mov ah, 0x0E"
+		"int 0x10"
+	end
+end
