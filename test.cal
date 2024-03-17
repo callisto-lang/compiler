@@ -1,9 +1,5 @@
 include "cores/rm86.cal"
 
-if 2 2 = then
+while 0 do
 	65 putch
-elseif 2 3 = then
-	66 putch
-else
-	67 putch
 end

@@ -14,7 +14,8 @@ enum NodeType {
 	FuncDef,
 	Include,
 	Asm,
-	If
+	If,
+	While
 }
 
 class Node {
@@ -144,6 +145,32 @@ class IfNode : Node {
 			foreach (ref node ; doElse) {
 				ret ~= node.toString() ~ '\n';
 			}
+		}
+
+		return ret ~ "end";
+	}
+}
+
+class WhileNode : Node {
+	Node[] condition;
+	Node[] doWhile;
+
+	this(ErrorInfo perror) {
+		error = perror;
+		type  = NodeType.While;
+	}
+
+	override string toString() {
+		string ret = "while ";
+
+		foreach (ref node ; condition) {
+			ret ~= node.toString() ~ ' ';
+		}
+
+		ret ~= "do\n";
+
+		foreach (ref node ; doWhile) {
+			ret ~= node.toString() ~ '\n';
 		}
 
 		return ret ~ "end";
@@ -330,6 +357,39 @@ class Parser {
 		assert(0);
 	}
 
+	Node ParseWhile() {
+		auto ret = new WhileNode(GetError());
+		Next();
+
+		while (true) {
+			if (
+				(tokens[i].type == TokenType.Identifier) &&
+				(tokens[i].contents == "do")
+			) {
+				break;
+			}
+
+			ret.condition ~= ParseStatement();
+			Next();
+		}
+
+		Next();
+
+		while (true) {
+			if (
+				(tokens[i].type == TokenType.Identifier) &&
+				(tokens[i].contents == "end")
+			) {
+				break;
+			}
+
+			ret.doWhile ~= ParseStatement();
+			Next();
+		}
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -342,6 +402,7 @@ class Parser {
 					case "include": return ParseInclude();
 					case "asm":     return ParseAsm();
 					case "if":      return ParseIf();
+					case "while":   return ParseWhile();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

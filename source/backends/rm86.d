@@ -95,4 +95,32 @@ class BackendRM86 : CompilerBackend {
 
 		output ~= format("__if_%d_end:\n", blockCounter);
 	}
+
+	override void CompileWhile(WhileNode node) {
+		++ blockCounter;
+		
+		foreach (ref inode ; node.condition) {
+			compiler.CompileNode(inode);
+		}
+
+		output ~= "sub si, 2\n";
+		output ~= "mov ax, [si]\n";
+		output ~= "cmp ax, 0\n";
+		output ~= format("je __while_%d_end\n", blockCounter);
+		output ~= format("__while_%d:\n", blockCounter);
+
+		foreach (ref inode ; node.doWhile) {
+			compiler.CompileNode(inode);
+		}
+
+		foreach (ref inode ; node.condition) {
+			compiler.CompileNode(inode);
+		}
+
+		output ~= "sub si, 2\n";
+		output ~= "mov ax, [si]\n";
+		output ~= "cmp ax, 0\n";
+		output ~= format("jne __while_%d\n", blockCounter);
+		output ~= format("__while_%d_end:\n", blockCounter);
+	}
 }

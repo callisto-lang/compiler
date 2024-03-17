@@ -18,6 +18,7 @@ class CompilerBackend {
 	abstract void CompileInteger(IntegerNode node);
 	abstract void CompileFuncDef(FuncDefNode node);
 	abstract void CompileIf(IfNode node);
+	abstract void CompileWhile(WhileNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -69,6 +70,10 @@ class Compiler {
 			}
 			case NodeType.If: {
 				backend.CompileIf(cast(IfNode) inode);
+				break;
+			}
+			case NodeType.While: {
+				backend.CompileWhile(cast(WhileNode) inode);
 				break;
 			}
 			default: assert(0);
