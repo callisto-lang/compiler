@@ -10,6 +10,7 @@ import callisto.language;
 class CompilerBackend {
 	string   output;
 	ulong    org;
+	bool     orgSet;
 	Compiler compiler;
 
 	abstract void Init();
@@ -25,6 +26,11 @@ class CompilerBackend {
 		ErrorBegin(error);
 		stderr.writeln(format(fmt, args));
 		throw new CompilerError();
+	}
+
+	final void Warn(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
+		WarningBegin(error);
+		stderr.writeln(format(fmt, args));
 	}
 }
 

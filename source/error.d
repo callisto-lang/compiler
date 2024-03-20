@@ -20,3 +20,15 @@ void ErrorBegin(ErrorInfo info) {
 		);
 	}
 }
+
+void WarningBegin(ErrorInfo info) {
+	version (Windows) {
+		stderr.writef("%s:%d:%d: warning: ", info.file, info.line + 1, info.col + 1);
+	}
+	else {
+		stderr.writef(
+			"\x1b[1m%s:%d:%d: \x1b[33mwarning:\x1b[0m ", info.file, info.line + 1,
+			info.col + 1
+		);
+	}
+}

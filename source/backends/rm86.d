@@ -3,6 +3,7 @@ module callisto.backends.rm86;
 import std.format;
 import std.algorithm;
 import callisto.util;
+import callisto.error;
 import callisto.parser;
 import callisto.compiler;
 
@@ -19,34 +20,46 @@ private struct Variable {
 	string name;
 	Type   type;
 	uint   offset; // SP + offset to access
-	bool   array;
-	size_t arraySize;
 
-	size_t Size() => array? type.size * arraySize : type.size;
+	size_t Size() => type.size;
 }
 
 private struct Global {
-	Type   type;
-	bool   array;
-	size_t arraySize;
+	Type type;
 
-	size_t Size() => array? type.size * arraySize : type.size;
+	size_t Size() => type.size;
+}
+
+private struct Constant {
+	Node value;
 }
 
 class BackendRM86 : CompilerBackend {
-	Word[string]   words;
-	uint           blockCounter; // used for block statements
-	Type[string]   types;
-	Variable[]     variables;
-	Global[string] globals;
-	bool           inScope;
+	Word[string]     words;
+	uint             blockCounter; // used for block statements
+	Type[string]     types;
+	Variable[]       variables;
+	Global[string]   globals;
+	Constant[string] consts;
+	bool             inScope;
 
 	this() {
-		types["u8"]   = Type(1);
-		types["i8"]   = Type(1);
-		types["u16"]  = Type(2);
-		types["i16"]  = Type(2);
-		types["addr"] = Type(3);
+		types["u8"]    = Type(1);
+		types["i8"]    = Type(1);
+		types["u16"]   = Type(2);
+		types["i16"]   = Type(2);
+		types["addr"]  = Type(2);
+		types["size"]  = Type(2);
+		types["usize"] = Type(2);
+		types["array"] = Type(6);
+
+		foreach (name, ref type ; types) {
+			NewConst(format("%s.sizeof", name), cast(long) type.size);
+		}
+	}
+
+	void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
+		consts[name] = Constant(new IntegerNode(error, value));
 	}
 
 	bool VariableExists(string name) => variables.any!(v => v.name == name);
@@ -223,21 +236,27 @@ class BackendRM86 : CompilerBackend {
 			}
 
 			Variable var;
-			var.name      = node.name;
-			var.type      = types[node.varType];
-			var.offset    = 0;
-			var.array     = node.array;
-			var.arraySize = node.arraySize;
+			var.name   = node.name;
+			var.type   = types[node.varType];
+			var.offset = 0;
 
 			variables ~= var;
-			output    ~= format("sub sp, %d\n", var.Size());
+
+			if (var.Size() == 2) {
+				output ~= "push 0\n";
+			}
+			else {
+				output ~= format("sub sp, %d\n", var.Size());
+			}
 		}
 		else {
 			Global global;
 			global.type        = types[node.varType];
-			global.array       = node.array;
-			global.arraySize   = node.arraySize;
 			globals[node.name] = global;
+
+			if (!orgSet) {
+				Warn(node.error, "Declaring global variables without a set org value");
+			}
 		}
 	}
 }

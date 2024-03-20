@@ -47,3 +47,5 @@ string Sanitise(string str) {
 
 	return ret;
 }
+
+bool OnlyContains(string str, string chars) => str.any!(ch => !chars.canFind(ch));

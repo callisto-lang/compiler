@@ -29,6 +29,7 @@ int main(string[] args) {
 	string file;
 	string outFile = "out.asm";
 	ulong  org;
+	bool   orgSet;
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -63,6 +64,7 @@ int main(string[] args) {
 						stderr.writeln("--org parameter must be hexadecimal");
 						return 1;
 					}
+					orgSet = true;
 					break;
 				}
 				default: {
@@ -88,9 +90,10 @@ int main(string[] args) {
 
 	auto nodes = ParseFile(file);
 
-	auto compiler        = new Compiler();
-	compiler.backend     = new BackendRM86();
-	compiler.backend.org = org;
+	auto compiler           = new Compiler();
+	compiler.backend        = new BackendRM86();
+	compiler.backend.org    = org;
+	compiler.backend.orgSet = orgSet;
 
 	try {
 		compiler.Compile(nodes);
