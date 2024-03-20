@@ -1,6 +1,7 @@
 module callisto.backends.rm86;
 
 import std.format;
+import std.algorithm;
 import callisto.util;
 import callisto.parser;
 import callisto.compiler;
@@ -10,9 +11,55 @@ private struct Word {
 	Node[] inlineNodes;
 }
 
+private struct Type {
+	ulong size;
+}
+
+private struct Variable {
+	string name;
+	Type   type;
+	uint   offset; // SP + offset to access
+	bool   array;
+	size_t arraySize;
+
+	size_t Size() => array? type.size * arraySize : type.size;
+}
+
+private struct Global {
+	Type   type;
+	bool   array;
+	size_t arraySize;
+
+	size_t Size() => array? type.size * arraySize : type.size;
+}
+
 class BackendRM86 : CompilerBackend {
-	Word[string] words;
-	uint         blockCounter; // used for block statements
+	Word[string]   words;
+	uint           blockCounter; // used for block statements
+	Type[string]   types;
+	Variable[]     variables;
+	Global[string] globals;
+	bool           inScope;
+
+	this() {
+		types["u8"]   = Type(1);
+		types["i8"]   = Type(1);
+		types["u16"]  = Type(2);
+		types["i16"]  = Type(2);
+		types["addr"] = Type(3);
+	}
+
+	bool VariableExists(string name) => variables.any!(v => v.name == name);
+
+	Variable GetVariable(string name) {
+		foreach (ref var ; variables) {
+			if (var.name == name) {
+				return var;
+			}
+		}
+
+		assert(0);
+	}
 
 	override void Init() {
 		output ~= format("org 0x%.4X\n", org);
@@ -20,23 +67,44 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override void End() {
-		output ~= "ret\n__stack: times 512 dw 0\n";
+		output ~= "ret\n";
+
+		foreach (name, var ; globals) {
+			output ~= format("__global_%s: times %d db 0\n", name, var.Size());
+		}
+
+		output ~= "__stack: times 512 dw 0\n";
 	}
 
 	override void CompileWord(WordNode node) {
-		if (node.name !in words) {
-			Error(node.error, "Undefined word '%s'", node.name);
-		}
+		if (node.name in words) {
+			auto word = words[node.name];
 
-		auto word = words[node.name];
-
-		if (word.inline) {
-			foreach (inode ; word.inlineNodes) {
-				compiler.CompileNode(inode);
+			if (word.inline) {
+				foreach (inode ; word.inlineNodes) {
+					compiler.CompileNode(inode);
+				}
+			}
+			else {
+				output ~= format("call __func__%s\n", node.name.Sanitise());
 			}
 		}
+		else if (VariableExists(node.name)) {
+			auto var = GetVariable(node.name);
+
+			output ~= "mov di, sp\n";
+			output ~= format("add di, %d\n", var.offset);
+			output ~= "mov [si], di\n";
+			output ~= "add si, 2\n";
+		}
+		else if (node.name in globals) {
+			auto var = globals[node.name];
+
+			output ~= format("mov word [si], __global_%s\n", node.name.Sanitise());
+			output ~= "add si, 2\n";
+		}
 		else {
-			output ~= format("call __func__%s\n", node.name.Sanitise());
+			Error(node.error, "Undefined identifier '%s'", node.name);
 		}
 	}
 
@@ -50,6 +118,13 @@ class BackendRM86 : CompilerBackend {
 			words[node.name] = Word(true, node.nodes);
 		}
 		else {
+			assert(!inScope);
+			inScope = true;
+
+			if ((node.name in words) || VariableExists(node.name)) {
+				Error(node.error, "Function name '%s' already used", node.name);
+			}
+
 			output ~= format("jmp __func_end__%s\n", node.name.Sanitise());
 			output ~= format("__func__%s:\n", node.name.Sanitise());
 
@@ -57,10 +132,20 @@ class BackendRM86 : CompilerBackend {
 				compiler.CompileNode(inode);
 			}
 
+			output ~= format("__func_return__%s:\n", node.name.Sanitise());
+
+			size_t scopeSize;
+			foreach (ref var ; variables) {
+				scopeSize += var.Size();
+			}
+			output ~= format("add sp, %d\n", scopeSize);
+
 			output ~= "ret\n";
 			output ~= format("__func_end__%s:\n", node.name.Sanitise());
 
 			words[node.name] = Word(false, []);
+			variables        = [];
+			inScope          = false;
 		}
 	}
 
@@ -122,5 +207,37 @@ class BackendRM86 : CompilerBackend {
 		output ~= "cmp ax, 0\n";
 		output ~= format("jne __while_%d\n", blockCounter);
 		output ~= format("__while_%d_end:\n", blockCounter);
+	}
+
+	override void CompileLet(LetNode node) {
+		if (node.varType !in types) {
+			Error(node.error, "Undefined type '%s'", node.varType);
+		}
+		if (VariableExists(node.name) || (node.name in words)) {
+			Error(node.error, "Variable name '%s' already used", node.name);
+		}
+
+		if (inScope) {
+			foreach (ref var ; variables) {
+				var.offset += types[node.varType].size;
+			}
+
+			Variable var;
+			var.name      = node.name;
+			var.type      = types[node.varType];
+			var.offset    = 0;
+			var.array     = node.array;
+			var.arraySize = node.arraySize;
+
+			variables ~= var;
+			output    ~= format("sub sp, %d\n", var.Size());
+		}
+		else {
+			Global global;
+			global.type        = types[node.varType];
+			global.array       = node.array;
+			global.arraySize   = node.arraySize;
+			globals[node.name] = global;
+		}
 	}
 }

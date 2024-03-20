@@ -1,5 +1,9 @@
 include "cores/rm86.cal"
 
-while 0 do
-	65 putch
+func myFunc begin
+	let i16 myVar
+	65 myVar !
+	myVar @ printch
 end
+
+myFunc

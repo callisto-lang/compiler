@@ -15,7 +15,8 @@ enum NodeType {
 	Include,
 	Asm,
 	If,
-	While
+	While,
+	Let
 }
 
 class Node {
@@ -174,6 +175,18 @@ class WhileNode : Node {
 		}
 
 		return ret ~ "end";
+	}
+}
+
+class LetNode : Node {
+	string varType;
+	string name;
+	bool   array;
+	size_t arraySize;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Let;
+		error = perror;
 	}
 }
 
@@ -390,6 +403,30 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseLet() {
+		auto ret = new LetNode(GetError());
+
+		Next();
+		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "array") {
+			Next();
+			Expect(TokenType.Integer);
+
+			ret.array     = true;
+			ret.arraySize = parse!size_t(tokens[i].contents);
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
+		ret.varType = tokens[i].contents;
+		Next();
+		Expect(TokenType.Identifier);
+		ret.name = tokens[i].contents;
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -403,6 +440,7 @@ class Parser {
 					case "asm":     return ParseAsm();
 					case "if":      return ParseIf();
 					case "while":   return ParseWhile();
+					case "let":     return ParseLet();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

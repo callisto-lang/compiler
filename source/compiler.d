@@ -19,6 +19,7 @@ class CompilerBackend {
 	abstract void CompileFuncDef(FuncDefNode node);
 	abstract void CompileIf(IfNode node);
 	abstract void CompileWhile(WhileNode node);
+	abstract void CompileLet(LetNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -74,6 +75,10 @@ class Compiler {
 			}
 			case NodeType.While: {
 				backend.CompileWhile(cast(WhileNode) inode);
+				break;
+			}
+			case NodeType.Let: {
+				backend.CompileLet(cast(LetNode) inode);
 				break;
 			}
 			default: assert(0);
