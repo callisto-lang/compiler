@@ -1,0 +1,3 @@
+[submodule "std"]
+	path = std
+	url = https://github.com/callisto-lang/std

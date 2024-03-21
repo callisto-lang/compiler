@@ -67,6 +67,16 @@ class Lexer {
 		}
 	}
 
+	void HandleColLine() {
+		if (code[i] == '\n') {
+			++ line;
+			col = 0;
+		}
+		else {
+			++ col;
+		}
+	}
+
 	void Lex() {
 		char[char] escapes = [
 			'n': '\n',
@@ -76,18 +86,12 @@ class Lexer {
 		];
 
 		for (i = 0; i < code.length; ++ i) {
-			if (code[i] == '\n') {
-				++ line;
-				col = 0;
-			}
-			else {
-				++ col;
-			}
-
 			if (inString) {
 				switch (code[i]) {
 					case '\\': {
 						++ i;
+
+						HandleColLine();
 
 						if (i >= code.length) {
 							Error("Unexpected EOF");
@@ -128,6 +132,8 @@ class Lexer {
 					}
 				}
 			}
+
+			HandleColLine();
 		}
 	}
 }
