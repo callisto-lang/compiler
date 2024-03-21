@@ -1,5 +1,7 @@
 module callisto.compiler;
 
+import std.file;
+import std.path;
 import std.stdio;
 import std.format;
 import callisto.util;
@@ -42,6 +44,7 @@ class CompilerError : Exception {
 
 class Compiler {
 	CompilerBackend backend;
+	string[]        includeDirs;
 
 	this() {
 		
@@ -63,7 +66,26 @@ class Compiler {
 			}
 			case NodeType.Include: {
 				auto node  = cast(IncludeNode) inode;
-				auto nodes = ParseFile(node.path);
+				auto path  = format("%s/%s", dirName(node.error.file), node.path);
+
+				if (!exists(path)) {
+					bool found;
+					
+					foreach (ref ipath ; includeDirs) {
+						path = format("%s/%s", ipath, node.path);
+
+						if (exists(path)) {
+							found = true;
+							break;
+						}
+					}
+
+					if (!found) {
+						backend.Error(node.error, "Can't find file '%s'", node.path);
+					}
+				}
+
+				auto nodes = ParseFile(path);
 
 				foreach (inode2 ; nodes) {
 					CompileNode(inode2);

@@ -17,6 +17,7 @@ Node[] ParseFile(string path) {
 	}
 	catch (Exception e) {
 		stderr.writefln("Failed to read '%s': %s", path, e.msg);
+		exit(1);
 	}
 
 	try {

@@ -1,0 +1,14 @@
+include "cores/rm86.cal"
+
+let i16 myGlobal
+
+func myFunc begin
+	let i16 myVar
+	65 myVar !
+	myVar @ printch
+end
+
+myFunc
+
+66 myGlobal !
+myGlobal @ printch

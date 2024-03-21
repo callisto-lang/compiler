@@ -20,14 +20,18 @@ private struct Variable {
 	string name;
 	Type   type;
 	uint   offset; // SP + offset to access
+	bool   array;
+	ulong  arraySize;
 
-	size_t Size() => type.size;
+	size_t Size() => array? arraySize * type.size : type.size;
 }
 
 private struct Global {
-	Type type;
+	Type  type;
+	bool  array;
+	ulong arraySize;
 
-	size_t Size() => type.size;
+	size_t Size() => array? arraySize * type.size : type.size;
 }
 
 private struct Constant {
@@ -51,7 +55,7 @@ class BackendRM86 : CompilerBackend {
 		types["addr"]  = Type(2);
 		types["size"]  = Type(2);
 		types["usize"] = Type(2);
-		types["array"] = Type(6);
+		types["Array"] = Type(6);
 
 		foreach (name, ref type ; types) {
 			NewConst(format("%s.sizeof", name), cast(long) type.size);
@@ -127,16 +131,16 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override void CompileFuncDef(FuncDefNode node) {
+		if ((node.name in words) || VariableExists(node.name)) {
+			Error(node.error, "Function name '%s' already used", node.name);
+		}
+
 		if (node.inline) {
 			words[node.name] = Word(true, node.nodes);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
-
-			if ((node.name in words) || VariableExists(node.name)) {
-				Error(node.error, "Function name '%s' already used", node.name);
-			}
 
 			output ~= format("jmp __func_end__%s\n", node.name.Sanitise());
 			output ~= format("__func__%s:\n", node.name.Sanitise());
@@ -236,9 +240,11 @@ class BackendRM86 : CompilerBackend {
 			}
 
 			Variable var;
-			var.name   = node.name;
-			var.type   = types[node.varType];
-			var.offset = 0;
+			var.name      = node.name;
+			var.type      = types[node.varType];
+			var.offset    = 0;
+			var.array     = node.array;
+			var.arraySize = node.arraySize;
 
 			variables ~= var;
 

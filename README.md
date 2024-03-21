@@ -11,7 +11,7 @@ dub build
 Currently whatever is being tested is in
 test.cal, compile it with these commands:
 ```
-./cac test.cal --org 100
+./cac test.cal --org 100 -i .
 nasm -f bin out.asm -o out.com
 ```
 And then run with `dosbox out.com`

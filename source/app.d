@@ -14,6 +14,7 @@ Usage: %s FILE [FLAGS]
 Flags:
 	-o FILE    - Sets the output assembly file to FILE (out.asm by default)
 	--org ADDR - Sets ORG value for compiler backend's assembly, ADDR is hex
+	-i PATH    - Adds PATH to the list of include directories
 ";
 
 int main(string[] args) {
@@ -26,10 +27,11 @@ int main(string[] args) {
 		return 0;
 	}
 
-	string file;
-	string outFile = "out.asm";
-	ulong  org;
-	bool   orgSet;
+	string   file;
+	string   outFile = "out.asm";
+	ulong    org;
+	bool     orgSet;
+	string[] includeDirs;
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -67,6 +69,17 @@ int main(string[] args) {
 					orgSet = true;
 					break;
 				}
+				case "-i": {
+					++ i;
+
+					if (i >= args.length) {
+						stderr.writeln("-i requires PATH parameter");
+						return 1;
+					}
+
+					includeDirs ~= args[i];
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -94,6 +107,7 @@ int main(string[] args) {
 	compiler.backend        = new BackendRM86();
 	compiler.backend.org    = org;
 	compiler.backend.orgSet = orgSet;
+	compiler.includeDirs    = includeDirs;
 
 	try {
 		compiler.Compile(nodes);
