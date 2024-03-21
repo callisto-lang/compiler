@@ -60,6 +60,15 @@ class BackendRM86 : CompilerBackend {
 		foreach (name, ref type ; types) {
 			NewConst(format("%s.sizeof", name), cast(long) type.size);
 		}
+
+		// struct Array
+		//     usize length
+		//     usize memberSize
+		//     addr  elements
+		// end
+		NewConst("Array.length",     0);
+		NewConst("Array.memberSize", 2);
+		NewConst("Array.elements",   4);
 	}
 
 	void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
@@ -120,6 +129,9 @@ class BackendRM86 : CompilerBackend {
 			output ~= format("mov word [si], __global_%s\n", node.name.Sanitise());
 			output ~= "add si, 2\n";
 		}
+		else if (node.name in consts) {
+			compiler.CompileNode(consts[node.name].value);
+		}
 		else {
 			Error(node.error, "Undefined identifier '%s'", node.name);
 		}
@@ -142,6 +154,8 @@ class BackendRM86 : CompilerBackend {
 			assert(!inScope);
 			inScope = true;
 
+			words[node.name] = Word(false, []);
+
 			output ~= format("jmp __func_end__%s\n", node.name.Sanitise());
 			output ~= format("__func__%s:\n", node.name.Sanitise());
 
@@ -157,12 +171,10 @@ class BackendRM86 : CompilerBackend {
 			}
 			output ~= format("add sp, %d\n", scopeSize);
 
-			output ~= "ret\n";
-			output ~= format("__func_end__%s:\n", node.name.Sanitise());
-
-			words[node.name] = Word(false, []);
-			variables        = [];
-			inScope          = false;
+			output    ~= "ret\n";
+			output    ~= format("__func_end__%s:\n", node.name.Sanitise());
+			variables  = [];
+			inScope    = false;
 		}
 	}
 
