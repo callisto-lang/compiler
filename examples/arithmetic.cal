@@ -1,0 +1,5 @@
+include "cores/rm86.cal"
+include "std/io.cal"
+include "std/common.cal"
+
+2 2 + 3 * 4 / 10 % printdec
