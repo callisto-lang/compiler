@@ -1,5 +1,7 @@
 module callisto.backends.rm86;
 
+import std.conv;
+import std.range;
 import std.format;
 import std.algorithm;
 import callisto.util;
@@ -38,6 +40,13 @@ private struct Constant {
 	Node value;
 }
 
+private struct Array {
+	string[] values;
+	Type     type;
+
+	size_t Size() => type.size * values.length;
+}
+
 class BackendRM86 : CompilerBackend {
 	Word[string]     words;
 	uint             blockCounter; // used for block statements
@@ -46,6 +55,7 @@ class BackendRM86 : CompilerBackend {
 	Global[string]   globals;
 	Constant[string] consts;
 	bool             inScope;
+	Array[]          arrays;
 
 	this() {
 		types["u8"]    = Type(1);
@@ -55,6 +65,7 @@ class BackendRM86 : CompilerBackend {
 		types["addr"]  = Type(2);
 		types["size"]  = Type(2);
 		types["usize"] = Type(2);
+		types["cell"]  = Type(2);
 		types["Array"] = Type(6);
 
 		foreach (name, ref type ; types) {
@@ -87,6 +98,10 @@ class BackendRM86 : CompilerBackend {
 		assert(0);
 	}
 
+	size_t GetStackSize() {
+		return variables.empty()? 0 : variables[0].offset + variables[0].type.size;
+	}
+
 	override void Init() {
 		output ~= format("org 0x%.4X\n", org);
 		output ~= "mov si, __stack\n";
@@ -97,6 +112,22 @@ class BackendRM86 : CompilerBackend {
 
 		foreach (name, var ; globals) {
 			output ~= format("__global_%s: times %d db 0\n", name, var.Size());
+		}
+
+		foreach (i, ref array ; arrays) {
+			output ~= format("__array_%d: ", i);
+
+			switch (array.type.size) {
+				case 1:  output ~= "db "; break;
+				case 2:  output ~= "dw "; break;
+				default: assert(0);
+			}
+
+			foreach (j, ref element ; array.values) {
+				output ~= element ~ (j == array.values.length - 1? "" : ", ");
+			}
+
+			output ~= '\n';
 		}
 
 		output ~= "__stack: times 512 dw 0\n";
@@ -191,9 +222,19 @@ class BackendRM86 : CompilerBackend {
 			output ~= "cmp ax, 0\n";
 			output ~= format("je __if_%d_%d\n", blockCounter, condCounter + 1);
 
+			// create scope
+			auto oldVars = variables.dup;
+			auto oldSize = GetStackSize();
+
 			foreach (ref inode ; node.doIf[i]) {
 				compiler.CompileNode(inode);
 			}
+
+			// remove scope
+			if (GetStackSize() - oldSize > 0) {
+				output ~= format("add sp, %d\n", GetStackSize() - oldSize);
+			}
+			variables = oldVars;
 
 			output ~= format("jmp __if_%d_end\n", blockCounter);
 
@@ -223,9 +264,19 @@ class BackendRM86 : CompilerBackend {
 		output ~= format("je __while_%d_end\n", blockCounter);
 		output ~= format("__while_%d:\n", blockCounter);
 
+		// make scope
+		auto oldVars = variables.dup;
+		auto oldSize = GetStackSize();
+		
 		foreach (ref inode ; node.doWhile) {
 			compiler.CompileNode(inode);
 		}
+
+		// restore scope
+		if (GetStackSize() - oldSize > 0) {
+			output ~= format("add sp, %d\n", GetStackSize() - oldSize);
+		}
+		variables = oldVars;
 
 		foreach (ref inode ; node.condition) {
 			compiler.CompileNode(inode);
@@ -248,7 +299,7 @@ class BackendRM86 : CompilerBackend {
 
 		if (inScope) {
 			foreach (ref var ; variables) {
-				var.offset += types[node.varType].size;
+				var.offset += types[node.varType].size; // TODO: fix this
 			}
 
 			Variable var;
@@ -276,5 +327,72 @@ class BackendRM86 : CompilerBackend {
 				Warn(node.error, "Declaring global variables without a set org value");
 			}
 		}
+	} 
+
+	override void CompileArray(ArrayNode node) {
+		if (!orgSet) {
+			Warn(node.error, "Using array literals without a set org value");
+		}
+
+		Array array;
+
+		foreach (ref elem ; node.elements) {
+			switch (elem.type) {
+				case NodeType.Integer: {
+					auto node2    = cast(IntegerNode) elem;
+					array.values ~= node2.value.text();
+					break;
+				}
+				default: {
+					Error(elem.error, "Type '%s' can't be used in array literal");
+				}
+			}
+		}
+
+		if (node.arrayType !in types) {
+			Error(node.error, "Type '%s' doesn't exist", node.arrayType);
+		}
+
+		array.type  = types[node.arrayType];
+		arrays     ~= array;
+
+		// start metadata
+		output ~= format("mov word [si], %d\n",     array.values.length);
+		output ~= format("mov word [si + 2], %d\n", array.type.size);
+
+		if (!inScope || node.constant) {
+			// just have to push metadata
+			output ~= format("mov word [si + 4], __array_%d\n", arrays.length - 1);
+		}
+		else {
+			// allocate a copy of the array
+			output ~= "mov ax, ds\n";
+			output ~= "mov es, ax\n";
+			output ~= format("sub sp, %d\n", array.Size());
+			output ~= "mov ax, sp\n";
+			output ~= "push si\n";
+			output ~= format("mov si, __array_%d\n", arrays.length - 1);
+			output ~= "mov di, ax\n";
+			output ~= format("mov cx, %d\n", array.Size());
+			output ~= "rep movsb\n";
+			output ~= "pop si\n";
+
+			Variable var;
+			var.type      = array.type;
+			var.offset    = 0;
+			var.array     = true;
+			var.arraySize = array.values.length;
+
+			foreach (ref var2 ; variables) {
+				var.offset += var2.Size();
+			}
+
+			variables ~= var;
+
+			// now push metadata
+			output ~= "mov [si + 4], sp\n";
+		}
+
+		output ~= "add si, 6\n";
 	}
 }

@@ -9,7 +9,9 @@ enum TokenType {
 	Null,
 	Integer,
 	String,
-	Identifier
+	Identifier,
+	LSquare,
+	RSquare
 }
 
 struct Token {
@@ -125,6 +127,15 @@ class Lexer {
 					case '\r': break;
 					case '"': {
 						inString = true;
+						break;
+					}
+					case '[': {
+						AddToken(TokenType.LSquare);
+						break;
+					}
+					case ']': {
+						AddReading();
+						AddToken(TokenType.RSquare);
 						break;
 					}
 					default: {

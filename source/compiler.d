@@ -4,6 +4,7 @@ import std.file;
 import std.path;
 import std.stdio;
 import std.format;
+import std.algorithm;
 import callisto.util;
 import callisto.error;
 import callisto.parser;
@@ -23,6 +24,7 @@ class CompilerBackend {
 	abstract void CompileIf(IfNode node);
 	abstract void CompileWhile(WhileNode node);
 	abstract void CompileLet(LetNode node);
+	abstract void CompileArray(ArrayNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -45,6 +47,7 @@ class CompilerError : Exception {
 class Compiler {
 	CompilerBackend backend;
 	string[]        includeDirs;
+	string[]        features;
 
 	this() {
 		
@@ -102,11 +105,52 @@ class Compiler {
 				break;
 			}
 			case NodeType.While: {
-				backend.CompileWhile(cast(WhileNode) inode);
+				auto node = cast(WhileNode) inode;
+
+				NodeType[] allowedTypes = [
+					NodeType.Word, NodeType.Integer
+				];
+
+				foreach (ref inode2 ; node.condition) {
+					if (!allowedTypes.canFind(inode2.type)) {
+						backend.Error(
+							inode2.error, "While conditions can't contain %s",
+							inode2.type
+						);
+					}
+				}
+
+				backend.CompileWhile(node);
 				break;
 			}
 			case NodeType.Let: {
 				backend.CompileLet(cast(LetNode) inode);
+				break;
+			}
+			case NodeType.Implements: {
+				auto node = cast(ImplementsNode) inode;
+
+				if (features.canFind(node.feature)) {
+					CompileNode(node.node);
+				}
+				break;
+			}
+			case NodeType.Feature: {
+				auto node = cast(FeatureNode) inode;
+
+				features ~= node.feature;
+				break;
+			}
+			case NodeType.Requires: {
+				auto node = cast(RequiresNode) inode;
+
+				if (!features.canFind(node.feature)) {
+					backend.Error(node.error, "Feature '%s' required", node.feature);
+				}
+				break;
+			}
+			case NodeType.Array: {
+				backend.CompileArray(cast(ArrayNode) inode);
 				break;
 			}
 			default: assert(0);

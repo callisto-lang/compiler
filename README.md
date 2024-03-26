@@ -12,10 +12,10 @@ Note: to use the example programs, you will need the `std` submodule in this rep
 which you can get by cloning recursively or
 doing `git submodule update --init --remote --recursive`
 
-Currently whatever is being tested is in
-test.cal, compile it with these commands:
+There are some example programs in the `examples` folder, which you can compile
+and run like this:
 ```
-./cac test.cal --org 100 -i .
+cac examples/exampleNameHere.cal --org 100 -i std
 nasm -f bin out.asm -o out.com
+dosbox out.com
 ```
-And then run with `dosbox out.com`

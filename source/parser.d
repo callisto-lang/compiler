@@ -16,7 +16,12 @@ enum NodeType {
 	Asm,
 	If,
 	While,
-	Let
+	Let,
+	Implements,
+	Feature,
+	Requires,
+	Version,
+	Array
 }
 
 class Node {
@@ -186,6 +191,55 @@ class LetNode : Node {
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Let;
+		error = perror;
+	}
+}
+
+class ImplementsNode : Node {
+	string feature;
+	Node   node;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Implements;
+		error = perror;
+	}
+}
+
+class FeatureNode : Node {
+	string feature;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Feature;
+		error = perror;
+	}
+}
+
+class RequiresNode : Node {
+	string feature;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Requires;
+		error = perror;
+	}
+}
+
+class VersionNode : Node {
+	string ver;
+	Node[] block;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Version;
+		error = perror;
+	}
+}
+
+class ArrayNode : Node {
+	string arrayType;
+	Node[] elements;
+	bool   constant;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Array;
 		error = perror;
 	}
 }
@@ -427,6 +481,70 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseImplements() {
+		auto ret = new ImplementsNode(GetError());
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.feature = tokens[i].contents;
+
+		Next();
+		ret.node = ParseStatement();
+
+		return ret;
+	}
+
+	Node ParseFeature() {
+		auto ret = new FeatureNode(GetError());
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.feature = tokens[i].contents;
+
+		return ret;
+	}
+
+	Node ParseRequires() {
+		auto ret = new RequiresNode(GetError());
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.feature = tokens[i].contents;
+
+		return ret;
+	}
+
+	Node ParseArray() {
+		auto ret = new ArrayNode(GetError());
+
+		switch (tokens[i].contents) {
+			case "c": {
+				ret.constant = true;
+				break;
+			}
+			case "": break;
+			default: {
+				Error("Unknown attribute '%s'", tokens[i].contents);
+			}
+		}
+
+		const NodeType[] allowedNodes = [
+			NodeType.Word, NodeType.Integer
+		];
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.arrayType = tokens[i].contents;
+		Next();
+
+		while (tokens[i].type != TokenType.RSquare) {
+			ret.elements ~= ParseStatement();
+			Next();
+		}
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -434,16 +552,21 @@ class Parser {
 			}
 			case TokenType.Identifier: {
 				switch (tokens[i].contents) {
-					case "func":    return ParseFuncDef(false);
-					case "inline":  return ParseFuncDef(true);
-					case "include": return ParseInclude();
-					case "asm":     return ParseAsm();
-					case "if":      return ParseIf();
-					case "while":   return ParseWhile();
-					case "let":     return ParseLet();
+					case "func":       return ParseFuncDef(false);
+					case "inline":     return ParseFuncDef(true);
+					case "include":    return ParseInclude();
+					case "asm":        return ParseAsm();
+					case "if":         return ParseIf();
+					case "while":      return ParseWhile();
+					case "let":        return ParseLet();
+					case "implements": return ParseImplements();
+					case "feature":    return ParseFeature();
+					case "requires":   return ParseRequires();
+					case "array":      return ParseArray();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}
+			case TokenType.LSquare: return ParseArray();
 			default: {
 				Error("Unexpected %s", tokens[i].type);
 			}
