@@ -1,6 +1,7 @@
 module callisto.backends.rm86;
 
 import std.conv;
+import std.stdio;
 import std.range;
 import std.format;
 import std.algorithm;
@@ -384,7 +385,7 @@ class BackendRM86 : CompilerBackend {
 			var.arraySize = array.values.length;
 
 			foreach (ref var2 ; variables) {
-				var.offset += var2.Size();
+				var2.offset += var.Size();
 			}
 
 			variables ~= var;
