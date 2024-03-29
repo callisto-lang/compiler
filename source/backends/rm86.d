@@ -409,4 +409,26 @@ class BackendRM86 : CompilerBackend {
 
 		CompileArray(arrayNode);
 	}
+
+	override void CompileStruct(StructNode node) {
+		size_t offset;
+
+		if (node.name in types) {
+			Error(node.error, "Type '%s' defined multiple times", node.name);
+		}
+
+		foreach (i, ref name ; node.names) {
+			auto type = node.types[i];
+
+			if (type !in types) {
+				Error(node.error, "Type '%s' doesn't exist", type);
+			}
+
+			NewConst(format("%s.%s", node.name, name), offset);
+			offset += types[type].size;
+		}
+
+		NewConst(format("%s.sizeof", node.name), offset);
+		types[node.name] = Type(offset);
+	}
 }

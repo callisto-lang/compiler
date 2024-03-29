@@ -22,7 +22,8 @@ enum NodeType {
 	Requires,
 	Version,
 	Array,
-	String
+	String,
+	Struct
 }
 
 class Node {
@@ -251,6 +252,17 @@ class StringNode : Node {
 
 	this(ErrorInfo perror) {
 		type  = NodeType.String;
+		error = perror;
+	}
+}
+
+class StructNode : Node {
+	string   name;
+	string[] types;
+	string[] names;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Struct;
 		error = perror;
 	}
 }
@@ -574,6 +586,33 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseStruct() {
+		auto ret = new StructNode(GetError());
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.name = tokens[i].contents;
+		Next();
+
+		while (true) {
+			if (
+				(tokens[i].type == TokenType.Identifier) &&
+				(tokens[i].contents == "end")
+			) {
+				break;
+			}
+
+			Expect(TokenType.Identifier);
+			ret.types ~= tokens[i].contents;
+			Next();
+			Expect(TokenType.Identifier);
+			ret.names ~= tokens[i].contents;
+			Next();
+		}
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -591,7 +630,7 @@ class Parser {
 					case "implements": return ParseImplements();
 					case "feature":    return ParseFeature();
 					case "requires":   return ParseRequires();
-					case "array":      return ParseArray();
+					case "struct":     return ParseStruct();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

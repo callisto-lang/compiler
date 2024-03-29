@@ -26,6 +26,7 @@ class CompilerBackend {
 	abstract void CompileLet(LetNode node);
 	abstract void CompileArray(ArrayNode node);
 	abstract void CompileString(StringNode node);
+	abstract void CompileStruct(StructNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -163,6 +164,10 @@ class Compiler {
 			}
 			case NodeType.String: {
 				backend.CompileString(cast(StringNode) inode);
+				break;
+			}
+			case NodeType.Struct: {
+				backend.CompileStruct(cast(StructNode) inode);
 				break;
 			}
 			default: assert(0);
