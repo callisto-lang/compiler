@@ -82,6 +82,20 @@ class Lexer {
 		}
 	}
 
+	void Next() {
+		++ i;
+
+		if (i > code.length) {
+			Error("Unexpected EOF");
+		}
+	}
+
+	void ExpectChar(char ch) {
+		if (code[i] != ch) {
+			Error("Expected character %c, got %c", ch, code[i]);
+		}
+	}
+
 	void Lex() {
 		char[char] escapes = [
 			'n': '\n',
@@ -156,6 +170,15 @@ class Lexer {
 
 						++ line;
 						col = 0;
+						break;
+					}
+					case '\'': {
+						Next();
+						auto ch = code[i];
+						Next();
+						ExpectChar('\'');
+
+						reading = format("%d", ch);
 						break;
 					}
 					default: {
