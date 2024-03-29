@@ -16,3 +16,4 @@ cac-test-*
 *.lst
 out.asm
 out.com
+test.cal

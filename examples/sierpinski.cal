@@ -1,0 +1,41 @@
+include "cores/rm86.cal"
+include "std/io.cal"
+
+func sierpinski begin
+	let cell n
+	let cell x
+	let cell y
+	let cell pad
+	2 * n !
+
+	0 y !
+	n @ 2 / pad !
+
+	while y @ n @ 2 / < do
+		0 x !
+
+		while x @ pad @ < do
+			' ' printch
+			x @ 1 + x !
+		end
+
+		0 x !
+
+		while x @ n @ < do
+			if x @ n @ y @ 1 + - and then
+				' ' printch
+			else
+				'*' printch
+			end
+			' ' printch
+
+			x @ 1 + x !
+		end
+
+		y @ 1 + y !
+		pad @ 1 - pad !
+		13 printch 10 printch
+	end
+end
+
+16 sierpinski

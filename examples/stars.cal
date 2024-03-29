@@ -7,9 +7,9 @@ let cell y 0 y !
 while y @ 20 < do
 	while x @ 40 < do
 		if x @ 1 + y @ 1 + % 0 = then
-			"*" printlstr
+			'*' printch
 		else
-			" " printlstr
+			' ' printch
 		end
 
 		x @ 1 + x !
