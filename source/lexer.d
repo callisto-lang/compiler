@@ -143,6 +143,21 @@ class Lexer {
 						AddToken(TokenType.RSquare);
 						break;
 					}
+					case '#': {
+						AddReading();
+
+						while (true) {
+							++ i;
+
+							if ((i >= code.length) || (code[i] == '\n')) {
+								break;
+							}
+						}
+
+						++ line;
+						col = 0;
+						break;
+					}
 					default: {
 						reading ~= code[i];
 					}
