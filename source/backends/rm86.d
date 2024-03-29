@@ -9,6 +9,7 @@ import callisto.util;
 import callisto.error;
 import callisto.parser;
 import callisto.compiler;
+import callisto.language;
 
 private struct Word {
 	bool   inline;
@@ -178,6 +179,9 @@ class BackendRM86 : CompilerBackend {
 		if ((node.name in words) || VariableExists(node.name)) {
 			Error(node.error, "Function name '%s' already used", node.name);
 		}
+		if (Language.bannedNames.canFind(node.name)) {
+			Error(node.error, "Name '%s' can't be used", node.name);
+		}
 
 		if (node.inline) {
 			words[node.name] = Word(true, node.nodes);
@@ -212,6 +216,7 @@ class BackendRM86 : CompilerBackend {
 
 	override void CompileIf(IfNode node) {
 		++ blockCounter;
+		auto blockNum = blockCounter;
 		uint condCounter;
 
 		foreach (i, ref condition ; node.condition) {
@@ -221,7 +226,7 @@ class BackendRM86 : CompilerBackend {
 			output ~= "sub si, 2\n";
 			output ~= "mov ax, [si]\n";
 			output ~= "cmp ax, 0\n";
-			output ~= format("je __if_%d_%d\n", blockCounter, condCounter + 1);
+			output ~= format("je __if_%d_%d\n", blockNum, condCounter + 1);
 
 			// create scope
 			auto oldVars = variables.dup;
@@ -237,10 +242,10 @@ class BackendRM86 : CompilerBackend {
 			}
 			variables = oldVars;
 
-			output ~= format("jmp __if_%d_end\n", blockCounter);
+			output ~= format("jmp __if_%d_end\n", blockNum);
 
 			++ condCounter;
-			output ~= format("__if_%d_%d:\n", blockCounter, condCounter);
+			output ~= format("__if_%d_%d:\n", blockNum, condCounter);
 		}
 
 		if (node.hasElse) {
@@ -249,21 +254,15 @@ class BackendRM86 : CompilerBackend {
 			}
 		}
 
-		output ~= format("__if_%d_end:\n", blockCounter);
+		output ~= format("__if_%d_end:\n", blockNum);
 	}
 
 	override void CompileWhile(WhileNode node) {
 		++ blockCounter;
-		
-		foreach (ref inode ; node.condition) {
-			compiler.CompileNode(inode);
-		}
+		uint blockNum = blockCounter;
 
-		output ~= "sub si, 2\n";
-		output ~= "mov ax, [si]\n";
-		output ~= "cmp ax, 0\n";
-		output ~= format("je __while_%d_end\n", blockCounter);
-		output ~= format("__while_%d:\n", blockCounter);
+		output ~= format("jmp __while_%d_condition\n", blockNum);
+		output ~= format("__while_%d:\n", blockNum);
 
 		// make scope
 		auto oldVars = variables.dup;
@@ -279,6 +278,8 @@ class BackendRM86 : CompilerBackend {
 		}
 		variables = oldVars;
 
+		output ~= format("__while_%d_condition:\n", blockNum);
+		
 		foreach (ref inode ; node.condition) {
 			compiler.CompileNode(inode);
 		}
@@ -286,8 +287,8 @@ class BackendRM86 : CompilerBackend {
 		output ~= "sub si, 2\n";
 		output ~= "mov ax, [si]\n";
 		output ~= "cmp ax, 0\n";
-		output ~= format("jne __while_%d\n", blockCounter);
-		output ~= format("__while_%d_end:\n", blockCounter);
+		output ~= format("jne __while_%d\n", blockNum);
+		output ~= format("__while_%d_end:\n", blockNum);
 	}
 
 	override void CompileLet(LetNode node) {
@@ -296,6 +297,9 @@ class BackendRM86 : CompilerBackend {
 		}
 		if (VariableExists(node.name) || (node.name in words)) {
 			Error(node.error, "Variable name '%s' already used", node.name);
+		}
+		if (Language.bannedNames.canFind(node.name)) {
+			Error(node.error, "Name '%s' can't be used", node.name);
 		}
 
 		if (inScope) {

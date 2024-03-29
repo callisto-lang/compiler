@@ -6,6 +6,10 @@ import callisto.util;
 import callisto.lexer;
 import callisto.parser;
 
+class Language {
+	static const string[] bannedNames = ["return"];
+}
+
 Node[] ParseFile(string path) {
 	auto lexer  = new Lexer();
 	auto parser = new Parser();

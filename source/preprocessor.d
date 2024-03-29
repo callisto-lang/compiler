@@ -32,7 +32,7 @@ Node[] Preprocessor(Node[] nodes, string[] includeDirs, ref string[] included) {
 
 				if (!found) {
 					ErrorBegin(node.error);
-					stderr.writeln("Can't find file '%s'", node.path);
+					stderr.writefln("Can't find file '%s'", node.path);
 					exit(1);
 				}
 			}
