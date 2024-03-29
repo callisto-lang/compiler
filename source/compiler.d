@@ -25,6 +25,7 @@ class CompilerBackend {
 	abstract void CompileWhile(WhileNode node);
 	abstract void CompileLet(LetNode node);
 	abstract void CompileArray(ArrayNode node);
+	abstract void CompileString(StringNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -48,6 +49,7 @@ class Compiler {
 	CompilerBackend backend;
 	string[]        includeDirs;
 	string[]        features;
+	string[]        included;
 
 	this() {
 		
@@ -87,6 +89,12 @@ class Compiler {
 						backend.Error(node.error, "Can't find file '%s'", node.path);
 					}
 				}
+
+				if (included.canFind(path)) {
+					break;
+				}
+
+				included ~= path;
 
 				auto nodes = ParseFile(path);
 
@@ -151,6 +159,10 @@ class Compiler {
 			}
 			case NodeType.Array: {
 				backend.CompileArray(cast(ArrayNode) inode);
+				break;
+			}
+			case NodeType.String: {
+				backend.CompileString(cast(StringNode) inode);
 				break;
 			}
 			default: assert(0);

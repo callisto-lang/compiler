@@ -21,7 +21,8 @@ enum NodeType {
 	Feature,
 	Requires,
 	Version,
-	Array
+	Array,
+	String
 }
 
 class Node {
@@ -240,6 +241,16 @@ class ArrayNode : Node {
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Array;
+		error = perror;
+	}
+}
+
+class StringNode : Node {
+	string value;
+	bool   constant;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.String;
 		error = perror;
 	}
 }
@@ -545,6 +556,24 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseString() {
+		auto ret = new StringNode(GetError());
+
+		switch (tokens[i].extra) {
+			case "c": {
+				ret.constant = true;
+				break;
+			}
+			case "": break;
+			default: {
+				Error("Invalid string type: '%s'", tokens[i].extra);
+			}
+		}
+
+		ret.value = tokens[i].contents;
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -567,6 +596,7 @@ class Parser {
 				}
 			}
 			case TokenType.LSquare: return ParseArray();
+			case TokenType.String:  return ParseString();
 			default: {
 				Error("Unexpected %s", tokens[i].type);
 			}

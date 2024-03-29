@@ -17,6 +17,7 @@ enum TokenType {
 struct Token {
 	TokenType type;
 	string    contents;
+	string    extra;
 	string    file;
 	size_t    line;
 	size_t    col;
@@ -37,6 +38,7 @@ class Lexer {
 	size_t  col;
 	bool    inString;
 	string  reading;
+	string  extra;
 
 	this() {
 		
@@ -53,8 +55,9 @@ class Lexer {
 	}
 
 	void AddToken(TokenType type) {
-		tokens  ~= Token(type, reading, file, line, col);
+		tokens  ~= Token(type, reading, extra, file, line, col);
 		reading  = "";
+		extra    = "";
 	}
 
 	void AddReading() {
@@ -126,6 +129,8 @@ class Lexer {
 					}
 					case '\r': break;
 					case '"': {
+						extra    = reading;
+						reading  = "";
 						inString = true;
 						break;
 					}

@@ -331,10 +331,6 @@ class BackendRM86 : CompilerBackend {
 	} 
 
 	override void CompileArray(ArrayNode node) {
-		if (!orgSet) {
-			Warn(node.error, "Using array literals without a set org value");
-		}
-
 		Array array;
 
 		foreach (ref elem ; node.elements) {
@@ -362,6 +358,10 @@ class BackendRM86 : CompilerBackend {
 		output ~= format("mov word [si + 2], %d\n", array.type.size);
 
 		if (!inScope || node.constant) {
+			if (!orgSet) {
+				Warn(node.error, "Using array literals without a set org value");
+			}
+
 			// just have to push metadata
 			output ~= format("mov word [si + 4], __array_%d\n", arrays.length - 1);
 		}
@@ -395,5 +395,18 @@ class BackendRM86 : CompilerBackend {
 		}
 
 		output ~= "add si, 6\n";
+	}
+
+	override void CompileString(StringNode node) {
+		auto arrayNode = new ArrayNode(node.error);
+
+		arrayNode.arrayType = "u8";
+		arrayNode.constant  = node.constant;
+
+		foreach (ref ch ; node.value) {
+			arrayNode.elements ~= new IntegerNode(node.error, cast(long) ch);
+		}
+
+		CompileArray(arrayNode);
 	}
 }
