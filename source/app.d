@@ -6,6 +6,8 @@ import std.stdio;
 import std.string;
 import callisto.compiler;
 import callisto.language;
+import callisto.optimiser;
+import callisto.preprocessor;
 import callisto.backends.rm86;
 
 const static string usage = "
@@ -15,6 +17,7 @@ Flags:
 	-o FILE    - Sets the output assembly file to FILE (out.asm by default)
 	--org ADDR - Sets ORG value for compiler backend's assembly, ADDR is hex
 	-i PATH    - Adds PATH to the list of include directories
+	-O         - Enables optimisation
 ";
 
 int main(string[] args) {
@@ -32,6 +35,7 @@ int main(string[] args) {
 	ulong    org;
 	bool     orgSet;
 	string[] includeDirs;
+	bool     optimise;
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -80,6 +84,10 @@ int main(string[] args) {
 					includeDirs ~= args[i];
 					break;
 				}
+				case "-O": {
+					optimise = true;
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -101,7 +109,16 @@ int main(string[] args) {
 		return 1;
 	}
 
-	auto nodes = ParseFile(file);
+	string[] included;
+	auto     nodes = ParseFile(file);
+	
+	nodes = Preprocessor(nodes, includeDirs, included);
+
+	if (optimise) {
+		auto optimiser  = new Optimiser();
+		optimiser.Run(nodes);
+		nodes = optimiser.res;
+	}
 
 	auto compiler           = new Compiler();
 	compiler.backend        = new BackendRM86();
