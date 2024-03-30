@@ -117,8 +117,11 @@ int main(string[] args) {
 	compiler.backend.org    = org;
 	compiler.backend.orgSet = orgSet;
 	compiler.includeDirs    = includeDirs;
-	
-	nodes = Preprocessor(nodes, includeDirs, included, compiler.backend.GetVersions());
+
+	auto preproc        = new Preprocessor();
+	preproc.includeDirs = includeDirs;
+	preproc.versions    = compiler.backend.GetVersions();
+	nodes               = preproc.Run(nodes);
 	
 	if (optimise) {
 		auto optimiser  = new Optimiser();
