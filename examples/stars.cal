@@ -1,4 +1,4 @@
-include "cores/rm86.cal"
+include "cores/select.cal"
 include "std/io.cal"
 
 let cell x 0 x !

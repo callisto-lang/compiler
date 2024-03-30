@@ -1,4 +1,4 @@
-include "cores/rm86.cal"
+include "cores/select.cal"
 include "std/io.cal"
 include "std/array.cal"
 

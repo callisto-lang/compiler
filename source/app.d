@@ -18,6 +18,7 @@ Flags:
 	--org ADDR - Sets ORG value for compiler backend's assembly, ADDR is hex
 	-i PATH    - Adds PATH to the list of include directories
 	-O         - Enables optimisation (only works properly with programs without errors)
+	-v VER     - Enables VER as a version
 ";
 
 int main(string[] args) {
@@ -36,6 +37,7 @@ int main(string[] args) {
 	bool     orgSet;
 	string[] includeDirs;
 	bool     optimise;
+	string[] versions;
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -88,6 +90,16 @@ int main(string[] args) {
 					optimise = true;
 					break;
 				}
+				case "-v": {
+					++ i;
+					if (i >= args.length) {
+						stderr.writeln("-v requires VER parameter");
+						return 1;
+					}
+
+					versions ~= args[i];
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -116,11 +128,12 @@ int main(string[] args) {
 	compiler.backend        = new BackendRM86();
 	compiler.backend.org    = org;
 	compiler.backend.orgSet = orgSet;
-	compiler.includeDirs    = includeDirs;
+	
+	versions ~= compiler.backend.GetVersions();
 
 	auto preproc        = new Preprocessor();
 	preproc.includeDirs = includeDirs;
-	preproc.versions    = compiler.backend.GetVersions();
+	preproc.versions    = versions;
 	nodes               = preproc.Run(nodes);
 	
 	if (optimise) {

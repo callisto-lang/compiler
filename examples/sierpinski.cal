@@ -1,4 +1,4 @@
-include "cores/rm86.cal"
+include "cores/select.cal"
 include "std/io.cal"
 
 func sierpinski begin

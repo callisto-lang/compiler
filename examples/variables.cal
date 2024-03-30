@@ -1,4 +1,4 @@
-include "cores/rm86.cal"
+include "cores/select.cal"
 
 let i16 myGlobal
 
