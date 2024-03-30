@@ -1,0 +1,12 @@
+include "cores/rm86.cal"
+include "std/io.cal"
+
+# will execute on RM86 backend
+version RM86
+	"Hello, RM86!" printlstr
+end
+
+# won't execute unless you set the Foo version
+version Foo
+	"Hello, Foo!" printlstr
+end

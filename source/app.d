@@ -17,7 +17,7 @@ Flags:
 	-o FILE    - Sets the output assembly file to FILE (out.asm by default)
 	--org ADDR - Sets ORG value for compiler backend's assembly, ADDR is hex
 	-i PATH    - Adds PATH to the list of include directories
-	-O         - Enables optimisation
+	-O         - Enables optimisation (only works properly with programs without errors)
 ";
 
 int main(string[] args) {
@@ -111,20 +111,20 @@ int main(string[] args) {
 
 	string[] included;
 	auto     nodes = ParseFile(file);
-	
-	nodes = Preprocessor(nodes, includeDirs, included);
-
-	if (optimise) {
-		auto optimiser  = new Optimiser();
-		optimiser.Run(nodes);
-		nodes = optimiser.res;
-	}
 
 	auto compiler           = new Compiler();
 	compiler.backend        = new BackendRM86();
 	compiler.backend.org    = org;
 	compiler.backend.orgSet = orgSet;
 	compiler.includeDirs    = includeDirs;
+	
+	nodes = Preprocessor(nodes, includeDirs, included, compiler.backend.GetVersions());
+	
+	if (optimise) {
+		auto optimiser  = new Optimiser();
+		optimiser.Run(nodes);
+		nodes = optimiser.res;
+	}
 
 	try {
 		compiler.Compile(nodes);

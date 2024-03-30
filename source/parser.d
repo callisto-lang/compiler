@@ -613,6 +613,29 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseVersion() {
+		auto ret = new VersionNode(GetError());
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.ver = tokens[i].contents;
+		Next();
+
+		while (true) {
+			if (
+				(tokens[i].type == TokenType.Identifier) &&
+				(tokens[i].contents == "end")
+			) {
+				break;
+			}
+
+			ret.block ~= ParseStatement();
+			Next();
+		}
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -631,6 +654,7 @@ class Parser {
 					case "feature":    return ParseFeature();
 					case "requires":   return ParseRequires();
 					case "struct":     return ParseStruct();
+					case "version":    return ParseVersion();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

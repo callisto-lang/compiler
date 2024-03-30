@@ -16,6 +16,8 @@ class CompilerBackend {
 	bool     orgSet;
 	Compiler compiler;
 
+	abstract string[] GetVersions();
+
 	abstract void Init();
 	abstract void End();
 	abstract void CompileWord(WordNode node);

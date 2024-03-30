@@ -104,6 +104,8 @@ class BackendRM86 : CompilerBackend {
 		return variables.empty()? 0 : variables[0].offset + variables[0].type.size;
 	}
 
+	override string[] GetVersions() => ["RM86"];
+
 	override void Init() {
 		output ~= format("org 0x%.4X\n", org);
 		output ~= "mov si, __stack\n";
