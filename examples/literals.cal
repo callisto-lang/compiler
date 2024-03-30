@@ -1,0 +1,15 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+func new_line begin
+	13 printch 10 printch
+end
+
+# Hexadecimal - prints 16
+0x10 printdec new_line
+
+# Binary - prints 16
+0b00010000 printdec new_line
+
+# Octal - prints 16
+0o20 printdec new_line

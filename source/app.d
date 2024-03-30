@@ -8,6 +8,7 @@ import callisto.compiler;
 import callisto.language;
 import callisto.optimiser;
 import callisto.preprocessor;
+import callisto.backends.y16;
 import callisto.backends.rm86;
 
 const static string usage = "
@@ -19,6 +20,11 @@ Flags:
 	-i PATH    - Adds PATH to the list of include directories
 	-O         - Enables optimisation (only works properly with programs without errors)
 	-v VER     - Enables VER as a version
+	-b BACKEND - Uses the given backend (backends listed below)
+
+Backends:
+	rm86 - Real mode x86
+	y16  - YETI-16 (work in progress)
 ";
 
 int main(string[] args) {
@@ -31,13 +37,14 @@ int main(string[] args) {
 		return 0;
 	}
 
-	string   file;
-	string   outFile = "out.asm";
-	ulong    org;
-	bool     orgSet;
-	string[] includeDirs;
-	bool     optimise;
-	string[] versions;
+	string          file;
+	string          outFile = "out.asm";
+	ulong           org;
+	bool            orgSet;
+	string[]        includeDirs;
+	bool            optimise;
+	string[]        versions;
+	CompilerBackend backend = new BackendRM86();
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -100,6 +107,28 @@ int main(string[] args) {
 					versions ~= args[i];
 					break;
 				}
+				case "-b": {
+					++ i;
+					if (i >= args.length) {
+						stderr.writeln("-b requires BACKEND parameter");
+						return 1;
+					}
+
+					switch (args[i]) {
+						case "rm86": {
+							backend = new BackendRM86();
+							break;
+						}
+						case "y16": {
+							backend = new BackendY16();
+							break;
+						}
+						default: {
+							stderr.writefln("Unknown backend '%s'", args[i]);
+						}
+					}
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -125,7 +154,7 @@ int main(string[] args) {
 	auto     nodes = ParseFile(file);
 
 	auto compiler           = new Compiler();
-	compiler.backend        = new BackendRM86();
+	compiler.backend        = backend;
 	compiler.backend.org    = org;
 	compiler.backend.orgSet = orgSet;
 	

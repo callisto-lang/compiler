@@ -1,8 +1,11 @@
 module callisto.lexer;
 
+import std.conv;
 import std.stdio;
 import std.format;
 import std.string;
+import std.algorithm;
+import callisto.util;
 import callisto.error;
 
 enum TokenType {
@@ -65,6 +68,30 @@ class Lexer {
 			reading = "";
 		}
 		else if (reading.isNumeric()) {
+			AddToken(TokenType.Integer);
+		}
+		else if (reading.startsWith("0x")) {
+			if (!reading.OnlyContains("0123456789abcdefABCDEF")) {
+				Error("Invalid literal");
+			}
+			
+			reading = format("%d", reading[2 .. $].to!long(16));
+			AddToken(TokenType.Integer);
+		}
+		else if (reading.startsWith("0b")) {
+			if (!reading.OnlyContains("01")) {
+				Error("Invalid binary literal");
+			}
+			
+			reading = format("%d", reading[2 .. $].to!long(2));
+			AddToken(TokenType.Integer);
+		}
+		else if (reading.startsWith("0o")) {
+			if (!reading.OnlyContains("01234567")) {
+				Error("Invalid octal literal");
+			}
+			
+			reading = format("%d", reading[2 .. $].to!long(8));
 			AddToken(TokenType.Integer);
 		}
 		else {

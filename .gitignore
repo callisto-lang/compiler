@@ -16,4 +16,5 @@ cac-test-*
 *.lst
 out.asm
 out.com
+out.bin
 test.cal
