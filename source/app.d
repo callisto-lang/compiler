@@ -21,6 +21,7 @@ Flags:
 	-O         - Enables optimisation (only works properly with programs without errors)
 	-v VER     - Enables VER as a version
 	-b BACKEND - Uses the given backend (backends listed below)
+	--version  - Shows the callisto version
 
 Backends:
 	rm86 - Real mode x86
@@ -44,8 +45,6 @@ int main(string[] args) {
 	bool            optimise;
 	string[]        versions;
 	CompilerBackend backend = new BackendRM86();
-
-	writeln(backend.GetVersions());
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -106,7 +105,7 @@ int main(string[] args) {
 					}
 
 					versions ~= args[i];
-					break;
+					return 0;
 				}
 				case "-b": {
 					++ i;
@@ -129,6 +128,10 @@ int main(string[] args) {
 					}
 					break;
 				}
+				case "--version": {
+					writeln("Callisto compiler beta 0.1");
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -145,8 +148,6 @@ int main(string[] args) {
 		}
 	}
 
-	writeln(backend.GetVersions());
-
 	if (file == "") {
 		stderr.writeln("No source files");
 		return 1;
@@ -161,8 +162,6 @@ int main(string[] args) {
 	compiler.backend.orgSet = orgSet;
 	
 	versions ~= compiler.backend.GetVersions();
-	
-	writeln(backend.GetVersions());
 
 	auto preproc        = new Preprocessor();
 	preproc.includeDirs = includeDirs;
