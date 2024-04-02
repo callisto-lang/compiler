@@ -29,7 +29,7 @@ jobs:
     - name: 'Build & Test'
       run: |
         # Build the project, with its main file included, without unittests
-        dub build -b release --compiler=ldc
+        dub build -b release
         
     - name: Upload
       uses: actions/upload-artifact@v3
