@@ -1,10 +1,13 @@
 module callisto.backends.y16;
 
+import std.range;
 import std.format;
+import std.algorithm;
 import callisto.util;
 import callisto.error;
 import callisto.parser;
 import callisto.compiler;
+import callisto.language;
 
 private struct Word {
 	bool   inline;
@@ -19,12 +22,32 @@ private struct Constant {
 	Node value;
 }
 
+private struct Variable {
+	string name;
+	Type   type;
+	uint   offset; // SP + offset to access
+	bool   array;
+	ulong  arraySize;
+
+	size_t Size() => array? arraySize * type.size : type.size;
+}
+
+private struct Global {
+	Type  type;
+	bool  array;
+	ulong arraySize;
+
+	size_t Size() => array? arraySize * type.size : type.size;
+}
+
 class BackendY16 : CompilerBackend {
 	Word[string]     words;
 	Type[string]     types;
 	bool             inScope;
 	Constant[string] consts;
 	uint             blockCounter;
+	Variable[]       variables;
+	Global[string]   globals;
 
 	override string[] GetVersions() => ["Y16"];
 
@@ -33,11 +56,11 @@ class BackendY16 : CompilerBackend {
 		types["i8"]    = Type(1);
 		types["u16"]   = Type(2);
 		types["i16"]   = Type(2);
-		types["addr"]  = Type(2);
+		types["addr"]  = Type(3);
 		types["size"]  = Type(2);
 		types["usize"] = Type(2);
 		types["cell"]  = Type(2);
-		types["Array"] = Type(6);
+		types["Array"] = Type(7);
 
 		foreach (name, ref type ; types) {
 			NewConst(format("%s.sizeof", name), cast(long) type.size);
@@ -56,6 +79,22 @@ class BackendY16 : CompilerBackend {
 	void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
 	}
+	
+	bool VariableExists(string name) => variables.any!(v => v.name == name);
+
+	Variable GetVariable(string name) {
+		foreach (ref var ; variables) {
+			if (var.name == name) {
+				return var;
+			}
+		}
+
+		assert(0);
+	}
+
+	size_t GetStackSize() {
+		return variables.empty()? 0 : variables[0].offset + variables[0].type.size;
+	}
 
 	override void Init() {
 		output ~= "cpp sr bs\n";
@@ -65,6 +104,11 @@ class BackendY16 : CompilerBackend {
 
 	override void End() {
 		output ~= "hlt\n";
+
+		foreach (name, var ; globals) {
+			output ~= format("__global_%s: fill %d 0\n", name, var.Size());
+		}
+
 		output ~= "__stack: fill 1024 0\n"; // 512 cell stack
 	}
 
@@ -80,6 +124,29 @@ class BackendY16 : CompilerBackend {
 			else {
 				output ~= format("callb __func__%s\n", node.name.Sanitise());
 			}
+		}
+		else if (VariableExists(node.name)) {
+			auto var = GetVariable(node.name);
+
+			output ~= "cpp gh sp\n";
+			output ~= format("ldi a %d\n", var.offset);
+			output ~= "wrw sr g\n";
+			output ~= "ldsi b 2\n";
+			output ~= "addp sr b\n";
+			output ~= "wrw sr h\n";
+			output ~= "addp sr b\n";
+		}
+		else if (node.name in globals) {
+			auto var = globals[node.name];
+
+			output ~= "cpp gh bs\n";
+			output ~= format("ldi a __global_%s\n", node.name.Sanitise());
+			output ~= "addp gh a\n";
+			output ~= "wrw sr g\n";
+			output ~= "ldsi b 2\n";
+			output ~= "addp sr b\n";
+			output ~= "wrw sr h\n";
+			output ~= "addp sr b\n";
 		}
 		else if (node.name in consts) {
 			compiler.CompileNode(consts[node.name].value);
@@ -184,7 +251,47 @@ class BackendY16 : CompilerBackend {
 	}
 	
 	override void CompileLet(LetNode node) {
-		assert(0);
+		if (node.varType !in types) {
+			Error(node.error, "Undefined type '%s'", node.varType);
+		}
+		if (VariableExists(node.name) || (node.name in words)) {
+			Error(node.error, "Variable name '%s' already used", node.name);
+		}
+		if (Language.bannedNames.canFind(node.name)) {
+			Error(node.error, "Name '%s' can't be used", node.name);
+		}
+
+		if (inScope) {
+			foreach (ref var ; variables) {
+				var.offset += types[node.varType].size;
+				// idk but RM86 had a comment here saying TODO: fix this
+				// i have no memory of what needs to be fixed
+				// but RM86 works fine so i guess its ok
+			}
+
+			Variable var;
+			var.name      = node.name;
+			var.type      = types[node.varType];
+			var.offset    = 0;
+			var.array     = node.array;
+			var.arraySize = node.arraySize;
+
+			variables ~= var;
+
+			if (var.Size() == 2) {
+				output ~= "ldsi a 0\n";
+				output ~= "push a\n";
+			}
+			else {
+				output ~= format("ldi a %d\n", var.Size());
+				output ~= "subp sp a\n";
+			}
+		}
+		else {
+			Global global;
+			global.type        = types[node.varType];
+			globals[node.name] = global;
+		}
 	}
 	
 	override void CompileArray(ArrayNode node) {

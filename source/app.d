@@ -24,7 +24,6 @@ Flags:
 
 Backends:
 	rm86 - Real mode x86
-	y16  - YETI-16 (work in progress)
 ";
 
 int main(string[] args) {
@@ -45,6 +44,8 @@ int main(string[] args) {
 	bool            optimise;
 	string[]        versions;
 	CompilerBackend backend = new BackendRM86();
+
+	writeln(backend.GetVersions());
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -120,8 +121,7 @@ int main(string[] args) {
 							break;
 						}
 						case "y16": {
-							backend = new BackendY16();
-							break;
+							goto default;
 						}
 						default: {
 							stderr.writefln("Unknown backend '%s'", args[i]);
@@ -145,6 +145,8 @@ int main(string[] args) {
 		}
 	}
 
+	writeln(backend.GetVersions());
+
 	if (file == "") {
 		stderr.writeln("No source files");
 		return 1;
@@ -159,6 +161,8 @@ int main(string[] args) {
 	compiler.backend.orgSet = orgSet;
 	
 	versions ~= compiler.backend.GetVersions();
+	
+	writeln(backend.GetVersions());
 
 	auto preproc        = new Preprocessor();
 	preproc.includeDirs = includeDirs;
