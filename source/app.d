@@ -120,7 +120,8 @@ int main(string[] args) {
 							break;
 						}
 						case "y16": {
-							goto default;
+							backend = new BackendY16();
+							break;
 						}
 						default: {
 							stderr.writefln("Unknown backend '%s'", args[i]);
@@ -129,7 +130,7 @@ int main(string[] args) {
 					break;
 				}
 				case "--version": {
-					writeln("Callisto compiler beta release 0.1");
+					writeln("Callisto compiler development version");
 					break;
 				}
 				default: {
