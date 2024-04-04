@@ -25,6 +25,7 @@ Flags:
 
 Backends:
 	rm86 - Real mode x86
+	y16  - YETI-16 Mk2
 ";
 
 int main(string[] args) {
@@ -56,7 +57,7 @@ int main(string[] args) {
 						stderr.writeln("-o requires FILE parameter");
 						return 1;
 					}
-					if (outFile != "") {
+					if (outFile != "out.asm") {
 						stderr.writeln("Output file set multiple times");
 						return 1;
 					}

@@ -305,4 +305,8 @@ class BackendY16 : CompilerBackend {
 	override void CompileStruct(StructNode node) {
 		assert(0);
 	}
+
+	override void CompileReturn(WordNode node) {
+		assert(0);
+	}
 }

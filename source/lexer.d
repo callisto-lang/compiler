@@ -125,10 +125,12 @@ class Lexer {
 
 	void Lex() {
 		char[char] escapes = [
-			'n': '\n',
-			'r': '\r',
-			't': '\t',
-			'e': '\x1b'
+			'n':  '\n',
+			'r':  '\r',
+			't':  '\t',
+			'e':  '\x1b',
+			'"':  '"',
+			'\\': '\\'
 		];
 
 		for (i = 0; i < code.length; ++ i) {

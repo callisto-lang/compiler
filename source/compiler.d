@@ -29,6 +29,7 @@ class CompilerBackend {
 	abstract void CompileArray(ArrayNode node);
 	abstract void CompileString(StringNode node);
 	abstract void CompileStruct(StructNode node);
+	abstract void CompileReturn(WordNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -61,7 +62,17 @@ class Compiler {
 	void CompileNode(Node inode) {
 		switch (inode.type) {
 			case NodeType.Word: {
-				backend.CompileWord(cast(WordNode) inode);
+				auto node = cast(WordNode) inode;
+
+				switch (node.name) {
+					case "return": {
+						backend.CompileReturn(node);
+						break;
+					}
+					default: {
+						backend.CompileWord(node);
+					}
+				}
 				break;
 			}
 			case NodeType.Integer: {

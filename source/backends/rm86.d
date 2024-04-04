@@ -58,6 +58,7 @@ class BackendRM86 : CompilerBackend {
 	Constant[string] consts;
 	bool             inScope;
 	Array[]          arrays;
+	string           thisFunc;
 
 	this() {
 		types["u8"]    = Type(1);
@@ -184,6 +185,8 @@ class BackendRM86 : CompilerBackend {
 		if (Language.bannedNames.canFind(node.name)) {
 			Error(node.error, "Name '%s' can't be used", node.name);
 		}
+
+		thisFunc = node.name;
 
 		if (node.inline) {
 			words[node.name] = Word(true, node.nodes);
@@ -436,5 +439,18 @@ class BackendRM86 : CompilerBackend {
 
 		NewConst(format("%s.sizeof", node.name), offset);
 		types[node.name] = Type(offset);
+	}
+
+	override void CompileReturn(WordNode node) {
+		if (!inScope) {
+			Error(node.error, "Return used outside of function");
+		}
+
+		size_t scopeSize;
+		foreach (ref var ; variables) {
+			scopeSize += var.Size();
+		}
+		output ~= format("add sp, %d\n", scopeSize);
+		output ~= "ret\n";
 	}
 }
