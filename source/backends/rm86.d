@@ -108,6 +108,11 @@ class BackendRM86 : CompilerBackend {
 
 	override string[] GetVersions() => ["RM86"];
 
+	override string[] FinalCommands() => [
+		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
+		format("nasm -f bin %s.asm -o %s", compiler.outFile, compiler.outFile)
+	];
+
 	override void Init() {
 		output ~= format("org 0x%.4X\n", org);
 		output ~= "mov si, __stack\n";
@@ -255,9 +260,19 @@ class BackendRM86 : CompilerBackend {
 		}
 
 		if (node.hasElse) {
+			// create scope
+			auto oldVars = variables.dup;
+			auto oldSize = GetStackSize();
+
 			foreach (ref inode ; node.doElse) {
 				compiler.CompileNode(inode);
 			}
+
+			// remove scope
+			if (GetStackSize() - oldSize > 0) {
+				output ~= format("add sp, %d\n", GetStackSize() - oldSize);
+			}
+			variables = oldVars;
 		}
 
 		output ~= format("__if_%d_end:\n", blockNum);

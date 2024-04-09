@@ -17,6 +17,7 @@ class CompilerBackend {
 	Compiler compiler;
 
 	abstract string[] GetVersions();
+	abstract string[] FinalCommands();
 
 	abstract void Init();
 	abstract void End();
@@ -54,6 +55,7 @@ class Compiler {
 	string[]        includeDirs;
 	string[]        features;
 	string[]        included;
+	string          outFile;
 
 	this() {
 		

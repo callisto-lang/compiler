@@ -4,6 +4,7 @@ import std.conv;
 import std.file;
 import std.stdio;
 import std.string;
+import std.process;
 import callisto.compiler;
 import callisto.language;
 import callisto.optimiser;
@@ -22,6 +23,8 @@ Flags:
 	-O         - Enables optimisation (only works properly with programs without errors)
 	-v VER     - Enables VER as a version
 	-b BACKEND - Uses the given backend (backends listed below)
+	-a         - Automatically runs commands to turn the output assembly into an
+	             executable file
 	--version  - Shows the callisto version
 
 Backends:
@@ -47,6 +50,7 @@ int main(string[] args) {
 	string[]        includeDirs;
 	bool            optimise;
 	string[]        versions;
+	bool            runFinal;
 	CompilerBackend backend = new BackendRM86();
 
 	for (size_t i = 1; i < args.length; ++ i) {
@@ -138,6 +142,10 @@ int main(string[] args) {
 				}
 				case "--version": {
 					writeln("Callisto compiler development version");
+					return 0;
+				}
+				case "-a": {
+					runFinal = true;
 					break;
 				}
 				default: {
@@ -190,6 +198,20 @@ int main(string[] args) {
 	}
 
 	std.file.write(outFile, compiler.backend.output);
+
+	if (runFinal) {
+		compiler.outFile   = outFile;
+		auto finalCommands = compiler.backend.FinalCommands();
+
+		foreach (cmd ; finalCommands) {
+			auto res = executeShell(cmd);
+
+			if (res.status != 0) {
+				stderr.writefln("Error running '%s': %s", cmd, res.output);
+				return 1;
+			}
+		}
+	}
 
 	return 0;
 }

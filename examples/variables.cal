@@ -1,14 +1,16 @@
 include "cores/select.cal"
 
-let i16 myGlobal
+let cell myGlobal
 
 func myFunc begin
-	let i16 myVar
-	65 myVar !
+	let cell myVar
+	'A' myVar !
 	myVar @ printch
 end
 
 myFunc
 
-66 myGlobal !
+'B' myGlobal !
 myGlobal @ printch
+
+'\n' printch

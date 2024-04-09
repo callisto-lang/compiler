@@ -51,6 +51,11 @@ class BackendY16 : CompilerBackend {
 
 	override string[] GetVersions() => ["Y16"];
 
+	override string[] FinalCommands() => [
+		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
+		format("yeti-16 asm %s.asm -o %s", compiler.outFile, compiler.outFile)
+	];
+
 	this() {
 		types["u8"]    = Type(1);
 		types["i8"]    = Type(1);
@@ -215,7 +220,7 @@ class BackendY16 : CompilerBackend {
 			output ~= format("__if_%d_%d:\n", blockNum, condCounter);
 		}
 
-		if (node.hasElse) {
+		if (node.hasElse) { // TODO: scope fix here, the stuff around the foreach
 			foreach (ref inode ; node.doElse) {
 				compiler.CompileNode(inode);
 			}
