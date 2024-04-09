@@ -84,6 +84,7 @@ class BackendRM86 : CompilerBackend {
 		NewConst("Array.length",     0);
 		NewConst("Array.memberSize", 2);
 		NewConst("Array.elements",   4);
+		NewConst("Array.sizeof",     2 * 3);
 	}
 
 	void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {

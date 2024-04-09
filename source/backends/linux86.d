@@ -60,6 +60,7 @@ class BackendLinux86 : CompilerBackend {
 	bool             inWhile;
 	Variable[]       variables;
 	Global[string]   globals;
+	Array[]          arrays;
 
 	this() {
 		types["u8"]    = Type(1);
@@ -79,6 +80,16 @@ class BackendLinux86 : CompilerBackend {
 		foreach (name, ref type ; types) {
 			NewConst(format("%s.sizeof", name), cast(long) type.size);
 		}
+
+		// struct Array
+		//     usize length
+		//     usize memberSize
+		//     addr  elements
+		// end
+		NewConst("Array.length",     0);
+		NewConst("Array.memberSize", 8);
+		NewConst("Array.elements",   16);
+		NewConst("Array.sizeof",     8 * 3);
 	}
 
 	void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
@@ -117,6 +128,9 @@ class BackendLinux86 : CompilerBackend {
 		// allocate data stack
 		output ~= "sub rsp, 4096\n"; // 512 cells
 		output ~= "mov r15, rsp\n";
+
+		// copy static array constants
+		output ~= "call __copy_arrays\n";
 	}
 	
 	override void End() {
@@ -124,10 +138,47 @@ class BackendLinux86 : CompilerBackend {
 		output ~= "mov rdi, 0\n";
 		output ~= "syscall\n";
 
+		// create copy arrays function
+		output ~= "__copy_arrays:\n";
+
+		foreach (i, ref array ; arrays) {
+			output ~= format("mov rsi, __array_src_%d\n", i);
+			output ~= format("mov rdi, __array_%d\n", i);
+			output ~= format("mov rcx, %d\n", array.Size());
+			output ~= "rep movsb\n";
+		}
+
+		output ~= "ret\n";
+
+		// create global variables
 		output ~= "section .bss\n";
 
 		foreach (name, var ; globals) {
 			output ~= format("__global_%s: resb %d\n", name, var.Size());
+		}
+
+		foreach (i, ref array ; arrays) {
+			output ~= format("__array_%d: resb %d\n", i, array.Size());
+		}
+
+		// create array source
+		output ~= "section .text\n";
+		foreach (i, ref array ; arrays) {
+			output ~= format("__array_src_%d: ", i);
+
+			switch (array.type.size) {
+				case 1:  output ~= "db "; break;
+				case 2:  output ~= "dw "; break;
+				case 4:  output ~= "dd "; break;
+				case 8:  output ~= "dq "; break;
+				default: assert(0);
+			}
+
+			foreach (j, ref element ; array.values) {
+				output ~= element ~ (j == array.values.length - 1? "" : ", ");
+			}
+
+			output ~= '\n';
 		}
 	}
 	
@@ -210,6 +261,7 @@ class BackendLinux86 : CompilerBackend {
 			output    ~= "ret\n";
 			output    ~= format("__func_end__%s:\n", node.name.Sanitise());
 			inScope    = false;
+			variables  = [];
 		}
 	}
 	
@@ -350,11 +402,75 @@ class BackendLinux86 : CompilerBackend {
 	}
 	
 	override void CompileArray(ArrayNode node) {
-		assert(0);
+		Array array;
+
+		foreach (ref elem ; node.elements) {
+			switch (elem.type) {
+				case NodeType.Integer: {
+					auto node2    = cast(IntegerNode) elem;
+					array.values ~= node2.value.text();
+					break;
+				}
+				default: {
+					Error(elem.error, "Type '%s' can't be used in array literal");
+				}
+			}
+		}
+
+		if (node.arrayType !in types) {
+			Error(node.error, "Type '%s' doesn't exist", node.arrayType);
+		}
+
+		array.type  = types[node.arrayType];
+		arrays     ~= array;
+
+		// start metadata
+		output ~= format("mov qword [r15], qword %d\n",     array.values.length);
+		output ~= format("mov qword [r15 + 8], qword %d\n", array.type.size);
+
+		if (!inScope || node.constant) {
+			// just have to push metadata
+			output ~= format("mov qword[r15 + 16], qword __array_%s\n", arrays.length - 1);
+		}
+		else {
+			// allocate a copy of this array
+			output ~= format("sub rsp, %d\n", array.Size());
+			output ~= "mov rax, sp\n";
+			output ~= format("mov rsi, __array_%d\n", arrays.length - 1);
+			output ~= "mov rdi, rax\n";
+			output ~= format("mov rcx, %d\n", array.Size());
+			output ~= format("rep movsb\n");
+
+			Variable var;
+			var.type      = array.type;
+			var.offset    = 0;
+			var.array     = true;
+			var.arraySize = array.values.length;
+
+			foreach (ref var2 ; variables) {
+				var2.offset += var.Size();
+			}
+
+			variables ~= var;
+
+			// now push metadata
+			output ~= "mov [r15 + 4], rsp\n";
+		}
+
+		output ~= "add r15, 24\n";
 	}
 	
 	override void CompileString(StringNode node) {
-		assert(0);
+		auto arrayNode = new ArrayNode(node.error);
+
+		arrayNode.arrayType = "u8";
+		arrayNode.constant  = node.constant;
+
+		foreach (ref ch ; node.value) {
+			arrayNode.elements ~= new IntegerNode(node.error, cast(long) ch);
+		}
+
+		CompileArray(arrayNode);
 	}
 	
 	override void CompileStruct(StructNode node) {
