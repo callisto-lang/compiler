@@ -10,6 +10,7 @@ import callisto.optimiser;
 import callisto.preprocessor;
 import callisto.backends.y16;
 import callisto.backends.rm86;
+import callisto.backends.linux86;
 
 const static string usage = "
 Usage: %s FILE [FLAGS]
@@ -24,8 +25,9 @@ Flags:
 	--version  - Shows the callisto version
 
 Backends:
-	rm86 - Real mode x86
-	y16  - YETI-16 Mk2
+	rm86    - Real mode x86
+	y16     - YETI-16 Mk2
+	linux86 - Linux x86_64
 ";
 
 int main(string[] args) {
@@ -122,6 +124,10 @@ int main(string[] args) {
 						}
 						case "y16": {
 							backend = new BackendY16();
+							break;
+						}
+						case "linux86": {
+							backend = new BackendLinux86();
 							break;
 						}
 						default: {

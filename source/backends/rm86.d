@@ -59,6 +59,7 @@ class BackendRM86 : CompilerBackend {
 	bool             inScope;
 	Array[]          arrays;
 	string           thisFunc;
+	bool             inWhile;
 
 	this() {
 		types["u8"]    = Type(1);
@@ -274,6 +275,7 @@ class BackendRM86 : CompilerBackend {
 		auto oldSize = GetStackSize();
 		
 		foreach (ref inode ; node.doWhile) {
+			inWhile = true;
 			compiler.CompileNode(inode);
 		}
 
@@ -286,8 +288,11 @@ class BackendRM86 : CompilerBackend {
 		output ~= format("__while_%d_condition:\n", blockNum);
 		
 		foreach (ref inode ; node.condition) {
+			inWhile = true;
 			compiler.CompileNode(inode);
 		}
+
+		inWhile = false;
 
 		output ~= "sub si, 2\n";
 		output ~= "mov ax, [si]\n";

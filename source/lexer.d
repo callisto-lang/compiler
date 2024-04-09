@@ -43,6 +43,15 @@ class Lexer {
 	string  reading;
 	string  extra;
 
+	char[char] escapes = [
+		'n':  '\n',
+		'r':  '\r',
+		't':  '\t',
+		'e':  '\x1b',
+		'"':  '"',
+		'\\': '\\'
+	];
+
 	this() {
 		
 	}
@@ -124,15 +133,6 @@ class Lexer {
 	}
 
 	void Lex() {
-		char[char] escapes = [
-			'n':  '\n',
-			'r':  '\r',
-			't':  '\t',
-			'e':  '\x1b',
-			'"':  '"',
-			'\\': '\\'
-		];
-
 		for (i = 0; i < code.length; ++ i) {
 			if (inString) {
 				switch (code[i]) {
@@ -203,7 +203,18 @@ class Lexer {
 					}
 					case '\'': {
 						Next();
-						auto ch = code[i];
+						char ch = code[i];
+
+						if (ch == '\\') {
+							Next();
+
+							if (code[i] !in escapes) {
+								Error("Invalid escape character: %c", code[i]);
+							}
+
+							ch = escapes[code[i]];
+						}
+						
 						Next();
 						ExpectChar('\'');
 
