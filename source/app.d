@@ -30,7 +30,6 @@ Flags:
 Backends:
 	rm86    - Real mode x86
 	y16     - YETI-16 Mk2
-	linux86 - Linux x86_64
 ";
 
 int main(string[] args) {
@@ -52,6 +51,7 @@ int main(string[] args) {
 	string[]        versions;
 	bool            runFinal;
 	CompilerBackend backend = new BackendRM86();
+	bool            doDebug;
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -130,10 +130,6 @@ int main(string[] args) {
 							backend = new BackendY16();
 							break;
 						}
-						case "linux86": {
-							backend = new BackendLinux86();
-							break;
-						}
 						default: {
 							stderr.writefln("Unknown backend '%s'", args[i]);
 						}
@@ -146,6 +142,10 @@ int main(string[] args) {
 				}
 				case "-a": {
 					runFinal = true;
+					break;
+				}
+				case "-d": {
+					doDebug = true;
 					break;
 				}
 				default: {
@@ -172,10 +172,11 @@ int main(string[] args) {
 	string[] included;
 	auto     nodes = ParseFile(file);
 
-	auto compiler           = new Compiler();
-	compiler.backend        = backend;
-	compiler.backend.org    = org;
-	compiler.backend.orgSet = orgSet;
+	auto compiler             = new Compiler();
+	compiler.backend          = backend;
+	compiler.backend.org      = org;
+	compiler.backend.orgSet   = orgSet;
+	compiler.backend.useDebug = doDebug;
 	
 	versions ~= compiler.backend.GetVersions();
 
@@ -204,6 +205,7 @@ int main(string[] args) {
 		auto finalCommands = compiler.backend.FinalCommands();
 
 		foreach (cmd ; finalCommands) {
+			writeln(cmd);
 			auto res = executeShell(cmd);
 
 			if (res.status != 0) {

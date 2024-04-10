@@ -15,6 +15,7 @@ class CompilerBackend {
 	ulong    org;
 	bool     orgSet;
 	Compiler compiler;
+	bool     useDebug;
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();

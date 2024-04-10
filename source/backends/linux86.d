@@ -116,7 +116,11 @@ class BackendLinux86 : CompilerBackend {
 
 	override string[] FinalCommands() => [
 		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
-		format("nasm -f elf64 %s.asm -o %s.o", compiler.outFile, compiler.outFile),
+		useDebug?
+			format(
+				"nasm -f elf64 %s.asm -o %s.o -F dwarf -g", compiler.outFile, compiler.outFile
+			) :
+			format("nasm -f elf64 %s.asm -o %s.o", compiler.outFile, compiler.outFile),
 		format("ld %s.o -o %s", compiler.outFile, compiler.outFile)
 	];
 
@@ -256,7 +260,7 @@ class BackendLinux86 : CompilerBackend {
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
 			}
-			output ~= format("add sp, %d\n", scopeSize);
+			output ~= format("add rsp, %d\n", scopeSize);
 
 			output    ~= "ret\n";
 			output    ~= format("__func_end__%s:\n", node.name.Sanitise());
@@ -289,7 +293,7 @@ class BackendLinux86 : CompilerBackend {
 
 			// remove scope
 			if (GetStackSize() - oldSize > 0) {
-				output ~= format("add sp, %d\n", GetStackSize() - oldSize);
+				output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
 			}
 			variables = oldVars;
 
@@ -310,7 +314,7 @@ class BackendLinux86 : CompilerBackend {
 
 			// remove scope
 			if (GetStackSize() - oldSize > 0) {
-				output ~= format("add sp, %d\n", GetStackSize() - oldSize);
+				output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
 			}
 			variables = oldVars;
 		}
@@ -336,7 +340,7 @@ class BackendLinux86 : CompilerBackend {
 
 		// restore scope
 		if (GetStackSize() - oldSize > 0) {
-			output ~= format("add sp, %d\n", GetStackSize() - oldSize);
+			output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
 		}
 		variables = oldVars;
 
@@ -391,7 +395,7 @@ class BackendLinux86 : CompilerBackend {
 				output ~= "push qword 0\n";
 			}
 			else {
-				output ~= format("sub sp, %d\n", var.Size());
+				output ~= format("sub rsp, %d\n", var.Size());
 			}
 		}
 		else {
@@ -435,7 +439,7 @@ class BackendLinux86 : CompilerBackend {
 		else {
 			// allocate a copy of this array
 			output ~= format("sub rsp, %d\n", array.Size());
-			output ~= "mov rax, sp\n";
+			output ~= "mov rax, rsp\n";
 			output ~= format("mov rsi, __array_%d\n", arrays.length - 1);
 			output ~= "mov rdi, rax\n";
 			output ~= format("mov rcx, %d\n", array.Size());
