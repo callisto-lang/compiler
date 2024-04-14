@@ -458,7 +458,7 @@ class BackendLinux86 : CompilerBackend {
 			variables ~= var;
 
 			// now push metadata
-			output ~= "mov [r15 + 4], rsp\n";
+			output ~= "mov [r15 + 16], rsp\n";
 		}
 
 		output ~= "add r15, 24\n";
