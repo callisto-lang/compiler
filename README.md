@@ -5,6 +5,7 @@ language inspired by YSL-C3 and Forth
 ## Supported targets
 - x86 real mode (complete)
 - YETI-16 Mk2 (in progress)
+- x86_64 Linux (complete)
 
 ## Build
 ```
@@ -19,7 +20,6 @@ doing `git submodule update --init --remote --recursive`
 There are some example programs in the `examples` folder, which you can compile
 and run like this:
 ```
-cac examples/exampleNameHere.cal --org 100 -i std
-nasm -f bin out.asm -o out.com
-dosbox out.com
+cac examples/exampleNameHere.cal -i std -o out
+./out
 ```

@@ -1,0 +1,6 @@
+include "cores/select.cal"
+include "std/io.cal"
+include "std/ops.cal"
+
+[cell 1 2 3 4 5] max printdec new_line
+[cell 1 2 3 4 5] min printdec new_line

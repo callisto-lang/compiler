@@ -22,9 +22,10 @@ Flags:
 	-i PATH    - Adds PATH to the list of include directories
 	-O         - Enables optimisation (only works properly with programs without errors)
 	-v VER     - Enables VER as a version
-	-b BACKEND - Uses the given backend (backends listed below)
+	-b BACKEND - Uses the given backend (backends listed below), default is linux86
 	-a         - Automatically runs commands to turn the output assembly into an
-	             executable file
+	             executable file (set by default)
+	-na        - Disables the -a flag
 	--version  - Shows the callisto version
 
 Backends:
@@ -50,8 +51,8 @@ int main(string[] args) {
 	string[]        includeDirs;
 	bool            optimise;
 	string[]        versions;
-	bool            runFinal;
-	CompilerBackend backend = new BackendRM86();
+	bool            runFinal = true;
+	CompilerBackend backend = new BackendLinux86();
 	bool            doDebug;
 
 	for (size_t i = 1; i < args.length; ++ i) {
@@ -148,6 +149,10 @@ int main(string[] args) {
 				}
 				case "-a": {
 					runFinal = true;
+					break;
+				}
+				case "-na": {
+					runFinal = false;
 					break;
 				}
 				case "-d": {
