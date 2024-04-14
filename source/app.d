@@ -29,7 +29,8 @@ Flags:
 
 Backends:
 	rm86    - Real mode x86
-	y16     - YETI-16 Mk2
+	y16     - YETI-16 Mk2 (Unstable)
+	linux86 - Linux for 64-bit x86 (Unstable)
 ";
 
 int main(string[] args) {
@@ -127,7 +128,13 @@ int main(string[] args) {
 							break;
 						}
 						case "y16": {
+							stderr.writeln("WARNING: Unstable and unfinished backend");
 							backend = new BackendY16();
+							break;
+						}
+						case "linux86": {
+							stderr.writeln("WARNING: Unstable and unfinished backend");
+							backend = new BackendLinux86();
 							break;
 						}
 						default: {
