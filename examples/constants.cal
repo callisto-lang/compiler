@@ -1,0 +1,6 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+const myConst 5
+
+myConst printdec new_line

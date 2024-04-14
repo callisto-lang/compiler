@@ -45,7 +45,7 @@ int main(string[] args) {
 	}
 
 	string          file;
-	string          outFile = "out.asm";
+	string          outFile = "out";
 	ulong           org;
 	bool            orgSet;
 	string[]        includeDirs;

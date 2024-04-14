@@ -483,4 +483,8 @@ class BackendRM86 : CompilerBackend {
 		output ~= format("add sp, %d\n", scopeSize);
 		output ~= "ret\n";
 	}
+
+	override void CompileConst(ConstNode node) {
+		NewConst(node.name, node.value);
+	}
 }

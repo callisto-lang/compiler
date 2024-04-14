@@ -518,7 +518,10 @@ class BackendLinux86 : CompilerBackend {
 			scopeSize += var.Size();
 		}
 		output ~= format("add rsp, %d\n", scopeSize);
+		output ~= "ret\n";
+	}
 
-		output    ~= "ret\n";
+	override void CompileConst(ConstNode node) {
+		NewConst(node.name, node.value);
 	}
 }

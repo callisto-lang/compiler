@@ -322,4 +322,8 @@ class BackendY16 : CompilerBackend {
 	override void CompileReturn(WordNode node) {
 		assert(0);
 	}
+
+	override void CompileConst(ConstNode node) {
+		NewConst(node.name, node.value);
+	}
 }

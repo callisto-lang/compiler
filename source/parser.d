@@ -23,7 +23,8 @@ enum NodeType {
 	Version,
 	Array,
 	String,
-	Struct
+	Struct,
+	Const
 }
 
 class Node {
@@ -263,6 +264,16 @@ class StructNode : Node {
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Struct;
+		error = perror;
+	}
+}
+
+class ConstNode : Node {
+	string name;
+	long   value;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Const;
 		error = perror;
 	}
 }
@@ -656,6 +667,21 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseConst() {
+		auto ret = new ConstNode(GetError());
+		parsing  = NodeType.Const;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.name = tokens[i].contents;
+
+		Next();
+		Expect(TokenType.Integer);
+		ret.value = parse!long(tokens[i].contents);
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -675,6 +701,7 @@ class Parser {
 					case "requires":   return ParseRequires();
 					case "struct":     return ParseStruct();
 					case "version":    return ParseVersion();
+					case "const":      return ParseConst();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

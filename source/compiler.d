@@ -32,6 +32,7 @@ class CompilerBackend {
 	abstract void CompileString(StringNode node);
 	abstract void CompileStruct(StructNode node);
 	abstract void CompileReturn(WordNode node);
+	abstract void CompileConst(ConstNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -184,6 +185,10 @@ class Compiler {
 			}
 			case NodeType.Struct: {
 				backend.CompileStruct(cast(StructNode) inode);
+				break;
+			}
+			case NodeType.Const: {
+				backend.CompileConst(cast(ConstNode) inode);
 				break;
 			}
 			default: assert(0);
