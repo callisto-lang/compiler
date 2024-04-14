@@ -458,7 +458,7 @@ class BackendLinux86 : CompilerBackend {
 			variables ~= var;
 
 			// now push metadata
-			output ~= "mov [r15 + 4], rsp\n";
+			output ~= "mov [r15 + 16], rsp\n";
 		}
 
 		output ~= "add r15, 24\n";
@@ -478,10 +478,38 @@ class BackendLinux86 : CompilerBackend {
 	}
 	
 	override void CompileStruct(StructNode node) {
-		assert(0);
+		size_t offset;
+
+		if (node.name in types) {
+			Error(node.error, "Type '%s' defined multiple times", node.name);
+		}
+
+		foreach (i, ref name ; node.names) {
+			auto type = node.types[i];
+
+			if (type !in types) {
+				Error(node.error, "Type '%s' doesn't exist", type);
+			}
+
+			NewConst(format("%s.%s", node.name, name), offset);
+			offset += types[type].size;
+		}
+
+		NewConst(format("%s.sizeof", node.name), offset);
+		types[node.name] = Type(offset);
 	}
 	
 	override void CompileReturn(WordNode node) {
-		assert(0);
+		if (!inScope) {
+			Error(node.error, "Return used outside of function");
+		}
+
+		size_t scopeSize;
+		foreach (ref var ; variables) {
+			scopeSize += var.Size();
+		}
+		output ~= format("add rsp, %d\n", scopeSize);
+
+		output    ~= "ret\n";
 	}
 }
