@@ -30,7 +30,7 @@ Flags:
 Backends:
 	rm86    - Real mode x86
 	y16     - YETI-16 Mk2 (Unstable and incomplete)
-	linux86 - Linux for 64-bit x86 (May be unstable)
+	linux86 - Linux for 64-bit x86
 ";
 
 int main(string[] args) {
