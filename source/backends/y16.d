@@ -98,7 +98,15 @@ class BackendY16 : CompilerBackend {
 	}
 
 	size_t GetStackSize() {
-		return variables.empty()? 0 : variables[0].offset + variables[0].type.size;
+		// old
+		//return variables.empty()? 0 : variables[0].offset + variables[0].type.size;
+
+		size_t size;
+		foreach (ref var ; variables) {
+			size += var.Size();
+		}
+
+		return size;
 	}
 
 	override void Init() {
