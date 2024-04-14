@@ -274,9 +274,10 @@ class ParserError : Exception {
 }
 
 class Parser {
-	Token[] tokens;
-	size_t  i;
-	Node[]  nodes;
+	Token[]  tokens;
+	size_t   i;
+	Node[]   nodes;
+	NodeType parsing;
 
 	this() {
 		
@@ -297,19 +298,20 @@ class Parser {
 
 		if (i >= tokens.length) {
 			-- i;
-			Error("Unexpected EOF");
+			Error("Unexpected EOF while parsing %s", parsing);
 		}
 	}
 
 	void Expect(TokenType type) {
 		if (tokens[i].type != type) {
-			Error("Expected %s, got %s", type, tokens[i].type);
+			Error("Expected %s, got %s while parsing %s", type, tokens[i].type, parsing);
 		}
 	}
 
 	Node ParseFuncDef(bool inline) {
 		auto ret   = new FuncDefNode(GetError());
 		ret.inline = inline;
+		parsing    = NodeType.FuncDef;
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -344,6 +346,7 @@ class Parser {
 
 	Node ParseInclude() {
 		auto ret = new IncludeNode(GetError());
+		parsing  = NodeType.Include;
 
 		Next();
 		Expect(TokenType.String);
@@ -354,6 +357,7 @@ class Parser {
 
 	Node ParseAsm() {
 		auto ret = new AsmNode(GetError());
+		parsing  = NodeType.Asm;
 		Next();
 
 		while (true) {
@@ -384,11 +388,14 @@ class Parser {
 		auto ret       = new IfNode(GetError());
 		ret.condition ~= new Node[](0);
 		ret.doIf      ~= new Node[](0);
+		parsing        = NodeType.If;
 		Next();
 
 		while (true) {
+			parsing = NodeType.If;
 			if (!ret.hasElse) {
 				while (true) {
+					parsing = NodeType.If;
 					if (
 						(tokens[i].type == TokenType.Identifier) &&
 						(tokens[i].contents == "then")
@@ -404,6 +411,7 @@ class Parser {
 			Next();
 
 			while (true) {
+				parsing = NodeType.If;
 				if (
 					(tokens[i].type == TokenType.Identifier) &&
 					(tokens[i].contents == "elseif")
@@ -449,9 +457,11 @@ class Parser {
 
 	Node ParseWhile() {
 		auto ret = new WhileNode(GetError());
+		parsing  = NodeType.While;
 		Next();
 
 		while (true) {
+			parsing = NodeType.While;
 			if (
 				(tokens[i].type == TokenType.Identifier) &&
 				(tokens[i].contents == "do")
@@ -466,6 +476,7 @@ class Parser {
 		Next();
 
 		while (true) {
+			parsing = NodeType.While;
 			if (
 				(tokens[i].type == TokenType.Identifier) &&
 				(tokens[i].contents == "end")
@@ -482,6 +493,7 @@ class Parser {
 
 	Node ParseLet() {
 		auto ret = new LetNode(GetError());
+		parsing  = NodeType.Let;
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -506,6 +518,7 @@ class Parser {
 
 	Node ParseImplements() {
 		auto ret = new ImplementsNode(GetError());
+		parsing  = NodeType.Implements;
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -519,6 +532,7 @@ class Parser {
 
 	Node ParseFeature() {
 		auto ret = new FeatureNode(GetError());
+		parsing  = NodeType.Feature;
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -529,6 +543,7 @@ class Parser {
 
 	Node ParseRequires() {
 		auto ret = new RequiresNode(GetError());
+		parsing  = NodeType.Requires;
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -539,6 +554,7 @@ class Parser {
 
 	Node ParseArray() {
 		auto ret = new ArrayNode(GetError());
+		parsing  = NodeType.Array;
 
 		switch (tokens[i].contents) {
 			case "c": {
@@ -561,6 +577,7 @@ class Parser {
 		Next();
 
 		while (tokens[i].type != TokenType.RSquare) {
+			parsing       = NodeType.Array;
 			ret.elements ~= ParseStatement();
 			Next();
 		}
@@ -570,6 +587,7 @@ class Parser {
 
 	Node ParseString() {
 		auto ret = new StringNode(GetError());
+		parsing  = NodeType.String;
 
 		switch (tokens[i].extra) {
 			case "c": {
@@ -588,6 +606,7 @@ class Parser {
 
 	Node ParseStruct() {
 		auto ret = new StructNode(GetError());
+		parsing  = NodeType.Struct;
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -615,6 +634,7 @@ class Parser {
 
 	Node ParseVersion() {
 		auto ret = new VersionNode(GetError());
+		parsing  = NodeType.Version;
 
 		Next();
 		Expect(TokenType.Identifier);
