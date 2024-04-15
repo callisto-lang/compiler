@@ -29,7 +29,7 @@ Flags:
 	--version  - Shows the callisto version
 
 Backends:
-	rm86    - Real mode x86
+	rm86    - Real mode x86 and MS-DOS
 	y16     - YETI-16 Mk2 (Unstable and incomplete)
 	linux86 - Linux for 64-bit x86
 ";
