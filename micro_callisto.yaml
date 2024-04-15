@@ -1,0 +1,39 @@
+filetype: callisto
+
+detect:
+    filename: "\\.(cal)$"
+
+rules:
+    - statement: "\\b(func|end|begin|asm|include|inline|if|then|elseif|else|while|do)\\b"
+    - statement: "\\b(let|feature|implements|requires|struct|version|return|const)\\b"
+    - type:      "\\b(addr|void|u8|i8|u16|i16|u32|i32|u64|i64|size|usize|cell|array)\\b"
+    - identifier: "\\$\\{?[0-9A-Za-z._!@#$*?-]+\\}?"
+    - identifier: "\\$\\{?[0-9A-Za-z._!@#$*?-]+\\}?"
+    - identifier: "\\*\\{?[0-9A-Za-z._!@#$*?-]+\\}?"
+    - identifier: "\\!\\{?[0-9A-Za-z._!@#$*?-]+\\}?"
+    
+    - constant.string:
+        start: "\""
+        end: "\""
+        skip: "\\\\."
+        rules:
+            - constant.specialChar: "\\\\([\"'abfnrtv\\\\]|[0-3]?[0-7]{1,2}|x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})"
+
+    - constant.string:
+        start: "'"
+        end: "'"
+        skip: "\\\\."
+        rules:
+            - constant.specialChar: "\\\\([\"'abfnrtv\\\\]|[0-3]?[0-7]{1,2}|x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})"
+
+    - constant.number: "\\b([0-9.]*)\\b"
+    - constant.number: "\\b(0b[0-1.]*)\\b"
+    - constant.number: "\\b(0x[0-9A-Fa-f.]*)\\b"
+    - constant.number: "\\b(0o[0-7.]*)\\b"
+    - constant.bool: "\\b(true|false)\\b"
+    
+    - comment:
+        start: "#"
+        end: "$"
+        rules:
+            - todo: "(TODO|XXX|FIXME):?"

@@ -1,0 +1,6 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+requires Time
+
+get_epoch_time printdec new_line

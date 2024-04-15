@@ -87,7 +87,7 @@ class BackendRM86 : CompilerBackend {
 		NewConst("Array.sizeof",     2 * 3);
 	}
 
-	void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
+	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
 	}
 
@@ -485,6 +485,10 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override void CompileConst(ConstNode node) {
+		if (node.name in consts) {
+			Error(node.error, "Constant '%s' already defined", node.name);
+		}
+		
 		NewConst(node.name, node.value);
 	}
 }

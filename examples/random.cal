@@ -1,0 +1,11 @@
+include "cores/select.cal"
+include "std/io.cal"
+include "std/random.cal"
+
+let cell i
+0 i !
+
+while i @ 10 < do
+	rand printdec new_line
+	i @ 1 + i !
+end

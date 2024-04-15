@@ -92,7 +92,7 @@ class BackendLinux86 : CompilerBackend {
 		NewConst("Array.sizeof",     8 * 3);
 	}
 
-	void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
+	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
 	}
 
@@ -167,7 +167,7 @@ class BackendLinux86 : CompilerBackend {
 		output ~= "section .bss\n";
 
 		foreach (name, var ; globals) {
-			output ~= format("__global_%s: resb %d\n", name, var.Size());
+			output ~= format("__global_%s: resb %d\n", name.Sanitise(), var.Size());
 		}
 
 		foreach (i, ref array ; arrays) {
@@ -522,6 +522,10 @@ class BackendLinux86 : CompilerBackend {
 	}
 
 	override void CompileConst(ConstNode node) {
+		if (node.name in consts) {
+			Error(node.error, "Constant '%s' already defined", node.name);
+		}
+		
 		NewConst(node.name, node.value);
 	}
 }

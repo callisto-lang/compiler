@@ -19,6 +19,7 @@ class CompilerBackend {
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
+	abstract void NewConst(string name, long value, ErrorInfo error);
 
 	abstract void Init();
 	abstract void End();
