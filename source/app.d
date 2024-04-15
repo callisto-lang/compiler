@@ -144,7 +144,7 @@ int main(string[] args) {
 					break;
 				}
 				case "--version": {
-					writeln("Callisto compiler development version");
+					writeln("Callisto compiler beta 0.2");
 					return 0;
 				}
 				case "-a": {
