@@ -21,6 +21,8 @@ class CompilerBackend {
 	abstract string[] FinalCommands();
 	abstract void NewConst(string name, long value, ErrorInfo error);
 
+	abstract void BeginMain();
+
 	abstract void Init();
 	abstract void End();
 	abstract void CompileWord(WordNode node);
@@ -202,7 +204,33 @@ class Compiler {
 		backend.compiler = this;
 		backend.Init();
 
+		Node[] header;
+		Node[] main;
+
 		foreach (ref node ; nodes) {
+			switch (node.type) {
+				case NodeType.FuncDef:
+				case NodeType.Include:
+				case NodeType.Let:
+				case NodeType.Implements:
+				case NodeType.Feature:
+				case NodeType.Requires:
+				case NodeType.Struct:
+				case NodeType.Const: {
+					header ~= node;
+					break;
+				}
+				default: main ~= node;
+			}
+		}
+
+		foreach (ref node ; header) {
+			CompileNode(node);
+		}
+
+		backend.BeginMain();
+
+		foreach (ref node ; main) {
 			CompileNode(node);
 		}
 

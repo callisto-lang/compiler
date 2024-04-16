@@ -133,6 +133,10 @@ class BackendLinux86 : CompilerBackend {
 		format("rm %s.asm %s.o", compiler.outFile, compiler.outFile)
 	];
 
+	override void BeginMain() {
+		output ~= "__calmain:\n";
+	}
+
 	override void Init() {
 		output ~= "global _start\n";
 		output ~= "section .text\n";
@@ -144,6 +148,9 @@ class BackendLinux86 : CompilerBackend {
 
 		// copy static array constants
 		output ~= "call __copy_arrays\n";
+
+		// jump to main
+		output ~= "jmp __calmain\n";
 	}
 	
 	override void End() {
@@ -256,14 +263,13 @@ class BackendLinux86 : CompilerBackend {
 
 			words[node.name] = Word(false, []);
 
-			output ~= format("jmp __func_end__%s\n", node.name.Sanitise());
 			output ~= format("__func__%s:\n", node.name.Sanitise());
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
 			}
 
-			output ~= format("__func_return__%s:\n", node.name.Sanitise());
+			//output ~= format("__func_return__%s:\n", node.name.Sanitise());
 
 			size_t scopeSize;
 			foreach (ref var ; variables) {
@@ -272,7 +278,7 @@ class BackendLinux86 : CompilerBackend {
 			output ~= format("add rsp, %d\n", scopeSize);
 
 			output    ~= "ret\n";
-			output    ~= format("__func_end__%s:\n", node.name.Sanitise());
+			//output    ~= format("__func_end__%s:\n", node.name.Sanitise());
 			inScope    = false;
 			variables  = [];
 		}

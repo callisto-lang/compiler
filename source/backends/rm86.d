@@ -123,9 +123,14 @@ class BackendRM86 : CompilerBackend {
 		format("rm %s.asm", compiler.outFile)
 	];
 
+	override void BeginMain() {
+		output ~= "__calmain:\n";
+	}
+
 	override void Init() {
 		output ~= format("org 0x%.4X\n", org);
 		output ~= "mov si, __stack\n";
+		output ~= "jmp __calmain\n";
 	}
 
 	override void End() {
@@ -213,14 +218,13 @@ class BackendRM86 : CompilerBackend {
 
 			words[node.name] = Word(false, []);
 
-			output ~= format("jmp __func_end__%s\n", node.name.Sanitise());
 			output ~= format("__func__%s:\n", node.name.Sanitise());
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
 			}
 
-			output ~= format("__func_return__%s:\n", node.name.Sanitise());
+			//output ~= format("__func_return__%s:\n", node.name.Sanitise());
 
 			size_t scopeSize;
 			foreach (ref var ; variables) {
@@ -229,7 +233,7 @@ class BackendRM86 : CompilerBackend {
 			output ~= format("add sp, %d\n", scopeSize);
 
 			output    ~= "ret\n";
-			output    ~= format("__func_end__%s:\n", node.name.Sanitise());
+			//output    ~= format("__func_end__%s:\n", node.name.Sanitise());
 			variables  = [];
 			inScope    = false;
 		}

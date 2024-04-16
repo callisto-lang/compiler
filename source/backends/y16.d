@@ -109,10 +109,15 @@ class BackendY16 : CompilerBackend {
 		return size;
 	}
 
+	override void BeginMain() {
+		output ~= "__calmain:\n";
+	}
+
 	override void Init() {
 		output ~= "cpp sr bs\n";
 		output ~= "ldi a __stack\n";
 		output ~= "addp sr a\n";
+		output ~= "jmpb __calmain\n";
 	}
 
 	override void End() {
@@ -186,17 +191,17 @@ class BackendY16 : CompilerBackend {
 
 			words[node.name] = Word(false, []);
 
-			output ~= format("jmpb __func_end__%s\n", node.name.Sanitise());
+			//output ~= format("jmpb __func_end__%s\n", node.name.Sanitise());
 			output ~= format("__func__%s:\n", node.name.Sanitise());
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
 			}
 
-			output ~= format("__func_return__%s:\n", node.name.Sanitise());
+			//output ~= format("__func_return__%s:\n", node.name.Sanitise());
 
 			output  ~= "ret\n";
-			output  ~= format("__func_end__%s:\n", node.name.Sanitise());
+			//output  ~= format("__func_end__%s:\n", node.name.Sanitise());
 			inScope  = false;
 		}
 	}

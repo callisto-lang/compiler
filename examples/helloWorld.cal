@@ -2,4 +2,4 @@ include "cores/select.cal"
 include "std/io.cal"
 include "std/array.cal"
 
-"Hello, world!" printlstr
+"Hello, world!\n" printlstr
