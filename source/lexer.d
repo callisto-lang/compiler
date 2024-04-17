@@ -43,17 +43,17 @@ class Lexer {
 	string  reading;
 	string  extra;
 
-	char[char] escapes = [
-		'n':  '\n',
-		'r':  '\r',
-		't':  '\t',
-		'e':  '\x1b',
-		'"':  '"',
-		'\\': '\\'
-	];
+	char[char] escapes;
 
 	this() {
-		
+		escapes = [
+			'n':  '\n',
+			'r':  '\r',
+			't':  '\t',
+			'e':  '\x1b',
+			'"':  '"',
+			'\\': '\\'
+		];
 	}
 
 	ErrorInfo GetError() {
@@ -83,7 +83,7 @@ class Lexer {
 			if (!reading.OnlyContains("0123456789abcdefABCDEF")) {
 				Error("Invalid literal");
 			}
-			
+
 			reading = format("%d", reading[2 .. $].to!long(16));
 			AddToken(TokenType.Integer);
 		}
@@ -91,7 +91,7 @@ class Lexer {
 			if (!reading.OnlyContains("01")) {
 				Error("Invalid binary literal");
 			}
-			
+
 			reading = format("%d", reading[2 .. $].to!long(2));
 			AddToken(TokenType.Integer);
 		}
@@ -99,7 +99,7 @@ class Lexer {
 			if (!reading.OnlyContains("01234567")) {
 				Error("Invalid octal literal");
 			}
-			
+
 			reading = format("%d", reading[2 .. $].to!long(8));
 			AddToken(TokenType.Integer);
 		}
@@ -214,7 +214,7 @@ class Lexer {
 
 							ch = escapes[code[i]];
 						}
-						
+
 						Next();
 						ExpectChar('\'');
 
