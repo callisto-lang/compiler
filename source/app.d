@@ -200,10 +200,6 @@ int main(string[] args) {
 		auto optimiser  = new Optimiser();
 		optimiser.Run(nodes);
 		nodes = optimiser.res;
-
-		foreach (ref func ; optimiser.usedFunctions) {
-			writeln(func);
-		}
 	}
 
 	try {

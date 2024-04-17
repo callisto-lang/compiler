@@ -98,7 +98,7 @@ class IncludeNode : Node {
 		error = perror;
 	}
 
-	override string toString() => format("include \"path\"", path);
+	override string toString() => format("include \"%s\"", path);
 }
 
 class AsmNode : Node {

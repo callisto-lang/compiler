@@ -96,6 +96,11 @@ class Optimiser {
 
 		FindFunctions(nodes);
 
+		writeln("used functions");
+		foreach (ref func ; usedFunctions) {
+			writeln(func);
+		}
+
 		res = [];
 
 		foreach (ref inode ; nodes) {
@@ -106,7 +111,7 @@ class Optimiser {
 					continue;
 				}
 			}
-
+			writeln(inode.toString());
 			res ~= inode;
 		}
 	}
