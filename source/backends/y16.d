@@ -280,19 +280,16 @@ class BackendY16 : CompilerBackend {
 		}
 
 		if (inScope) {
-			foreach (ref var ; variables) {
-				var.offset += types[node.varType].size;
-				// idk but RM86 had a comment here saying TODO: fix this
-				// i have no memory of what needs to be fixed
-				// but RM86 works fine so i guess its ok
-			}
-
 			Variable var;
 			var.name      = node.name;
 			var.type      = types[node.varType];
 			var.offset    = 0;
 			var.array     = node.array;
 			var.arraySize = node.arraySize;
+
+			foreach (ref ivar ; variables) {
+				ivar.offset += var.Size();
+			}
 
 			variables ~= var;
 

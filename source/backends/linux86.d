@@ -387,16 +387,16 @@ class BackendLinux86 : CompilerBackend {
 		}
 
 		if (inScope) {
-			foreach (ref var ; variables) {
-				var.offset += types[node.varType].size; // rm86 said fix this but idfk
-			}
-
 			Variable var;
 			var.name      = node.name;
 			var.type      = types[node.varType];
 			var.offset    = 0;
 			var.array     = node.array;
 			var.arraySize = node.arraySize;
+
+			foreach (ref ivar ; variables) {
+				ivar.offset += var.Size();
+			}
 
 			variables ~= var;
 
