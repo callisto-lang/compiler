@@ -1,6 +1,7 @@
 module callisto.parser;
 
 import std.conv;
+import std.range;
 import std.stdio;
 import std.format;
 import std.algorithm;
@@ -24,7 +25,8 @@ enum NodeType {
 	Array,
 	String,
 	Struct,
-	Const
+	Const,
+	Enum
 }
 
 class Node {
@@ -275,6 +277,28 @@ class ConstNode : Node {
 	this(ErrorInfo perror) {
 		type  = NodeType.Const;
 		error = perror;
+	}
+}
+
+class EnumNode : Node {
+	string   name;
+	string   enumType;
+	string[] names;
+	long[]   values;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Enum;
+		error = perror;
+	}
+
+	override string toString() {
+		string ret = format("enum %s : %s\n", name, enumType);
+
+		foreach (i, ref name ; names) {
+			ret ~= format("    %s = %d\n", name, values[i]);
+		}
+
+		return ret ~ "end\n";
 	}
 }
 
@@ -682,6 +706,50 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseEnum() {
+		auto ret = new EnumNode(GetError());
+		parsing  = NodeType.Enum;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.name = tokens[i].contents;
+		ret.enumType = "cell";
+
+		Next();
+		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == ":") {
+			Next();
+			Expect(TokenType.Identifier);
+			ret.enumType = tokens[i].contents;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
+		while (true) {
+			if (tokens[i].contents == "end") break;
+
+			ret.names ~= tokens[i].contents;
+			Next();
+			Expect(TokenType.Identifier);
+
+			if (tokens[i].contents == "=") {
+				Next();
+				Expect(TokenType.Integer);
+
+				ret.values ~= parse!long(tokens[i].contents);
+				Next();
+				Expect(TokenType.Identifier);
+			}
+			else {
+				ret.values ~= ret.values.empty()? 0 : ret.values[$ - 1] + 1;
+			}
+		}
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -702,6 +770,7 @@ class Parser {
 					case "struct":     return ParseStruct();
 					case "version":    return ParseVersion();
 					case "const":      return ParseConst();
+					case "enum":       return ParseEnum();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

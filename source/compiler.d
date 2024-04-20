@@ -36,6 +36,7 @@ class CompilerBackend {
 	abstract void CompileStruct(StructNode node);
 	abstract void CompileReturn(WordNode node);
 	abstract void CompileConst(ConstNode node);
+	abstract void CompileEnum(EnumNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -82,14 +83,8 @@ class Compiler {
 				}
 				break;
 			}
-			case NodeType.Integer: {
-				backend.CompileInteger(cast(IntegerNode) inode);
-				break;
-			}
-			case NodeType.FuncDef: {
-				backend.CompileFuncDef(cast(FuncDefNode) inode);
-				break;
-			}
+			case NodeType.Integer: backend.CompileInteger(cast(IntegerNode) inode); break;
+			case NodeType.FuncDef: backend.CompileFuncDef(cast(FuncDefNode) inode); break;
 			case NodeType.Include: {
 				auto node  = cast(IncludeNode) inode;
 				auto path  = format("%s/%s", dirName(node.error.file), node.path);
@@ -129,10 +124,7 @@ class Compiler {
 				backend.output ~= node.code;
 				break;
 			}
-			case NodeType.If: {
-				backend.CompileIf(cast(IfNode) inode);
-				break;
-			}
+			case NodeType.If: backend.CompileIf(cast(IfNode) inode); break;
 			case NodeType.While: {
 				auto node = cast(WhileNode) inode;
 
@@ -152,10 +144,7 @@ class Compiler {
 				backend.CompileWhile(node);
 				break;
 			}
-			case NodeType.Let: {
-				backend.CompileLet(cast(LetNode) inode);
-				break;
-			}
+			case NodeType.Let: backend.CompileLet(cast(LetNode) inode); break;
 			case NodeType.Implements: {
 				auto node = cast(ImplementsNode) inode;
 
@@ -178,22 +167,11 @@ class Compiler {
 				}
 				break;
 			}
-			case NodeType.Array: {
-				backend.CompileArray(cast(ArrayNode) inode);
-				break;
-			}
-			case NodeType.String: {
-				backend.CompileString(cast(StringNode) inode);
-				break;
-			}
-			case NodeType.Struct: {
-				backend.CompileStruct(cast(StructNode) inode);
-				break;
-			}
-			case NodeType.Const: {
-				backend.CompileConst(cast(ConstNode) inode);
-				break;
-			}
+			case NodeType.Array:  backend.CompileArray(cast(ArrayNode) inode); break;
+			case NodeType.String: backend.CompileString(cast(StringNode) inode); break;
+			case NodeType.Struct: backend.CompileStruct(cast(StructNode) inode); break;
+			case NodeType.Const:  backend.CompileConst(cast(ConstNode) inode); break;
+			case NodeType.Enum:   backend.CompileEnum(cast(EnumNode) inode); break;
 			default: assert(0);
 		}
 	}
@@ -216,7 +194,8 @@ class Compiler {
 				case NodeType.Feature:
 				case NodeType.Requires:
 				case NodeType.Struct:
-				case NodeType.Const: {
+				case NodeType.Const:
+				case NodeType.Enum: {
 					header ~= node;
 					break;
 				}

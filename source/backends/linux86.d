@@ -534,4 +534,23 @@ class BackendLinux86 : CompilerBackend {
 		
 		NewConst(node.name, node.value);
 	}
+
+	override void CompileEnum(EnumNode node) {
+		if (node.enumType !in types) {
+			Error(node.error, "Enum base type '%s' doesn't exist", node.enumType);
+		}
+		if (node.name in types) {
+			Error(node.error, "Enum name is already used by type '%s'", node.enumType);
+		}
+
+		types[node.name] = types[node.enumType];
+
+		foreach (i, ref name ; node.names) {
+			NewConst(format("%s.%s", node.name, name), node.values[i]);
+		}
+
+		NewConst(format("%s.min", node.name), node.values.minElement());
+		NewConst(format("%s.max", node.name), node.values.maxElement());
+		NewConst(format("%s.sizeof", node.name), types[node.name].size);
+	}
 }
