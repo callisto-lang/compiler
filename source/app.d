@@ -208,6 +208,8 @@ int main(string[] args) {
 		nodes = optimiser.res;
 	}
 
+	compiler.versions = preproc.versions;
+	
 	try {
 		compiler.Compile(nodes);
 	}

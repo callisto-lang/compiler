@@ -68,7 +68,8 @@ class Preprocessor {
 					auto node = cast(VersionNode) inode;
 
 					if (versions.canFind(node.ver)) {
-						ret ~= node.block;
+						//ret ~= node.block;
+						ret ~= Run(node.block);
 					}
 					break;
 				}
@@ -77,14 +78,6 @@ class Preprocessor {
 
 					if (!versions.canFind(node.ver)) {
 						versions ~= node.ver;
-					}
-					break;
-				}
-				case NodeType.Requires: {
-					auto node = cast(RequiresNode) inode;
-
-					if (!versions.canFind(node.ver)) {
-						Error(node.error, "Version '%s' required", node.ver);
 					}
 					break;
 				}

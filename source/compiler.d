@@ -61,6 +61,7 @@ class Compiler {
 	string[]        includeDirs;
 	string[]        included;
 	string          outFile;
+	string[]        versions;
 
 	this() {
 		
@@ -144,12 +145,22 @@ class Compiler {
 				break;
 			}
 			case NodeType.Let: backend.CompileLet(cast(LetNode) inode); break;
+			case NodeType.Requires: {
+				auto node = cast(RequiresNode) inode;
+
+				if (!versions.canFind(node.ver)) {
+					backend.Error(node.error, "Version '%s' required");
+				}
+				break;
+			}
 			case NodeType.Array:  backend.CompileArray(cast(ArrayNode) inode); break;
 			case NodeType.String: backend.CompileString(cast(StringNode) inode); break;
 			case NodeType.Struct: backend.CompileStruct(cast(StructNode) inode); break;
 			case NodeType.Const:  backend.CompileConst(cast(ConstNode) inode); break;
 			case NodeType.Enum:   backend.CompileEnum(cast(EnumNode) inode); break;
-			default: assert(0);
+			default: {
+				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
+			}
 		}
 	}
 

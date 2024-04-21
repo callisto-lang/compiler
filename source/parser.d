@@ -197,6 +197,10 @@ class LetNode : Node {
 		type  = NodeType.Let;
 		error = perror;
 	}
+
+	override string toString() => array?
+		format("let array %d %s %s", arraySize, varType, name) :
+		format("let %s %s", varType, name);
 }
 
 class EnableNode : Node {
@@ -206,6 +210,8 @@ class EnableNode : Node {
 		type  = NodeType.Enable;
 		error = perror;
 	}
+
+	override string toString() => format("enable %s", ver);
 }
 
 class RequiresNode : Node {
@@ -215,6 +221,8 @@ class RequiresNode : Node {
 		type  = NodeType.Requires;
 		error = perror;
 	}
+
+	override string toString() => format("requires %s", ver);
 }
 
 class VersionNode : Node {
@@ -224,6 +232,16 @@ class VersionNode : Node {
 	this(ErrorInfo perror) {
 		type  = NodeType.Version;
 		error = perror;
+	}
+
+	override string toString() {
+		string ret = format("version %s\n", ver);
+
+		foreach (ref node ; block) {
+			ret ~= format("    %s\n", node);
+		}
+
+		return ret ~ "end";
 	}
 }
 
@@ -236,6 +254,16 @@ class ArrayNode : Node {
 		type  = NodeType.Array;
 		error = perror;
 	}
+
+	override string toString() {
+		string ret = constant? "c[" : "[";
+
+		foreach (ref node ; elements) {
+			ret ~= node.toString() ~ ' ';
+		}
+
+		return ret ~ ']';
+	}
 }
 
 class StringNode : Node {
@@ -246,6 +274,8 @@ class StringNode : Node {
 		type  = NodeType.String;
 		error = perror;
 	}
+
+	override string toString() => format("%s\"%s\"", constant? "c" : "", value);
 }
 
 class StructNode : Node {
@@ -257,6 +287,16 @@ class StructNode : Node {
 		type  = NodeType.Struct;
 		error = perror;
 	}
+
+	override string toString() {
+		string ret = format("struct %s\n", name);
+
+		foreach (i, ref name ; names) {
+			ret ~= format("%s %s\n", types[i], name);
+		}
+
+		return ret ~ "end";
+	}
 }
 
 class ConstNode : Node {
@@ -267,6 +307,8 @@ class ConstNode : Node {
 		type  = NodeType.Const;
 		error = perror;
 	}
+
+	override string toString() => format("const %s %d", name, value);
 }
 
 class EnumNode : Node {
