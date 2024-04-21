@@ -18,8 +18,7 @@ enum NodeType {
 	If,
 	While,
 	Let,
-	Implements,
-	Feature,
+	Enable,
 	Requires,
 	Version,
 	Array,
@@ -200,27 +199,17 @@ class LetNode : Node {
 	}
 }
 
-class ImplementsNode : Node {
-	string feature;
-	Node   node;
+class EnableNode : Node {
+	string ver;
 
 	this(ErrorInfo perror) {
-		type  = NodeType.Implements;
-		error = perror;
-	}
-}
-
-class FeatureNode : Node {
-	string feature;
-
-	this(ErrorInfo perror) {
-		type  = NodeType.Feature;
+		type  = NodeType.Enable;
 		error = perror;
 	}
 }
 
 class RequiresNode : Node {
-	string feature;
+	string ver;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Requires;
@@ -551,27 +540,13 @@ class Parser {
 		return ret;
 	}
 
-	Node ParseImplements() {
-		auto ret = new ImplementsNode(GetError());
-		parsing  = NodeType.Implements;
+	Node ParseEnable() {
+		auto ret = new EnableNode(GetError());
+		parsing  = NodeType.Enable;
 
 		Next();
 		Expect(TokenType.Identifier);
-		ret.feature = tokens[i].contents;
-
-		Next();
-		ret.node = ParseStatement();
-
-		return ret;
-	}
-
-	Node ParseFeature() {
-		auto ret = new FeatureNode(GetError());
-		parsing  = NodeType.Feature;
-
-		Next();
-		Expect(TokenType.Identifier);
-		ret.feature = tokens[i].contents;
+		ret.ver = tokens[i].contents;
 
 		return ret;
 	}
@@ -582,7 +557,7 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
-		ret.feature = tokens[i].contents;
+		ret.ver = tokens[i].contents;
 
 		return ret;
 	}
@@ -764,8 +739,7 @@ class Parser {
 					case "if":         return ParseIf();
 					case "while":      return ParseWhile();
 					case "let":        return ParseLet();
-					case "implements": return ParseImplements();
-					case "feature":    return ParseFeature();
+					case "enable":     return ParseEnable();
 					case "requires":   return ParseRequires();
 					case "struct":     return ParseStruct();
 					case "version":    return ParseVersion();

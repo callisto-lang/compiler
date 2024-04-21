@@ -194,7 +194,13 @@ int main(string[] args) {
 	auto preproc        = new Preprocessor();
 	preproc.includeDirs = includeDirs;
 	preproc.versions    = versions;
-	nodes               = preproc.Run(nodes);
+
+	try {
+		nodes = preproc.Run(nodes);
+	}
+	catch (PreprocessorError) {
+		return 1;
+	}
 	
 	if (optimise) {
 		auto optimiser  = new Optimiser();

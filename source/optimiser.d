@@ -68,21 +68,8 @@ class Optimiser {
 	void Run(Node[] nodes) {
 		// create function defs first
 		foreach (ref inode ; nodes) {
-			if ((inode.type == NodeType.FuncDef) || (inode.type == NodeType.Implements)) {
-				FuncDefNode node;
-				
-				if (inode.type == NodeType.Implements) {
-					auto node2 = (cast(ImplementsNode) inode).node;
-
-					if (node2.type != NodeType.FuncDef) {
-						continue;
-					}
-
-					node = cast(FuncDefNode) node2;
-				}
-				else {
-					node = cast(FuncDefNode) inode;
-				}
+			if (inode.type == NodeType.FuncDef) {
+				FuncDefNode node = cast(FuncDefNode) inode;
 
 				if (node.name in functions) {
 					Error(

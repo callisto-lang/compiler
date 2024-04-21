@@ -59,7 +59,6 @@ class CompilerError : Exception {
 class Compiler {
 	CompilerBackend backend;
 	string[]        includeDirs;
-	string[]        features;
 	string[]        included;
 	string          outFile;
 
@@ -145,28 +144,6 @@ class Compiler {
 				break;
 			}
 			case NodeType.Let: backend.CompileLet(cast(LetNode) inode); break;
-			case NodeType.Implements: {
-				auto node = cast(ImplementsNode) inode;
-
-				if (features.canFind(node.feature)) {
-					CompileNode(node.node);
-				}
-				break;
-			}
-			case NodeType.Feature: {
-				auto node = cast(FeatureNode) inode;
-
-				features ~= node.feature;
-				break;
-			}
-			case NodeType.Requires: {
-				auto node = cast(RequiresNode) inode;
-
-				if (!features.canFind(node.feature)) {
-					backend.Error(node.error, "Feature '%s' required", node.feature);
-				}
-				break;
-			}
 			case NodeType.Array:  backend.CompileArray(cast(ArrayNode) inode); break;
 			case NodeType.String: backend.CompileString(cast(StringNode) inode); break;
 			case NodeType.Struct: backend.CompileStruct(cast(StructNode) inode); break;
@@ -190,8 +167,7 @@ class Compiler {
 				case NodeType.FuncDef:
 				case NodeType.Include:
 				case NodeType.Let:
-				case NodeType.Implements:
-				case NodeType.Feature:
+				case NodeType.Enable:
 				case NodeType.Requires:
 				case NodeType.Struct:
 				case NodeType.Const:

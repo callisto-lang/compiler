@@ -10,10 +10,22 @@ import callisto.error;
 import callisto.parser;
 import callisto.language;
 
+class PreprocessorError : Exception {
+	this() {
+		super("", "", 0);
+	}
+}
+
 class Preprocessor {
 	string[] includeDirs;
 	string[] included;
 	string[] versions;
+
+	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
+		ErrorBegin(error);
+		stderr.writeln(format(fmt, args));
+		throw new PreprocessorError();
+	}
 
 	Node[] Run(Node[] nodes) {
 		Node[] ret;
@@ -57,6 +69,22 @@ class Preprocessor {
 
 					if (versions.canFind(node.ver)) {
 						ret ~= node.block;
+					}
+					break;
+				}
+				case NodeType.Enable: {
+					auto node = cast(EnableNode) inode;
+
+					if (!versions.canFind(node.ver)) {
+						versions ~= node.ver;
+					}
+					break;
+				}
+				case NodeType.Requires: {
+					auto node = cast(RequiresNode) inode;
+
+					if (!versions.canFind(node.ver)) {
+						Error(node.error, "Version '%s' required", node.ver);
 					}
 					break;
 				}
