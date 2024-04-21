@@ -1,0 +1,18 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+let cell i
+0 i !
+
+while 1 do
+	i @ 1 + i !
+	i @ printdec new_line
+
+	if i @ 5 = then
+		break
+	end
+end
+
+while 1 do
+	break
+end

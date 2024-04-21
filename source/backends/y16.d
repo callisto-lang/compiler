@@ -351,4 +351,12 @@ class BackendY16 : CompilerBackend {
 		NewConst(format("%s.max", node.name), node.values.maxElement());
 		NewConst(format("%s.sizeof", node.name), types[node.name].size);
 	}
+
+	override void CompileBreak(WordNode node) {
+		assert(0);
+	}
+
+	override void CompileContinue(WordNode node) {
+		assert(0);
+	}
 }

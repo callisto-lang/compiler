@@ -60,6 +60,7 @@ class BackendRM86 : CompilerBackend {
 	Array[]          arrays;
 	string           thisFunc;
 	bool             inWhile;
+	uint             currentLoop;
 
 	this() {
 		types["u8"]    = Type(1);
@@ -295,6 +296,7 @@ class BackendRM86 : CompilerBackend {
 	override void CompileWhile(WhileNode node) {
 		++ blockCounter;
 		uint blockNum = blockCounter;
+		currentLoop   = blockNum;
 
 		output ~= format("jmp __while_%d_condition\n", blockNum);
 		output ~= format("__while_%d:\n", blockNum);
@@ -306,6 +308,8 @@ class BackendRM86 : CompilerBackend {
 		foreach (ref inode ; node.doWhile) {
 			inWhile = true;
 			compiler.CompileNode(inode);
+
+			currentLoop = blockNum;
 		}
 
 		// restore scope
@@ -314,14 +318,13 @@ class BackendRM86 : CompilerBackend {
 		}
 		variables = oldVars;
 
+		inWhile = false;
+
 		output ~= format("__while_%d_condition:\n", blockNum);
 		
 		foreach (ref inode ; node.condition) {
-			inWhile = true;
 			compiler.CompileNode(inode);
 		}
-
-		inWhile = false;
 
 		output ~= "sub si, 2\n";
 		output ~= "mov ax, [si]\n";
@@ -513,5 +516,21 @@ class BackendRM86 : CompilerBackend {
 		NewConst(format("%s.min", node.name), node.values.minElement());
 		NewConst(format("%s.max", node.name), node.values.maxElement());
 		NewConst(format("%s.sizeof", node.name), types[node.name].size);
+	}
+
+	override void CompileBreak(WordNode node) {
+		if (!inWhile) {
+			Error(node.error, "Not in while loop");
+		}
+
+		output ~= format("jmp __while_%d_end\n", currentLoop);
+	}
+
+	override void CompileContinue(WordNode node) {
+		if (!inWhile) {
+			Error(node.error, "Not in while loop");
+		}
+
+		output ~= format("jmp __while_%d_condition\n", currentLoop);
 	}
 }

@@ -37,6 +37,8 @@ class CompilerBackend {
 	abstract void CompileReturn(WordNode node);
 	abstract void CompileConst(ConstNode node);
 	abstract void CompileEnum(EnumNode node);
+	abstract void CompileBreak(WordNode node);
+	abstract void CompileContinue(WordNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -73,13 +75,10 @@ class Compiler {
 				auto node = cast(WordNode) inode;
 
 				switch (node.name) {
-					case "return": {
-						backend.CompileReturn(node);
-						break;
-					}
-					default: {
-						backend.CompileWord(node);
-					}
+					case "return":   backend.CompileReturn(node); break;
+					case "continue": backend.CompileContinue(node); break;
+					case "break":    backend.CompileBreak(node); break;
+					default:         backend.CompileWord(node);
 				}
 				break;
 			}

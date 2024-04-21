@@ -16,7 +16,6 @@ private struct Word {
 	Node[] inlineNodes;
 }
 
-
 private struct Type {
 	ulong size;
 }
@@ -58,6 +57,7 @@ class BackendLinux86 : CompilerBackend {
 	bool             inScope;
 	uint             blockCounter;
 	bool             inWhile;
+	uint             currentLoop;
 	Variable[]       variables;
 	Global[string]   globals;
 	Array[]          arrays;
@@ -340,6 +340,7 @@ class BackendLinux86 : CompilerBackend {
 	override void CompileWhile(WhileNode node) {
 		++ blockCounter;
 		uint blockNum = blockCounter;
+		currentLoop   = blockNum;
 
 		output ~= format("jmp __while_%d_condition\n", blockNum);
 		output ~= format("__while_%d:\n", blockNum);
@@ -351,6 +352,8 @@ class BackendLinux86 : CompilerBackend {
 		foreach (ref inode ; node.doWhile) {
 			inWhile = true;
 			compiler.CompileNode(inode);
+
+			currentLoop = blockNum;
 		}
 
 		// restore scope
@@ -359,14 +362,13 @@ class BackendLinux86 : CompilerBackend {
 		}
 		variables = oldVars;
 
+		inWhile = false;
+
 		output ~= format("__while_%d_condition:\n", blockNum);
 		
 		foreach (ref inode ; node.condition) {
-			inWhile = true;
 			compiler.CompileNode(inode);
 		}
-
-		inWhile = false;
 
 		output ~= "sub r15, 8\n";
 		output ~= "mov rax, [r15]\n";
@@ -552,5 +554,21 @@ class BackendLinux86 : CompilerBackend {
 		NewConst(format("%s.min", node.name), node.values.minElement());
 		NewConst(format("%s.max", node.name), node.values.maxElement());
 		NewConst(format("%s.sizeof", node.name), types[node.name].size);
+	}
+
+	override void CompileBreak(WordNode node) {
+		if (!inWhile) {
+			Error(node.error, "Not in while loop");
+		}
+
+		output ~= format("jmp __while_%d_end\n", currentLoop);
+	}
+
+	override void CompileContinue(WordNode node) {
+		if (!inWhile) {
+			Error(node.error, "Not in while loop");
+		}
+
+		output ~= format("jmp __while_%d_condition\n", currentLoop);
 	}
 }
