@@ -25,7 +25,8 @@ enum NodeType {
 	String,
 	Struct,
 	Const,
-	Enum
+	Enum,
+	Restrict
 }
 
 class Node {
@@ -331,6 +332,17 @@ class EnumNode : Node {
 
 		return ret ~ "end\n";
 	}
+}
+
+class RestrictNode : Node {
+	string ver;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Restrict;
+		error = perror;
+	}
+
+	override string toString() => format("restrict %s", ver);
 }
 
 class ParserError : Exception {
@@ -767,6 +779,17 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseRestrict() {
+		auto ret = new RestrictNode(GetError());
+		parsing  = NodeType.Restrict;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.ver = tokens[i].contents;
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -787,6 +810,7 @@ class Parser {
 					case "version":    return ParseVersion();
 					case "const":      return ParseConst();
 					case "enum":       return ParseEnum();
+					case "restrict":   return ParseRestrict();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}
