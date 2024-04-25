@@ -9,7 +9,6 @@ import callisto.compiler;
 import callisto.language;
 import callisto.optimiser;
 import callisto.preprocessor;
-import callisto.backends.y16;
 import callisto.backends.rm86;
 import callisto.backends.linux86;
 
@@ -30,7 +29,6 @@ Flags:
 
 Backends:
 	rm86    - Real mode x86 and MS-DOS
-	y16     - YETI-16 Mk2 (Unstable and incomplete)
 	linux86 - Linux for 64-bit x86
 ";
 
@@ -126,11 +124,6 @@ int main(string[] args) {
 					switch (args[i]) {
 						case "rm86": {
 							backend = new BackendRM86();
-							break;
-						}
-						case "y16": {
-							stderr.writeln("WARNING: Unstable and unfinished backend");
-							backend = new BackendY16();
 							break;
 						}
 						case "linux86": {
