@@ -501,12 +501,19 @@ class BackendLinux86 : CompilerBackend {
 			Error(node.error, "Type '%s' defined multiple times", node.name);
 		}
 
+		string[] members;
+
 		foreach (i, ref name ; node.names) {
 			auto type = node.types[i];
 
 			if (type !in types) {
 				Error(node.error, "Type '%s' doesn't exist", type);
 			}
+			if (members.canFind(name)) {
+				Error(node.error, "Duplicate member '%s'", name);
+			}
+
+			members ~= name;
 
 			NewConst(format("%s.%s", node.name, name), offset);
 			offset += types[type].size;
