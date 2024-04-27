@@ -126,7 +126,8 @@ class BackendLinux86 : CompilerBackend {
 		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
 		useDebug?
 			format(
-				"nasm -f elf64 %s.asm -o %s.o -F dwarf -g", compiler.outFile, compiler.outFile
+				"nasm -f elf64 %s.asm -o %s.o -F dwarf -g", compiler.outFile,
+				compiler.outFile
 			) :
 			format("nasm -f elf64 %s.asm -o %s.o", compiler.outFile, compiler.outFile),
 		format("ld %s.o -o %s", compiler.outFile, compiler.outFile),

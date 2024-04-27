@@ -10,6 +10,7 @@ import callisto.language;
 import callisto.optimiser;
 import callisto.preprocessor;
 import callisto.backends.rm86;
+import callisto.backends.win64;
 import callisto.backends.linux86;
 
 const static string usage = "
@@ -30,6 +31,7 @@ Flags:
 Backends:
 	rm86    - Real mode x86 and MS-DOS
 	linux86 - Linux for 64-bit x86
+	win64   - Windows for 64-bit x86 (Work in progress)
 ";
 
 int main(string[] args) {
@@ -128,6 +130,11 @@ int main(string[] args) {
 						}
 						case "linux86": {
 							backend = new BackendLinux86();
+							break;
+						}
+						case "win64": {
+							stderr.writeln("WARNING: Unstable backend");
+							backend = new BackendWin64();
 							break;
 						}
 						default: {
