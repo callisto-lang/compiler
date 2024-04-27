@@ -148,7 +148,7 @@ class Compiler {
 				auto node = cast(RequiresNode) inode;
 
 				if (!versions.canFind(node.ver)) {
-					backend.Error(node.error, "Version '%s' required");
+					backend.Error(node.error, "Version '%s' required", node.ver);
 				}
 				break;
 			}
