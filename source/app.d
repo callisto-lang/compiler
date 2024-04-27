@@ -10,7 +10,6 @@ import callisto.language;
 import callisto.optimiser;
 import callisto.preprocessor;
 import callisto.backends.rm86;
-import callisto.backends.win64;
 import callisto.backends.linux86;
 
 const static string usage = "
