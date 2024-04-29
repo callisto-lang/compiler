@@ -1,0 +1,12 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+struct MyStruct
+	cell foo
+	array 100 cell bar
+	cell baz
+end
+
+MyStruct.foo printdec new_line
+MyStruct.bar printdec new_line
+MyStruct.baz printdec new_line
