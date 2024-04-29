@@ -465,20 +465,20 @@ class BackendRM86 : CompilerBackend {
 
 		string[] members;
 
-		foreach (i, ref name ; node.names) {
-			auto type = node.types[i];
-
-			if (type !in types) {
-				Error(node.error, "Type '%s' doesn't exist", type);
+		foreach (ref member ; node.members) {
+			if (member.type !in types) {
+				Error(node.error, "Type '%s' doesn't exist", member.type);
 			}
-			if (members.canFind(name)) {
-				Error(node.error, "Duplicate member '%s'", name);
+			if (members.canFind(member.name)) {
+				Error(node.error, "Duplicate member '%s'", member.name);
 			}
 
-			members ~= name;
+			members ~= member.name;
 
-			NewConst(format("%s.%s", node.name, name), offset);
-			offset += types[type].size;
+			NewConst(format("%s.%s", node.name, member.name), offset);
+			offset += member.array?
+				types[member.type].size * member.size :
+				types[member.type].size;
 		}
 
 		NewConst(format("%s.sizeof", node.name), offset);

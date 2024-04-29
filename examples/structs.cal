@@ -1,11 +1,6 @@
 include "cores/select.cal"
 include "std/io.cal"
 
-func new_line begin
-	13 printch
-	10 printch
-end
-
 struct Animal
 	Array name
 	Array sound

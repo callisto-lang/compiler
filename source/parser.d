@@ -279,10 +279,22 @@ class StringNode : Node {
 	override string toString() => format("%s\"%s\"", constant? "c" : "", value);
 }
 
+struct StructMember {
+	string type;
+	string name;
+	bool   array;
+	size_t size;
+
+	string toString() {
+		return array?
+			format("array %d %s %s", size, type, name) :
+			format("%s %s", type, name);
+	}
+}
+
 class StructNode : Node {
-	string   name;
-	string[] types;
-	string[] names;
+	string         name;
+	StructMember[] members;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Struct;
@@ -292,8 +304,8 @@ class StructNode : Node {
 	override string toString() {
 		string ret = format("struct %s\n", name);
 
-		foreach (i, ref name ; names) {
-			ret ~= format("%s %s\n", types[i], name);
+		foreach (ref member ; members) {
+			ret ~= "    " ~ member.toString() ~ '\n';
 		}
 
 		return ret ~ "end";
@@ -685,12 +697,35 @@ class Parser {
 				break;
 			}
 
-			Expect(TokenType.Identifier);
+			/*Expect(TokenType.Identifier);
 			ret.types ~= tokens[i].contents;
 			Next();
 			Expect(TokenType.Identifier);
 			ret.names ~= tokens[i].contents;
+			Next();*/
+
+			StructMember member;
+			Expect(TokenType.Identifier);
+
+			if (tokens[i].contents == "array") {
+				Next();
+				Expect(TokenType.Integer);
+				member.array = true;
+				member.size  = parse!size_t(tokens[i].contents);
+
+				Next();
+				Expect(TokenType.Identifier);
+			}
+			
+			member.type = tokens[i].contents;
 			Next();
+			Expect(TokenType.Identifier);
+			member.name = tokens[i].contents;
+
+			ret.members ~= member;
+
+			Next();
+			Expect(TokenType.Identifier);
 		}
 
 		return ret;
