@@ -16,8 +16,17 @@ private struct Word {
 	Node[] inlineNodes;
 }
 
+private struct StructEntry {
+	Type*  type;
+	string name;
+	bool   array;
+	size_t size;
+}
+
 private struct Type {
-	ulong size;
+	ulong         size;
+	bool          isStruct;
+	StructEntry[] structure;
 }
 
 private struct Variable {
@@ -463,7 +472,24 @@ class BackendRM86 : CompilerBackend {
 			Error(node.error, "Type '%s' defined multiple times", node.name);
 		}
 
-		string[] members;
+		StructEntry[] entries;
+		string[]      members;
+
+		if (node.inherits) {
+			if (node.inheritsFrom !in types) {
+				Error(node.error, "Type '%s' doesn't exist", node.inheritsFrom);
+			}
+
+			if (!types[node.inheritsFrom].isStruct) {
+				Error(node.error, "Type '%s' is not a structure", node.inheritsFrom);
+			}
+
+			entries = types[node.inheritsFrom].structure;
+
+			foreach (ref member ; types[node.inheritsFrom].structure) {
+				members ~= member.name;
+			}
+		}
 
 		foreach (ref member ; node.members) {
 			if (member.type !in types) {
@@ -473,16 +499,19 @@ class BackendRM86 : CompilerBackend {
 				Error(node.error, "Duplicate member '%s'", member.name);
 			}
 
+			entries ~= StructEntry(
+				member.type in types, member.name, member.array, member.size
+			);
 			members ~= member.name;
+		}
 
+		foreach (ref member ; entries) {
 			NewConst(format("%s.%s", node.name, member.name), offset);
-			offset += member.array?
-				types[member.type].size * member.size :
-				types[member.type].size;
+			offset += member.array? member.type.size * member.size : member.type.size;
 		}
 
 		NewConst(format("%s.sizeof", node.name), offset);
-		types[node.name] = Type(offset);
+		types[node.name] = Type(offset, true, entries);
 	}
 
 	override void CompileReturn(WordNode node) {

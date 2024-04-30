@@ -295,6 +295,8 @@ struct StructMember {
 class StructNode : Node {
 	string         name;
 	StructMember[] members;
+	bool           inherits;
+	string         inheritsFrom;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Struct;
@@ -302,7 +304,9 @@ class StructNode : Node {
 	}
 
 	override string toString() {
-		string ret = format("struct %s\n", name);
+		string ret = inherits?
+			format("struct %s : %s\n", name, inheritsFrom) :
+			format("struct %s\n", name);
 
 		foreach (ref member ; members) {
 			ret ~= "    " ~ member.toString() ~ '\n';
@@ -688,6 +692,15 @@ class Parser {
 		Expect(TokenType.Identifier);
 		ret.name = tokens[i].contents;
 		Next();
+
+		if ((tokens[i].type == TokenType.Identifier) && (tokens[i].contents == ":")) {
+			Next();
+			Expect(TokenType.Identifier);
+
+			ret.inherits     = true;
+			ret.inheritsFrom = tokens[i].contents;
+			Next();
+		}
 
 		while (true) {
 			if (

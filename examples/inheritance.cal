@@ -1,0 +1,16 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+struct Thing
+	Array name
+end
+
+struct Building : Thing
+	cell numWindows
+end
+
+"Thing.name          = " printlstr Thing.name printdec new_line
+"Thing.sizeof        = " printlstr Thing.sizeof printdec new_line
+"Building.name       = " printlstr Building.name printdec new_line
+"Building.numWindows = " printlstr Building.numWindows printdec new_line
+"Building.sizeof     = " printlstr Building.sizeof printdec new_line
