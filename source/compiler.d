@@ -39,6 +39,7 @@ class CompilerBackend {
 	abstract void CompileEnum(EnumNode node);
 	abstract void CompileBreak(WordNode node);
 	abstract void CompileContinue(WordNode node);
+	abstract void CompileUnion(UnionNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -157,6 +158,7 @@ class Compiler {
 			case NodeType.Struct: backend.CompileStruct(cast(StructNode) inode); break;
 			case NodeType.Const:  backend.CompileConst(cast(ConstNode) inode); break;
 			case NodeType.Enum:   backend.CompileEnum(cast(EnumNode) inode); break;
+			case NodeType.Union:  backend.CompileUnion(cast(UnionNode) inode); break;
 			default: {
 				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}
@@ -181,7 +183,8 @@ class Compiler {
 				case NodeType.Requires:
 				case NodeType.Struct:
 				case NodeType.Const:
-				case NodeType.Enum: {
+				case NodeType.Enum:
+				case NodeType.Union: {
 					header ~= node;
 					break;
 				}

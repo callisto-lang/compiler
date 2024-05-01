@@ -1,0 +1,17 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+union MyUnion
+	cell
+	Array
+end
+
+"MyUnion.sizeof = " printlstr MyUnion.sizeof printdec new_line
+
+let MyUnion foo
+
+65 foo !
+foo @ printdec new_line
+
+"Hello, world!\n" foo a<
+foo printstr

@@ -608,4 +608,32 @@ class BackendLinux86 : CompilerBackend {
 
 		output ~= format("jmp __while_%d_condition\n", currentLoop);
 	}
+
+	override void CompileUnion(UnionNode node) {
+		size_t maxSize = 0;
+
+		if (node.name in types) {
+			Error(node.error, "Type '%s' already exists", node.name);
+		}
+
+		string[] unionTypes;
+
+		foreach (ref type ; node.types) {
+			if (unionTypes.canFind(type)) {
+				Error(node.error, "Union type '%s' defined twice", type);
+			}
+			unionTypes ~= type;
+
+			if (type !in types) {
+				Error(node.error, "Type '%s' doesn't exist", type);
+			}
+
+			if (types[type].size > maxSize) {
+				maxSize = types[type].size;
+			}
+		}
+
+		types[node.name] = Type(maxSize);
+		NewConst(format("%s.sizeof", node.name), cast(long) maxSize);
+	}
 }

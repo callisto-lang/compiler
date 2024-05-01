@@ -26,6 +26,7 @@ Flags:
 	             executable file (set by default)
 	-na        - Disables the -a flag
 	--version  - Shows the callisto version
+	-dp        - Prints parser output
 
 Backends:
 	rm86    - Real mode x86 and MS-DOS
@@ -52,6 +53,7 @@ int main(string[] args) {
 	bool            runFinal = true;
 	CompilerBackend backend = new BackendLinux86();
 	bool            doDebug;
+	bool            debugParser;
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -152,6 +154,10 @@ int main(string[] args) {
 					doDebug = true;
 					break;
 				}
+				case "-dp": {
+					debugParser = true;
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -175,6 +181,14 @@ int main(string[] args) {
 
 	string[] included;
 	auto     nodes = ParseFile(file);
+
+	if (debugParser) {
+		foreach (ref node ; nodes) {
+			writeln(node);
+		}
+
+		return 0;
+	}
 
 	auto compiler             = new Compiler();
 	compiler.backend          = backend;

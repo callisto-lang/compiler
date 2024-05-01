@@ -26,7 +26,8 @@ enum NodeType {
 	Struct,
 	Const,
 	Enum,
-	Restrict
+	Restrict,
+	Union
 }
 
 class Node {
@@ -359,6 +360,26 @@ class RestrictNode : Node {
 	}
 
 	override string toString() => format("restrict %s", ver);
+}
+
+class UnionNode : Node {
+	string   name;
+	string[] types;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Union;
+		error = perror;
+	}
+
+	override string toString() {
+		auto ret = format("union %s\n", name);
+
+		foreach (ref type ; types) {
+			ret ~= format("    %s\n", type);
+		}
+
+		return ret ~ "end";
+	}
 }
 
 class ParserError : Exception {
@@ -838,6 +859,29 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseUnion() {
+		auto ret = new UnionNode(GetError());
+		parsing  = NodeType.Union;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.name = tokens[i].contents;
+		Next();
+		Expect(TokenType.Identifier);
+
+		while (true) {
+			if ((tokens[i].type == TokenType.Identifier) && (tokens[i].contents == "end")) {
+				break;
+			}
+
+			ret.types ~= tokens[i].contents;
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -859,6 +903,7 @@ class Parser {
 					case "const":      return ParseConst();
 					case "enum":       return ParseEnum();
 					case "restrict":   return ParseRestrict();
+					case "union":      return ParseUnion();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}
