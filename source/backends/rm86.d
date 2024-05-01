@@ -80,21 +80,21 @@ class BackendRM86 : CompilerBackend {
 		types["size"]  = Type(2);
 		types["usize"] = Type(2);
 		types["cell"]  = Type(2);
-		types["Array"] = Type(6);
 
-		foreach (name, ref type ; types) {
-			NewConst(format("%s.sizeof", name), cast(long) type.size);
-		}
-
-		// struct Array
-		//     usize length
-		//     usize memberSize
-		//     addr  elements
-		// end
+		// built in structs
+		types["Array"] = Type(24, true, [
+			StructEntry("usize" in types, "length"),
+			StructEntry("usize" in types, "memberSize"),
+			StructEntry("addr" in types,  "elements")
+		]);
 		NewConst("Array.length",     0);
 		NewConst("Array.memberSize", 2);
 		NewConst("Array.elements",   4);
 		NewConst("Array.sizeof",     2 * 3);
+
+		foreach (name, ref type ; types) {
+			NewConst(format("%s.sizeof", name), cast(long) type.size);
+		}
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {

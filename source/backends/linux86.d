@@ -72,6 +72,7 @@ class BackendLinux86 : CompilerBackend {
 	Array[]          arrays;
 
 	this() {
+		// built in integer types
 		types["u8"]    = Type(1);
 		types["i8"]    = Type(1);
 		types["u16"]   = Type(2);
@@ -84,21 +85,21 @@ class BackendLinux86 : CompilerBackend {
 		types["size"]  = Type(8);
 		types["usize"] = Type(8);
 		types["cell"]  = Type(8);
-		types["Array"] = Type(24);
 
-		foreach (name, ref type ; types) {
-			NewConst(format("%s.sizeof", name), cast(long) type.size);
-		}
-
-		// struct Array
-		//     usize length
-		//     usize memberSize
-		//     addr  elements
-		// end
+		// built in structs
+		types["Array"] = Type(24, true, [
+			StructEntry("usize" in types, "length"),
+			StructEntry("usize" in types, "memberSize"),
+			StructEntry("addr" in types,  "elements")
+		]);
 		NewConst("Array.length",     0);
 		NewConst("Array.memberSize", 8);
 		NewConst("Array.elements",   16);
 		NewConst("Array.sizeof",     8 * 3);
+
+		foreach (name, ref type ; types) {
+			NewConst(format("%s.sizeof", name), cast(long) type.size);
+		}
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
