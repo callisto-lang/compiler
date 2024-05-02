@@ -27,7 +27,8 @@ enum NodeType {
 	Const,
 	Enum,
 	Restrict,
-	Union
+	Union,
+	Alias
 }
 
 class Node {
@@ -380,6 +381,18 @@ class UnionNode : Node {
 
 		return ret ~ "end";
 	}
+}
+
+class AliasNode : Node {
+	string to;
+	string from;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Alias;
+		error = perror;
+	}
+
+	override string toString() => format("alias %s %s", to, from);
 }
 
 class ParserError : Exception {
@@ -882,6 +895,21 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseAlias() {
+		auto ret = new AliasNode(GetError());
+		parsing  = NodeType.Alias;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.to = tokens[i].contents;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.from = tokens[i].contents;
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -904,6 +932,7 @@ class Parser {
 					case "enum":       return ParseEnum();
 					case "restrict":   return ParseRestrict();
 					case "union":      return ParseUnion();
+					case "alias":      return ParseAlias();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

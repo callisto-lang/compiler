@@ -597,4 +597,16 @@ class BackendRM86 : CompilerBackend {
 		types[node.name] = Type(maxSize);
 		NewConst(format("%s.sizeof", node.name), cast(long) maxSize);
 	}
+
+	override void CompileAlias(AliasNode node) {
+		if (node.from !in types) {
+			Error(node.error, "Type '%s' doesn't exist");
+		}
+		if (node.to in types) {
+			Error(node.error, "Type '%s' already defined");
+		}
+
+		types[node.to] = types[node.from];
+		NewConst(format("%s.sizeof", node.to), cast(long) types[node.to].size);
+	}
 }
