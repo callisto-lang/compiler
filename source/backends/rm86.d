@@ -125,7 +125,9 @@ class BackendRM86 : CompilerBackend {
 		return size;
 	}
 
-	override string[] GetVersions() => ["RM86", "LittleEndian"];
+	override string[] GetVersions() => [
+		"RM86", "LittleEndian", "8Bit", "16Bit", "32Bit", "64Bit"
+	];
 
 	override string[] FinalCommands() => [
 		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
