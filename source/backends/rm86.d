@@ -600,10 +600,10 @@ class BackendRM86 : CompilerBackend {
 
 	override void CompileAlias(AliasNode node) {
 		if (node.from !in types) {
-			Error(node.error, "Type '%s' doesn't exist");
+			Error(node.error, "Type '%s' doesn't exist", node.from);
 		}
 		if ((node.to in types) && !node.overwrite) {
-			Error(node.error, "Type '%s' already defined");
+			Error(node.error, "Type '%s' already defined", node.to);
 		}
 
 		types[node.to] = types[node.from];
