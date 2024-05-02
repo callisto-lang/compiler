@@ -101,6 +101,46 @@ class Preprocessor {
 					restricted ~= node.ver;
 					break;
 				}
+				case NodeType.FuncDef: {
+					auto node   = cast(FuncDefNode) inode;
+					node.nodes  = Run(node.nodes);
+					ret        ~= node;
+					break;
+				}
+				case NodeType.If: {
+					auto node = cast(IfNode) inode;
+
+					foreach (ref condition ; node.condition) {
+						condition = Run(condition);
+					}
+
+					foreach (ref doIf ; node.doIf) {
+						doIf = Run(doIf);
+					}
+
+					if (node.hasElse) {
+						node.doElse = Run(node.doElse);
+					}
+					ret ~= node;
+					break;
+				}
+				case NodeType.While: {
+					auto node = cast(WhileNode) inode;
+
+					node.condition = Run(node.condition);
+					node.doWhile   = Run(node.doWhile);
+
+					ret ~= node;
+					break;
+				}
+				case NodeType.Array: {
+					auto node = cast(ArrayNode) inode;
+
+					node.elements = Run(node.elements);
+
+					ret ~= node;
+					break;
+				}
 				default: {
 					ret ~= inode;
 				}
