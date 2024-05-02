@@ -125,7 +125,7 @@ class BackendRM86 : CompilerBackend {
 		return size;
 	}
 
-	override string[] GetVersions() => ["RM86"];
+	override string[] GetVersions() => ["RM86", "LittleEndian"];
 
 	override string[] FinalCommands() => [
 		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
@@ -602,7 +602,7 @@ class BackendRM86 : CompilerBackend {
 		if (node.from !in types) {
 			Error(node.error, "Type '%s' doesn't exist");
 		}
-		if (node.to in types) {
+		if ((node.to in types) && !node.overwrite) {
 			Error(node.error, "Type '%s' already defined");
 		}
 

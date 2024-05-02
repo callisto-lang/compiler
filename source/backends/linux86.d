@@ -642,7 +642,7 @@ class BackendLinux86 : CompilerBackend {
 		if (node.from !in types) {
 			Error(node.error, "Type '%s' doesn't exist");
 		}
-		if (node.to in types) {
+		if ((node.to in types) && !node.overwrite) {
 			Error(node.error, "Type '%s' already defined");
 		}
 

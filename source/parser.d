@@ -386,6 +386,7 @@ class UnionNode : Node {
 class AliasNode : Node {
 	string to;
 	string from;
+	bool   overwrite;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Alias;
@@ -901,6 +902,13 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "overwrite") {
+			ret.overwrite = true;
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
 		ret.to = tokens[i].contents;
 
 		Next();
