@@ -251,7 +251,13 @@ class BackendLinux86 : CompilerBackend {
 	}
 	
 	override void CompileInteger(IntegerNode node) {
-		output ~= format("mov qword [r15], %d\n", node.value);
+		if (node.value > 0xFFFFFFFF) {
+			output ~= format("mov r14, %d\n", node.value);
+			output ~= "mov [r15], r14\n";
+		}
+		else {
+			output ~= format("mov qword [r15], %d\n", node.value);
+		}
 		output ~= "add r15, 8\n";
 	}
 	

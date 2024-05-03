@@ -230,6 +230,7 @@ class RequiresNode : Node {
 
 class VersionNode : Node {
 	string ver;
+	bool   not;
 	Node[] block;
 
 	this(ErrorInfo perror) {
@@ -785,6 +786,13 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "not") {
+			ret.not = true;
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
 		ret.ver = tokens[i].contents;
 		Next();
 
