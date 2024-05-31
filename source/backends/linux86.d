@@ -131,7 +131,9 @@ class BackendLinux86 : CompilerBackend {
 		return size;
 	}
 
-	override string[] GetVersions() => ["Linux86", "Linux", "LittleEndian", "16Bit"];
+	override string[] GetVersions() => [
+		"Linux86", "Linux", "LittleEndian", "16Bit", "32Bit", "64Bit"
+	];
 
 	override string[] FinalCommands() => [
 		format("mv %s %s.asm", compiler.outFile, compiler.outFile),

@@ -127,7 +127,7 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override string[] GetVersions() => [
-		"RM86", "LittleEndian", "16Bit", "32Bit", "64Bit"
+		"RM86", "LittleEndian", "16Bit"
 	];
 
 	override string[] FinalCommands() => [
