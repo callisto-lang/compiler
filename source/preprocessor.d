@@ -67,8 +67,11 @@ class Preprocessor {
 				}
 				case NodeType.Version: {
 					auto node = cast(VersionNode) inode;
+					bool cond = versions.canFind(node.ver);
 
-					if (versions.canFind(node.ver)) {
+					if (node.not) cond = !cond;
+
+					if (cond) {
 						//ret ~= node.block;
 						ret ~= Run(node.block);
 					}
