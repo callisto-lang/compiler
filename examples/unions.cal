@@ -6,7 +6,7 @@ union MyUnion
 	Array
 end
 
-"MyUnion.sizeof = " printlstr MyUnion.sizeof printdec new_line
+"MyUnion.sizeof = " printstr MyUnion.sizeof printdec new_line
 
 let MyUnion foo
 

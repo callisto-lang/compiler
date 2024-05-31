@@ -7,8 +7,8 @@ struct Animal
 end
 
 # Print offsets
-"Animal.name = " printlstr Animal.name printdec new_line
-"Animal.sound = " printlstr Animal.sound printdec new_line
+"Animal.name = " printstr Animal.name printdec new_line
+"Animal.sound = " printstr Animal.sound printdec new_line
 
 # Create animal instance
 let Animal cat
@@ -16,5 +16,5 @@ let Animal cat
 "mrrrp" cat Animal.sound + a<
 
 # Print fields
-"Name: " printlstr cat Animal.name + printstr new_line
-"Sound: " printlstr cat Animal.sound + printstr new_line
+"Name: " printstr cat Animal.name + printstr new_line
+"Sound: " printstr cat Animal.sound + printstr new_line

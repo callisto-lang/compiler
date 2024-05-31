@@ -2,9 +2,9 @@ include "cores/select.cal"
 include "std/io.cal"
 
 func returnExample begin
-	"Hello 1\r\n" printlstr
+	"Hello 1\r\n" printstr
 	return
-	"Hello 2\r\n" printlstr
+	"Hello 2\r\n" printstr
 end
 
 returnExample
