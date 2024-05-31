@@ -54,6 +54,7 @@ private struct Constant {
 private struct Array {
 	string[] values;
 	Type     type;
+	bool     global;
 
 	size_t Size() => type.size * values.length;
 }
@@ -82,7 +83,7 @@ class BackendRM86 : CompilerBackend {
 		types["cell"]  = Type(2);
 
 		// built in structs
-		types["Array"] = Type(24, true, [
+		types["Array"] = Type(6, true, [
 			StructEntry("usize" in types, "length"),
 			StructEntry("usize" in types, "memberSize"),
 			StructEntry("addr" in types,  "elements")
@@ -166,6 +167,15 @@ class BackendRM86 : CompilerBackend {
 			}
 
 			output ~= '\n';
+
+			if (array.global) {
+				output ~= format(
+					"__array_%d_meta: dw %d, %d, __array_%d\n", i,
+					array.values.length,
+					array.type.size,
+					i
+				);
+			}
 		}
 
 		output ~= "__stack: times 512 dw 0\n";
@@ -407,20 +417,17 @@ class BackendRM86 : CompilerBackend {
 			Error(node.error, "Type '%s' doesn't exist", node.arrayType);
 		}
 
-		array.type  = types[node.arrayType];
-		arrays     ~= array;
-
-		// start metadata
-		output ~= format("mov word [si], %d\n",     array.values.length);
-		output ~= format("mov word [si + 2], %d\n", array.type.size);
+		array.type    = types[node.arrayType];
+		array.global  = !inScope || node.constant;
+		arrays       ~= array;
 
 		if (!inScope || node.constant) {
 			if (!orgSet) {
 				Warn(node.error, "Using array literals without a set org value");
 			}
 
-			// just have to push metadata
-			output ~= format("mov word [si + 4], __array_%d\n", arrays.length - 1);
+			output ~= format("mov word [si], __array_%d_meta\n", arrays.length - 1);
+			output ~= "add si, 2\n";
 		}
 		else {
 			// allocate a copy of the array
@@ -447,11 +454,28 @@ class BackendRM86 : CompilerBackend {
 
 			variables ~= var;
 
-			// now push metadata
-			output ~= "mov [si + 4], sp\n";
-		}
+			// create metadata variable
+			var.type   = types["Array"];
+			var.offset = 0;
+			var.array  = false;
 
-		output ~= "add si, 6\n";
+			foreach (ref var2 ; variables) {
+				var2.offset += var.Size();
+			}
+
+			variables ~= var;
+
+			output ~= "mov ax, sp\n";
+			output ~= format("sub sp, %d\n", 2 * 3); // size of Array structure
+			output ~= "mov bx, sp\n";
+			output ~= format("mov word [bx], %d\n", array.values.length); // length
+			output ~= format("mov word [bx + 2], %d\n", array.type.size); // member size
+			output ~= "mov [bx + 4], ax\n"; // elements
+
+			// push metadata address
+			output ~= "mov [si], sp\n";
+			output ~= "add si, 2\n";
+		}
 	}
 
 	override void CompileString(StringNode node) {

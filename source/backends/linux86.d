@@ -54,6 +54,7 @@ private struct Constant {
 private struct Array {
 	string[] values;
 	Type     type;
+	bool     global;
 
 	size_t Size() => type.size * values.length;
 }
@@ -233,6 +234,15 @@ class BackendLinux86 : CompilerBackend {
 			}
 
 			output ~= '\n';
+
+			if (array.global) {
+				output ~= format(
+					"__array_%d_meta: dq %d, %d, __array_%d\n", i,
+					array.values.length,
+					array.type.size,
+					i
+				);
+			}
 		}
 	}
 	
@@ -486,15 +496,13 @@ class BackendLinux86 : CompilerBackend {
 			Error(node.error, "Type '%s' doesn't exist", node.arrayType);
 		}
 
-		array.type  = types[node.arrayType];
-		arrays     ~= array;
+		array.type    = types[node.arrayType];
+		array.global  = !inScope || node.constant;
+		arrays       ~= array;
 
 		if (!inScope || node.constant) {
-			output ~= format("sub rsp, %d\n", 8 * 3); // size of Array structure
-			output ~= format("mov qword [rsp], %d\n", array.values.length); // length
-			output ~= format("mov qword [rsp + 8], %d\n", array.type.size); // member size
-			output ~= format("mov qword [rsp + 16], __array_%d\n", arrays.length - 1);
-			// ^ elements
+			output ~= format("mov qword [r15], __array_%d_meta\n", arrays.length - 1);
+			output ~= "add r15, 8\n";
 		}
 		else {
 			// allocate a copy of this array
@@ -517,16 +525,27 @@ class BackendLinux86 : CompilerBackend {
 
 			variables ~= var;
 
+			// create metadata variable
+			var.type   = types["Array"];
+			var.offset = 0;
+			var.array  = false;
+
+			foreach (ref var2 ; variables) {
+				var2.offset += var.Size();
+			}
+
+			variables ~= var;
+
 			output ~= "mov rax, rsp\n";
 			output ~= format("sub rsp, %d\n", 8 * 3); // size of Array structure
 			output ~= format("mov qword [rsp], %d\n", array.values.length); // length
 			output ~= format("mov qword [rsp + 8], %d\n", array.type.size); // member size
 			output ~= "mov [rsp + 16], rax\n"; // elements
-		}
 
-		// push metadata address
-		output ~= "mov [r15], rsp\n";
-		output ~= "add r15, 8\n";
+			// push metadata address
+			output ~= "mov [r15], rsp\n";
+			output ~= "add r15, 8\n";
+		}
 	}
 	
 	override void CompileString(StringNode node) {
