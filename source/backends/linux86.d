@@ -489,13 +489,12 @@ class BackendLinux86 : CompilerBackend {
 		array.type  = types[node.arrayType];
 		arrays     ~= array;
 
-		// start metadata
-		output ~= format("mov qword [r15], qword %d\n",     array.values.length);
-		output ~= format("mov qword [r15 + 8], qword %d\n", array.type.size);
-
 		if (!inScope || node.constant) {
-			// just have to push metadata
-			output ~= format("mov qword[r15 + 16], qword __array_%s\n", arrays.length - 1);
+			output ~= format("sub rsp, %d\n", 8 * 3); // size of Array structure
+			output ~= format("mov qword [rsp], %d\n", array.values.length); // length
+			output ~= format("mov qword [rsp + 8], %d\n", array.type.size); // member size
+			output ~= format("mov qword [rsp + 16], __array_%d\n", arrays.length - 1);
+			// ^ elements
 		}
 		else {
 			// allocate a copy of this array
@@ -518,11 +517,16 @@ class BackendLinux86 : CompilerBackend {
 
 			variables ~= var;
 
-			// now push metadata
-			output ~= "mov [r15 + 16], rsp\n";
+			output ~= "mov rax, rsp\n";
+			output ~= format("sub rsp, %d\n", 8 * 3); // size of Array structure
+			output ~= format("mov qword [rsp], %d\n", array.values.length); // length
+			output ~= format("mov qword [rsp + 8], %d\n", array.type.size); // member size
+			output ~= "mov [rsp + 16], rax\n"; // elements
 		}
 
-		output ~= "add r15, 24\n";
+		// push metadata address
+		output ~= "mov [r15], rsp\n";
+		output ~= "add r15, 8\n";
 	}
 	
 	override void CompileString(StringNode node) {
