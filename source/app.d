@@ -27,6 +27,8 @@ Flags:
 	-na        - Disables the -a flag
 	--version  - Shows the callisto version
 	-dp        - Prints parser output
+	-es        - Export all Callisto symbols (and add util functions for interacting
+	             with the Callisto stack)
 
 Backends:
 	rm86    - Real mode x86 and MS-DOS
@@ -54,6 +56,7 @@ int main(string[] args) {
 	CompilerBackend backend = new BackendLinux86();
 	bool            doDebug;
 	bool            debugParser;
+	bool            exportSymbols;
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -158,6 +161,10 @@ int main(string[] args) {
 					debugParser = true;
 					break;
 				}
+				case "-es": {
+					exportSymbols = true;
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -190,11 +197,12 @@ int main(string[] args) {
 		return 0;
 	}
 
-	auto compiler             = new Compiler();
-	compiler.backend          = backend;
-	compiler.backend.org      = org;
-	compiler.backend.orgSet   = orgSet;
-	compiler.backend.useDebug = doDebug;
+	auto compiler                  = new Compiler();
+	compiler.backend               = backend;
+	compiler.backend.org           = org;
+	compiler.backend.orgSet        = orgSet;
+	compiler.backend.useDebug      = doDebug;
+	compiler.backend.exportSymbols = exportSymbols;
 	
 	versions ~= compiler.backend.GetVersions();
 

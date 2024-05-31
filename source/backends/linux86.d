@@ -160,6 +160,21 @@ class BackendLinux86 : CompilerBackend {
 		// copy static array constants
 		output ~= "call __copy_arrays\n";
 
+		// create functions for interop
+		if (exportSymbols) {
+			output ~= "
+				global cal_push
+				cal_push:
+					mov [r15], rdi
+					add r15, 8
+					ret
+				cal_pop:
+					sub r15, 8
+					mov rax, [r15]
+					ret
+			";
+		}
+
 		// jump to main
 		output ~= "jmp __calmain\n";
 	}
@@ -186,10 +201,18 @@ class BackendLinux86 : CompilerBackend {
 
 		foreach (name, var ; globals) {
 			output ~= format("__global_%s: resb %d\n", name.Sanitise(), var.Size());
+
+			if (exportSymbols) {
+				output ~= format("global __global_%s\n", name.Sanitise());
+			}
 		}
 
 		foreach (i, ref array ; arrays) {
 			output ~= format("__array_%d: resb %d\n", i, array.Size());
+
+			if (exportSymbols) {
+				output ~= format("global __array_%d\n", i);
+			}
 		}
 
 		// create array source
@@ -279,6 +302,10 @@ class BackendLinux86 : CompilerBackend {
 			inScope = true;
 
 			words[node.name] = Word(false, []);
+
+			if (exportSymbols) {
+				output ~= format("global __func__%s\n", node.name.Sanitise());
+			}
 
 			output ~= format("__func__%s:\n", node.name.Sanitise());
 

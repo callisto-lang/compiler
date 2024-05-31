@@ -6,7 +6,7 @@ detect:
 rules:
     - statement: "\\b(func|end|begin|asm|include|inline|if|then|elseif|else|while|do)\\b"
     - statement: "\\b(let|enable|requires|struct|version|return|const|enum|restrict)\\b"
-    - statement: "\\b(continue|break|union|alias)\\b"
+    - statement: "\\b(continue|break|union|alias|overwrite|error)\\b"
     - type:      "\\b(addr|void|u8|i8|u16|i16|u32|i32|u64|i64|size|usize|cell|array)\\b"
     
     - constant.string:

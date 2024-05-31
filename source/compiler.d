@@ -16,6 +16,7 @@ class CompilerBackend {
 	bool     orgSet;
 	Compiler compiler;
 	bool     useDebug;
+	bool     exportSymbols;
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
@@ -80,6 +81,7 @@ class Compiler {
 					case "return":   backend.CompileReturn(node); break;
 					case "continue": backend.CompileContinue(node); break;
 					case "break":    backend.CompileBreak(node); break;
+					case "error":    backend.Error(node.error, "Error thrown by code"); break;
 					default:         backend.CompileWord(node);
 				}
 				break;
