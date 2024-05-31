@@ -175,6 +175,9 @@ class Compiler {
 		backend.compiler = this;
 		backend.Init();
 
+		backend.NewConst("true", -1, ErrorInfo.init);
+		backend.NewConst("false", 0, ErrorInfo.init);
+
 		Node[] header;
 		Node[] main;
 
