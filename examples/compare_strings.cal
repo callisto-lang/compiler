@@ -16,4 +16,4 @@ str1 str2 a= printdec new_line
 "Greetings" str1 a<
 str1 str2 a= printdec new_line
 
-str1 "Greetings" al= printdec new_line
+str1 "Greetings" a= printdec new_line

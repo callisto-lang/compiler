@@ -10,6 +10,7 @@ import callisto.compiler;
 import callisto.language;
 import callisto.optimiser;
 import callisto.preprocessor;
+import callisto.backends.y32;
 import callisto.backends.rm86;
 import callisto.backends.linux86;
 
@@ -37,6 +38,7 @@ Flags:
 Backends:
 	rm86    - Real mode x86 and MS-DOS
 	linux86 - Linux for 64-bit x86
+	y32     - YETI-32
 ";
 
 int main(string[] args) {
@@ -141,8 +143,13 @@ int main(string[] args) {
 							backend = new BackendLinux86();
 							break;
 						}
+						case "y32": {
+							backend = new BackendY32();
+							break;
+						}
 						default: {
 							stderr.writefln("Unknown backend '%s'", args[i]);
+							return 1;
 						}
 					}
 					break;
