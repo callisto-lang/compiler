@@ -20,7 +20,7 @@ class Preprocessor {
 	string[] includeDirs;
 	string[] included;
 	string[] versions;
-	string[] restricted;
+	string[] restricted = ["IO", "File", "Time", "Exit"];
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);

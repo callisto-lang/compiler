@@ -245,8 +245,6 @@ int main(string[] args) {
 		removing = false;
 		next:
 	}
-	writeln(disabled);
-	writeln(versions);
 
 	auto preproc        = new Preprocessor();
 	preproc.includeDirs = includeDirs;
