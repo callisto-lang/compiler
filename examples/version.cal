@@ -6,6 +6,11 @@ version RM86
 	"Hello, RM86!\n" printstr
 end
 
+# will execute on Linux86 backend
+version Linux86
+	"Hello, Linux86!\n" printstr
+end
+
 # won't execute unless you set the Foo version
 version Foo
 	"Hello, Foo!\n" printstr

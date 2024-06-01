@@ -5,6 +5,7 @@ import std.file;
 import std.stdio;
 import std.string;
 import std.process;
+import std.algorithm;
 import callisto.compiler;
 import callisto.language;
 import callisto.optimiser;
@@ -31,6 +32,7 @@ Flags:
 	             with the Callisto stack)
 	-d         - Enables debug symbols (if available)
 	-l LIB     - Links LIB with the linker (if available)
+	-dv VER    - Disables VER
 
 Backends:
 	rm86    - Real mode x86 and MS-DOS
@@ -60,6 +62,7 @@ int main(string[] args) {
 	bool            debugParser;
 	bool            exportSymbols;
 	string[]        link;
+	string[]        disabled;
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -178,6 +181,16 @@ int main(string[] args) {
 					link ~= args[i];
 					break;
 				}
+				case "-dv": {
+					++ i;
+					if (i >= args.length) {
+						stderr.writeln("-dv expects VER argument");
+						return 1;
+					}
+
+					disabled ~= args[i];
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -219,6 +232,21 @@ int main(string[] args) {
 	compiler.backend.link          = link;
 	
 	versions ~= compiler.backend.GetVersions();
+
+	bool removing = true;
+	while (removing) {
+		foreach (ref ver ; disabled) {
+			if (versions.canFind(ver)) {
+				versions = versions.remove(versions.countUntil(ver));
+				goto next;
+			}
+		}
+
+		removing = false;
+		next:
+	}
+	writeln(disabled);
+	writeln(versions);
 
 	auto preproc        = new Preprocessor();
 	preproc.includeDirs = includeDirs;
