@@ -4,7 +4,6 @@ language inspired by YSL-C3 and Forth
 
 ## Supported targets
 - x86 real mode (complete)
-- YETI-16 Mk2 (in progress)
 - x86_64 Linux (complete)
 
 ## Build
