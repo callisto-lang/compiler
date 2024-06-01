@@ -28,7 +28,8 @@ enum NodeType {
 	Enum,
 	Restrict,
 	Union,
-	Alias
+	Alias,
+	Extern
 }
 
 class Node {
@@ -395,6 +396,18 @@ class AliasNode : Node {
 	}
 
 	override string toString() => format("alias %s %s", to, from);
+}
+
+class ExternNode : Node {
+	string func;
+	bool   raw;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Extern;
+		error = perror;
+	}
+
+	override string toString() => format("extern %s%s", raw? "" : "raw ", func);
 }
 
 class ParserError : Exception {
@@ -926,6 +939,25 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseExtern() {
+		auto ret = new ExternNode(GetError());
+		parsing  = NodeType.Extern;
+
+		Next();
+		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "raw") {
+			ret.raw = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
+		ret.func = tokens[i].contents;
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -949,6 +981,7 @@ class Parser {
 					case "restrict":   return ParseRestrict();
 					case "union":      return ParseUnion();
 					case "alias":      return ParseAlias();
+					case "extern":     return ParseExtern();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

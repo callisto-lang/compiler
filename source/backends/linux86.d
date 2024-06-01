@@ -12,6 +12,7 @@ import callisto.compiler;
 import callisto.language;
 
 private struct Word {
+	bool   raw;
 	bool   inline;
 	Node[] inlineNodes;
 }
@@ -132,20 +133,38 @@ class BackendLinux86 : CompilerBackend {
 	}
 
 	override string[] GetVersions() => [
-		"Linux86", "Linux", "LittleEndian", "16Bit", "32Bit", "64Bit"
+		// platform
+		"Linux86", "Linux", "LittleEndian", "16Bit", "32Bit", "64Bit",
+		// features
+		"IO", "Exit", "Time", "File"
 	];
 
-	override string[] FinalCommands() => [
-		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
-		useDebug?
-			format(
-				"nasm -f elf64 %s.asm -o %s.o -F dwarf -g", compiler.outFile,
-				compiler.outFile
-			) :
-			format("nasm -f elf64 %s.asm -o %s.o", compiler.outFile, compiler.outFile),
-		format("ld %s.o -o %s", compiler.outFile, compiler.outFile),
-		format("rm %s.asm %s.o", compiler.outFile, compiler.outFile)
-	];
+	override string[] FinalCommands() {
+		string[] ret = [
+			format("mv %s %s.asm", compiler.outFile, compiler.outFile),
+			useDebug?
+				format(
+					"nasm -f elf64 %s.asm -o %s.o -F dwarf -g", compiler.outFile,
+					compiler.outFile
+				) :
+				format("nasm -f elf64 %s.asm -o %s.o", compiler.outFile, compiler.outFile)
+		];
+
+		string linkCommand = format("ld %s.o -o %s", compiler.outFile, compiler.outFile);
+
+		foreach (ref lib ; link) {
+			linkCommand ~= format(" -l%s", lib);
+		}
+
+		if (!link.empty()) {
+			// idk if this is correct on all linux systems but whatever
+			linkCommand ~= " -dynamic-linker /lib64/ld-linux-x86-64.so.2";
+		}
+
+		ret ~= linkCommand;
+
+		return ret ~ format("rm %s.asm %s.o", compiler.outFile, compiler.outFile);
+	}
 
 	override void BeginMain() {
 		output ~= "__calmain:\n";
@@ -258,7 +277,12 @@ class BackendLinux86 : CompilerBackend {
 				}
 			}
 			else {
-				output ~= format("call __func__%s\n", node.name.Sanitise());
+				if (word.raw) {
+					output ~= format("call %s\n", node.name);
+				}
+				else {
+					output ~= format("call __func__%s\n", node.name.Sanitise());
+				}
 			}
 		}
 		else if (VariableExists(node.name)) {
@@ -307,13 +331,13 @@ class BackendLinux86 : CompilerBackend {
 		thisFunc = node.name;
 
 		if (node.inline) {
-			words[node.name] = Word(true, node.nodes);
+			words[node.name] = Word(false, true, node.nodes);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(false, []);
+			words[node.name] = Word(false, false, []);
 
 			if (exportSymbols) {
 				output ~= format("global __func__%s\n", node.name.Sanitise());
@@ -706,5 +730,15 @@ class BackendLinux86 : CompilerBackend {
 
 		types[node.to] = types[node.from];
 		NewConst(format("%s.sizeof", node.to), cast(long) types[node.to].size);
+	}
+
+	override void CompileExtern(ExternNode node) {
+		Word word;
+		word.raw         = node.raw;
+		words[node.func] = word;
+
+		if (word.raw) {
+			output ~= format("extern %s\n", node.func);
+		}
 	}
 }

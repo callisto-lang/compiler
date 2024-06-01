@@ -17,6 +17,7 @@ class CompilerBackend {
 	Compiler compiler;
 	bool     useDebug;
 	bool     exportSymbols;
+	string[] link;
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
@@ -42,6 +43,7 @@ class CompilerBackend {
 	abstract void CompileContinue(WordNode node);
 	abstract void CompileUnion(UnionNode node);
 	abstract void CompileAlias(AliasNode node);
+	abstract void CompileExtern(ExternNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -163,6 +165,7 @@ class Compiler {
 			case NodeType.Enum:   backend.CompileEnum(cast(EnumNode) inode); break;
 			case NodeType.Union:  backend.CompileUnion(cast(UnionNode) inode); break;
 			case NodeType.Alias:  backend.CompileAlias(cast(AliasNode) inode); break;
+			case NodeType.Extern: backend.CompileExtern(cast(ExternNode) inode); break;
 			default: {
 				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}
@@ -192,7 +195,8 @@ class Compiler {
 				case NodeType.Const:
 				case NodeType.Enum:
 				case NodeType.Union:
-				case NodeType.Alias: {
+				case NodeType.Alias:
+				case NodeType.Extern: {
 					header ~= node;
 					break;
 				}

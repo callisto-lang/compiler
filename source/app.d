@@ -29,6 +29,8 @@ Flags:
 	-dp        - Prints parser output
 	-es        - Export all Callisto symbols (and add util functions for interacting
 	             with the Callisto stack)
+	-d         - Enables debug symbols (if available)
+	-l LIB     - Links LIB with the linker (if available)
 
 Backends:
 	rm86    - Real mode x86 and MS-DOS
@@ -57,6 +59,7 @@ int main(string[] args) {
 	bool            doDebug;
 	bool            debugParser;
 	bool            exportSymbols;
+	string[]        link;
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -165,6 +168,16 @@ int main(string[] args) {
 					exportSymbols = true;
 					break;
 				}
+				case "-l": {
+					++ i;
+					if (i >= args.length) {
+						stderr.writeln("-l expects LIB argument");
+						return 1;
+					}
+
+					link ~= args[i];
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -203,6 +216,7 @@ int main(string[] args) {
 	compiler.backend.orgSet        = orgSet;
 	compiler.backend.useDebug      = doDebug;
 	compiler.backend.exportSymbols = exportSymbols;
+	compiler.backend.link          = link;
 	
 	versions ~= compiler.backend.GetVersions();
 

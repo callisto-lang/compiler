@@ -12,6 +12,7 @@ import callisto.compiler;
 import callisto.language;
 
 private struct Word {
+	bool   raw;
 	bool   inline;
 	Node[] inlineNodes;
 }
@@ -127,7 +128,10 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override string[] GetVersions() => [
-		"RM86", "LittleEndian", "16Bit"
+		// platform
+		"RM86", "LittleEndian", "16Bit",
+		// features
+		"IO"
 	];
 
 	override string[] FinalCommands() => [
@@ -191,7 +195,12 @@ class BackendRM86 : CompilerBackend {
 				}
 			}
 			else {
-				output ~= format("call __func__%s\n", node.name.Sanitise());
+				if (word.raw) {
+					output ~= format("call %s\n", node.name);
+				}
+				else {
+					output ~= format("call __func__%s\n", node.name.Sanitise());
+				}
 			}
 		}
 		else if (VariableExists(node.name)) {
@@ -232,13 +241,13 @@ class BackendRM86 : CompilerBackend {
 		thisFunc = node.name;
 
 		if (node.inline) {
-			words[node.name] = Word(true, node.nodes);
+			words[node.name] = Word(false, true, node.nodes);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(false, []);
+			words[node.name] = Word(false, false, []);
 
 			output ~= format("__func__%s:\n", node.name.Sanitise());
 
@@ -634,5 +643,11 @@ class BackendRM86 : CompilerBackend {
 
 		types[node.to] = types[node.from];
 		NewConst(format("%s.sizeof", node.to), cast(long) types[node.to].size);
+	}
+
+	override void CompileExtern(ExternNode node) {
+		Word word;
+		word.raw         = node.raw;
+		words[node.func] = word;
 	}
 }
