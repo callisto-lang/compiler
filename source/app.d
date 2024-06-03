@@ -10,6 +10,7 @@ import callisto.compiler;
 import callisto.language;
 import callisto.optimiser;
 import callisto.preprocessor;
+import callisto.backends.uxn;
 import callisto.backends.y32;
 import callisto.backends.rm86;
 import callisto.backends.linux86;
@@ -145,6 +146,10 @@ int main(string[] args) {
 						}
 						case "y32": {
 							backend = new BackendY32();
+							break;
+						}
+						case "uxn": {
+							backend = new BackendUXN();
 							break;
 						}
 						default: {
