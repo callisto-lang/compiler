@@ -40,6 +40,7 @@ Backends:
 	rm86    - Real mode x86 and MS-DOS
 	linux86 - Linux for 64-bit x86
 	y32     - YETI-32
+	uxn     - Varvara/Uxn
 ";
 
 int main(string[] args) {

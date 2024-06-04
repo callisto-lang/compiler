@@ -145,15 +145,30 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void Init() {
+		output ~= "|0 @vsp $2\n";
 		output ~= "|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1\n";
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
+		output ~= "    #ffff .vsp STZ2";
 		output ~= "    calmain\n";
 		output ~= "    BRK\n";
 	}
 
 	override void End() {
-		output ~= "JMP2r";
+		output ~= "JMP2r\n";
+
+		foreach (name, var ; globals) {
+			output ~= format("@global_%s", name);
+
+			foreach (i ; 0 .. var.Size()) {
+				output ~= " #00";
+			}
+
+			output ~= "\n";
+		}
+
+		// pad for the stack
+		output ~= "|e0000\n";
 	}
 
 	override void CompileWord(WordNode node) {
@@ -173,6 +188,13 @@ class BackendUXN : CompilerBackend {
 					output ~= format("func__%s\n", node.name.Sanitise());
 				}
 			}
+		}
+		else if (VariableExists(node.name)) {
+			auto var  = GetVariable(node.name);
+			output   ~= format(".vsp LDZ2 #%.4X ADD2\n", var.offset);
+		}
+		else if (node.name in globals) {
+			output ~= format(";global_%s\n", node.name.Sanitise());
 		}
 		else if (node.name in consts) {
 			compiler.CompileNode(consts[node.name].value);
@@ -211,6 +233,11 @@ class BackendUXN : CompilerBackend {
 				compiler.CompileNode(inode);
 			}
 
+			size_t scopeSize;
+			foreach (ref var ; variables) {
+				scopeSize += var.Size();
+			}
+			output ~= format(".vsp LDZ2 #%.4x ADD2 .vsp STZ2\n", scopeSize);
 
 			output    ~= "JMP2r\n";
 			variables  = [];
@@ -229,9 +256,21 @@ class BackendUXN : CompilerBackend {
 			}
 			output ~= format("#0000 EQU2 ;if_%d_%d JCN2\n", blockNum, condCounter + 1);
 
+			// create scope
+			auto oldVars = variables.dup;
+			auto oldSize = GetStackSize();
+
 			foreach (ref inode ; node.doIf[i]) {
 				compiler.CompileNode(inode);
 			}
+
+			// remove scope
+			if (GetStackSize() - oldSize > 0) {
+				output ~= format(
+					".vsp LDZ2 #%.4x ADD .vsp STZ2\n", GetStackSize() - oldSize
+				);
+			}
+			variables = oldVars;
 
 			output ~= format(";if_%d_end JMP2\n", blockNum);
 
@@ -256,12 +295,24 @@ class BackendUXN : CompilerBackend {
 		output ~= format(";while_%d_condition JMP2\n", blockNum);
 		output ~= format("@while_%d\n", blockNum);
 
+		// make scope
+		auto oldVars = variables.dup;
+		auto oldSize = GetStackSize();
+
 		foreach (ref inode ; node.doWhile) {
 			inWhile = true;
 			compiler.CompileNode(inode);
 
 			currentLoop = blockNum;
 		}
+
+		// remove scope
+		if (GetStackSize() - oldSize > 0) {
+			output ~= format(
+				".vsp LDZ2 #%.4x ADD .vsp STZ2\n", GetStackSize() - oldSize
+			);
+		}
+		variables = oldVars;
 
 		inWhile = false;
 
@@ -301,20 +352,13 @@ class BackendUXN : CompilerBackend {
 
 			variables ~= var;
 
-			if (GetStackSize() > 64) {
-				Warn(node.error, "You may run out of space on the stack");
-			}
+			output ~= format(";vsp LDA2 #%.4X SUB2 ;vsp STA2\n", var.Size());
 
 			if (var.Size() == 1) {
-				output ~= format("#00 STH");
+				output ~= format("#00 ;vsp LDA2 STA\n");
 			}
 			else if (var.Size() == 2) {
-				output ~= format("#0000 STH2");
-			}
-			else {
-				//output ~= format("sub sp, %d\n", var.Size());
-				output ~= "#05 DEI\n"; // get return sp
-				output ~= format("#%.2X ADD\n", var.Size());
+				output ~= format("#0000 ;vsp LDA2 STA2\n");
 			}
 		}
 		else {
