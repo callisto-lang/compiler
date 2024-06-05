@@ -488,39 +488,153 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileStruct(StructNode node) {
-		
+		size_t offset;
+
+		if (node.name in types) {
+			Error(node.error, "Type '%s' defined multiple times", node.name);
+		}
+
+		StructEntry[] entries;
+		string[]      members;
+
+		if (node.inherits) {
+			if (node.inheritsFrom !in types) {
+				Error(node.error, "Type '%s' doesn't exist", node.inheritsFrom);
+			}
+
+			if (!types[node.inheritsFrom].isStruct) {
+				Error(node.error, "Type '%s' is not a structure", node.inheritsFrom);
+			}
+
+			entries = types[node.inheritsFrom].structure;
+
+			foreach (ref member ; types[node.inheritsFrom].structure) {
+				members ~= member.name;
+			}
+		}
+
+		foreach (ref member ; node.members) {
+			if (member.type !in types) {
+				Error(node.error, "Type '%s' doesn't exist", member.type);
+			}
+			if (members.canFind(member.name)) {
+				Error(node.error, "Duplicate member '%s'", member.name);
+			}
+
+			entries ~= StructEntry(
+				member.type in types, member.name, member.array, member.size
+			);
+			members ~= member.name;
+		}
+
+		foreach (ref member ; entries) {
+			NewConst(format("%s.%s", node.name, member.name), offset);
+			offset += member.array? member.type.size * member.size : member.type.size;
+		}
+
+		NewConst(format("%s.sizeof", node.name), offset);
+		types[node.name] = Type(offset, true, entries);
 	}
 
 	override void CompileReturn(WordNode node) {
-		
+		if (!inScope) {
+			Error(node.error, "Return used outside of function");
+		}
+
+		size_t scopeSize;
+		foreach (ref var ; variables) {
+			scopeSize += var.Size();
+		}
+		output ~= format(".vsp LDZ2 #%.4x ADD2 .vsp STZ2\n", scopeSize);
+		output ~= "JMP2r\n";
 	}
 
 	override void CompileConst(ConstNode node) {
+		if (node.name in consts) {
+			Error(node.error, "Constant '%s' already defined", node.name);
+		}
 		
+		NewConst(node.name, node.value);
 	}
 
 	override void CompileEnum(EnumNode node) {
-		
+		if (node.enumType !in types) {
+			Error(node.error, "Enum base type '%s' doesn't exist", node.enumType);
+		}
+		if (node.name in types) {
+			Error(node.error, "Enum name is already used by type '%s'", node.enumType);
+		}
+
+		types[node.name] = types[node.enumType];
+
+		foreach (i, ref name ; node.names) {
+			NewConst(format("%s.%s", node.name, name), node.values[i]);
+		}
+
+		NewConst(format("%s.min", node.name), node.values.minElement());
+		NewConst(format("%s.max", node.name), node.values.maxElement());
+		NewConst(format("%s.sizeof", node.name), types[node.name].size);
 	}
 
 	override void CompileBreak(WordNode node) {
-		
+		if (!inWhile) {
+			Error(node.error, "Not in while loop");
+		}
+
+		output ~= format(";while_%d_end JMP2\n", currentLoop);
 	}
 
 	override void CompileContinue(WordNode node) {
-		
+		if (!inWhile) {
+			Error(node.error, "Not in while loop");
+		}
+
+		output ~= format(";while_%d_condition JMP2\n", currentLoop);
 	}
 
 	override void CompileUnion(UnionNode node) {
-		
+		size_t maxSize = 0;
+
+		if (node.name in types) {
+			Error(node.error, "Type '%s' already exists", node.name);
+		}
+
+		string[] unionTypes;
+
+		foreach (ref type ; node.types) {
+			if (unionTypes.canFind(type)) {
+				Error(node.error, "Union type '%s' defined twice", type);
+			}
+			unionTypes ~= type;
+
+			if (type !in types) {
+				Error(node.error, "Type '%s' doesn't exist", type);
+			}
+
+			if (types[type].size > maxSize) {
+				maxSize = types[type].size;
+			}
+		}
+
+		types[node.name] = Type(maxSize);
+		NewConst(format("%s.sizeof", node.name), cast(long) maxSize);
 	}
 
 	override void CompileAlias(AliasNode node) {
-		
+		if (node.from !in types) {
+			Error(node.error, "Type '%s' doesn't exist", node.from);
+		}
+		if ((node.to in types) && !node.overwrite) {
+			Error(node.error, "Type '%s' already defined", node.to);
+		}
+
+		types[node.to] = types[node.from];
+		NewConst(format("%s.sizeof", node.to), cast(long) types[node.to].size);
 	}
 
 	override void CompileExtern(ExternNode node) {
-		
+		Word word;
+		word.raw         = node.raw;
+		words[node.func] = word;
 	}
-
 }
