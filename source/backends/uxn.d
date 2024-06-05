@@ -1,4 +1,4 @@
-module callisto.backends.rm86;
+module callisto.backends.uxn;
 
 import std.conv;
 import std.stdio;
@@ -60,7 +60,7 @@ private struct Array {
 	size_t Size() => type.size * values.length;
 }
 
-class BackendRM86 : CompilerBackend {
+class BackendUXN : CompilerBackend {
 	Word[string]     words;
 	uint             blockCounter; // used for block statements
 	Type[string]     types;
@@ -99,6 +99,21 @@ class BackendRM86 : CompilerBackend {
 		}
 	}
 
+	override string[] GetVersions() => [
+		// platform
+		"UXN", "BigEndian", "16Bit",
+		// features
+		"IO"
+	];
+
+	override string[] FinalCommands() => [
+		format("mv %s %s.tal", compiler.outFile, compiler.outFile),
+		format("uxnasm %s.tal %s", compiler.outFile, compiler.outFile),
+		format("rm %s.tal", compiler.outFile)
+	];
+
+	override long MaxInt() => 0xFFFF;
+
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
 	}
@@ -127,56 +142,45 @@ class BackendRM86 : CompilerBackend {
 		return size;
 	}
 
-	override string[] GetVersions() => [
-		// platform
-		"RM86", "LittleEndian", "16Bit",
-		// features
-		"IO"
-	];
-
-	override string[] FinalCommands() => [
-		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
-		format("nasm -f bin %s.asm -o %s", compiler.outFile, compiler.outFile),
-		format("rm %s.asm", compiler.outFile)
-	];
-
-	override long MaxInt() => 0xFFFF;
-
 	override void BeginMain() {
-		output ~= "__calmain:\n";
+		output ~= "@calmain\n";
 	}
 
 	override void Init() {
-		output ~= format("org 0x%.4X\n", org);
-		output ~= "mov si, __stack\n";
-		output ~= "jmp __calmain\n";
+		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
+		output ~= "|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1\n";
+		output ~= "|100\n";
+		output ~= "@on-reset\n";
+		output ~= "    #ffff .vsp STZ2\n";
+		output ~= "    calmain\n";
+		output ~= "    BRK\n";
 	}
 
 	override void End() {
-		output ~= "ret\n";
+		output ~= "JMP2r\n";
 
 		foreach (name, var ; globals) {
-			output ~= format("__global_%s: times %d db 0\n", name, var.Size());
+			output ~= format("@global_%s", name);
+
+			foreach (i ; 0 .. var.Size()) {
+				output ~= " #00";
+			}
+
+			output ~= "\n";
 		}
 
 		foreach (i, ref array ; arrays) {
-			output ~= format("__array_%d: ", i);
-
-			switch (array.type.size) {
-				case 1:  output ~= "db "; break;
-				case 2:  output ~= "dw "; break;
-				default: assert(0);
-			}
+			output ~= format("@array_%d ", i);
 
 			foreach (j, ref element ; array.values) {
-				output ~= element ~ (j == array.values.length - 1? "" : ", ");
+				output ~= element ~ (j == array.values.length - 1? "" : " ");
 			}
 
 			output ~= '\n';
 
 			if (array.global) {
 				output ~= format(
-					"__array_%d_meta: dw %d, %d, __array_%d\n", i,
+					"@array_%d_meta %.4x %.4x =array_%d\n", i,
 					array.values.length,
 					array.type.size,
 					i
@@ -184,7 +188,8 @@ class BackendRM86 : CompilerBackend {
 			}
 		}
 
-		output ~= "__stack: times 512 dw 0\n";
+		// pad for the stack
+		output ~= "|e0000\n";
 	}
 
 	override void CompileWord(WordNode node) {
@@ -198,26 +203,19 @@ class BackendRM86 : CompilerBackend {
 			}
 			else {
 				if (word.raw) {
-					output ~= format("call %s\n", node.name);
+					output ~= format("%s\n", node.name);
 				}
 				else {
-					output ~= format("call __func__%s\n", node.name.Sanitise());
+					output ~= format("func__%s\n", node.name.Sanitise());
 				}
 			}
 		}
 		else if (VariableExists(node.name)) {
-			auto var = GetVariable(node.name);
-
-			output ~= "mov di, sp\n";
-			output ~= format("add di, %d\n", var.offset);
-			output ~= "mov [si], di\n";
-			output ~= "add si, 2\n";
+			auto var  = GetVariable(node.name);
+			output   ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
 		}
 		else if (node.name in globals) {
-			auto var = globals[node.name];
-
-			output ~= format("mov word [si], __global_%s\n", node.name.Sanitise());
-			output ~= "add si, 2\n";
+			output ~= format(";global_%s\n", node.name.Sanitise());
 		}
 		else if (node.name in consts) {
 			compiler.CompileNode(consts[node.name].value);
@@ -228,8 +226,7 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override void CompileInteger(IntegerNode node) {
-		output ~= format("mov word [si], %d\n", node.value);
-		output ~= "add si, 2\n";
+		output ~= format("#%.4x\n", node.value);
 	}
 
 	override void CompileFuncDef(FuncDefNode node) {
@@ -251,22 +248,19 @@ class BackendRM86 : CompilerBackend {
 
 			words[node.name] = Word(false, false, []);
 
-			output ~= format("__func__%s:\n", node.name.Sanitise());
+			output ~= format("@func__%s\n", node.name.Sanitise());
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
 			}
 
-			//output ~= format("__func_return__%s:\n", node.name.Sanitise());
-
 			size_t scopeSize;
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
 			}
-			output ~= format("add sp, %d\n", scopeSize);
+			output ~= format(".vsp LDZ2 #%.4x ADD2 .vsp STZ2\n", scopeSize);
 
-			output    ~= "ret\n";
-			//output    ~= format("__func_end__%s:\n", node.name.Sanitise());
+			output    ~= "JMP2r\n";
 			variables  = [];
 			inScope    = false;
 		}
@@ -281,10 +275,7 @@ class BackendRM86 : CompilerBackend {
 			foreach (ref inode ; condition) {
 				compiler.CompileNode(inode);
 			}
-			output ~= "sub si, 2\n";
-			output ~= "mov ax, [si]\n";
-			output ~= "cmp ax, 0\n";
-			output ~= format("je __if_%d_%d\n", blockNum, condCounter + 1);
+			output ~= format("#0000 EQU2 ;if_%d_%d JCN2\n", blockNum, condCounter + 1);
 
 			// create scope
 			auto oldVars = variables.dup;
@@ -296,33 +287,25 @@ class BackendRM86 : CompilerBackend {
 
 			// remove scope
 			if (GetStackSize() - oldSize > 0) {
-				output ~= format("add sp, %d\n", GetStackSize() - oldSize);
+				output ~= format(
+					".vsp LDZ2 #%.4x ADD .vsp STZ2\n", GetStackSize() - oldSize
+				);
 			}
 			variables = oldVars;
 
-			output ~= format("jmp __if_%d_end\n", blockNum);
+			output ~= format(";if_%d_end JMP2\n", blockNum);
 
 			++ condCounter;
-			output ~= format("__if_%d_%d:\n", blockNum, condCounter);
+			output ~= format("@if_%d_%d\n", blockNum, condCounter);
 		}
 
 		if (node.hasElse) {
-			// create scope
-			auto oldVars = variables.dup;
-			auto oldSize = GetStackSize();
-
 			foreach (ref inode ; node.doElse) {
 				compiler.CompileNode(inode);
 			}
-
-			// remove scope
-			if (GetStackSize() - oldSize > 0) {
-				output ~= format("add sp, %d\n", GetStackSize() - oldSize);
-			}
-			variables = oldVars;
 		}
 
-		output ~= format("__if_%d_end:\n", blockNum);
+		output ~= format("@if_%d_end\n", blockNum);
 	}
 
 	override void CompileWhile(WhileNode node) {
@@ -330,13 +313,13 @@ class BackendRM86 : CompilerBackend {
 		uint blockNum = blockCounter;
 		currentLoop   = blockNum;
 
-		output ~= format("jmp __while_%d_condition\n", blockNum);
-		output ~= format("__while_%d:\n", blockNum);
+		output ~= format(";while_%d_condition JMP2\n", blockNum);
+		output ~= format("@while_%d\n", blockNum);
 
 		// make scope
 		auto oldVars = variables.dup;
 		auto oldSize = GetStackSize();
-		
+
 		foreach (ref inode ; node.doWhile) {
 			inWhile = true;
 			compiler.CompileNode(inode);
@@ -344,25 +327,25 @@ class BackendRM86 : CompilerBackend {
 			currentLoop = blockNum;
 		}
 
-		// restore scope
+		// remove scope
 		if (GetStackSize() - oldSize > 0) {
-			output ~= format("add sp, %d\n", GetStackSize() - oldSize);
+			output ~= format(
+				".vsp LDZ2 #%.4x ADD .vsp STZ2\n", GetStackSize() - oldSize
+			);
 		}
 		variables = oldVars;
 
 		inWhile = false;
 
-		output ~= format("__while_%d_condition:\n", blockNum);
+		output ~= format("@while_%d_condition\n", blockNum);
 		
 		foreach (ref inode ; node.condition) {
 			compiler.CompileNode(inode);
 		}
 
-		output ~= "sub si, 2\n";
-		output ~= "mov ax, [si]\n";
-		output ~= "cmp ax, 0\n";
-		output ~= format("jne __while_%d\n", blockNum);
-		output ~= format("__while_%d_end:\n", blockNum);
+		output ~= "#0000 NEQ2\n";
+		output ~= format(";while_%d JCN2\n", blockNum);
+		output ~= format("@while_%d_end\n", blockNum);
 	}
 
 	override void CompileLet(LetNode node) {
@@ -390,32 +373,41 @@ class BackendRM86 : CompilerBackend {
 
 			variables ~= var;
 
-			if (var.Size() == 2) {
-				output ~= "push 0\n";
+			output ~= format(".vsp LDZ2 #%.4x SUB2 .vsp STZ2\n", var.Size());
+
+			if (var.Size() == 1) {
+				output ~= format("#00 .vsp LDZ2 STA\n");
 			}
-			else {
-				output ~= format("sub sp, %d\n", var.Size());
+			else if (var.Size() == 2) {
+				output ~= format("#0000 .vsp LDZ2 STA2\n");
 			}
 		}
 		else {
 			Global global;
 			global.type        = types[node.varType];
 			globals[node.name] = global;
-
-			if (!orgSet) {
-				Warn(node.error, "Declaring global variables without a set org value");
-			}
 		}
-	} 
+	}
 
 	override void CompileArray(ArrayNode node) {
 		Array array;
+
+		if (node.arrayType !in types) {
+			Error(node.error, "Type '%s' doesn't exist", node.arrayType);
+		}
+
+		array.type = types[node.arrayType];
 
 		foreach (ref elem ; node.elements) {
 			switch (elem.type) {
 				case NodeType.Integer: {
 					auto node2    = cast(IntegerNode) elem;
-					array.values ~= node2.value.text();
+
+					//array.values ~= node2.value.text();
+					final switch (array.type.size) {
+						case 1: array.values ~= format("%.2x", node2.value); break;
+						case 2: array.values ~= format("%.4x", node2.value); break;
+					}
 					break;
 				}
 				default: {
@@ -423,35 +415,25 @@ class BackendRM86 : CompilerBackend {
 				}
 			}
 		}
-
-		if (node.arrayType !in types) {
-			Error(node.error, "Type '%s' doesn't exist", node.arrayType);
-		}
-
-		array.type    = types[node.arrayType];
 		array.global  = !inScope || node.constant;
 		arrays       ~= array;
 
 		if (!inScope || node.constant) {
-			if (!orgSet) {
-				Warn(node.error, "Using array literals without a set org value");
-			}
-
-			output ~= format("mov word [si], __array_%d_meta\n", arrays.length - 1);
-			output ~= "add si, 2\n";
+			output ~= format(";array_%d_meta\n", arrays.length - 1);
 		}
 		else {
 			// allocate a copy of the array
-			output ~= "mov ax, ds\n";
-			output ~= "mov es, ax\n";
-			output ~= format("sub sp, %d\n", array.Size());
-			output ~= "mov ax, sp\n";
-			output ~= "push si\n";
-			output ~= format("mov si, __array_%d\n", arrays.length - 1);
-			output ~= "mov di, ax\n";
-			output ~= format("mov cx, %d\n", array.Size());
-			output ~= "rep movsb\n";
-			output ~= "pop si\n";
+			output ~= format(".vsp LDZ2 #%.4x SUB2 .vsp STZ2\n", array.Size());
+
+			// copy array contents
+			output ~= format(";array_%d .arraySrc STZ2\n", arrays.length - 1);
+			output ~= ".vsp LDZ2 .arrayDest STZ2\n";
+			output ~= format("#%.4x\n", array.Size());
+			output ~= format("@copy_loop_%d\n", arrays.length - 1);
+			output ~= ".arraySrc LDZ2 LDA .arrayDest LDZ2 STA\n";
+			output ~= ".arraySrc LDZ2 INC2 .arraySrc STZ2\n";
+			output ~= ".arrayDest LDZ2 INC2 .arrayDest STZ2\n";
+			output ~= format("#0001 SUB2 DUP2 #0000 NEQ2 ,copy_loop_%d JCN\n", arrays.length - 1);
 
 			Variable var;
 			var.type      = array.type;
@@ -476,16 +458,19 @@ class BackendRM86 : CompilerBackend {
 
 			variables ~= var;
 
-			output ~= "mov ax, sp\n";
-			output ~= format("sub sp, %d\n", 2 * 3); // size of Array structure
-			output ~= "mov bx, sp\n";
-			output ~= format("mov word [bx], %d\n", array.values.length); // length
-			output ~= format("mov word [bx + 2], %d\n", array.type.size); // member size
-			output ~= "mov [bx + 4], ax\n"; // elements
+			// save array address for later
+			output ~= ".vsp LDZ2\n";
+			// allocate metadata
+			output ~= format(".vsp LDZ2 #%.4x SUB2 .vsp STZ2\n", 2 * 3);
+			// length
+			output ~= format("#%.4x .vsp LDZ2 STA2\n", array.values.length);
+			// member size
+			output ~= format("#%.4x .vsp LDZ2 INC2 INC2 STA2\n", array.type.size);
+			// elements
+			output ~= ".vsp LDZ2 #0004 ADD2 STA2\n";
 
 			// push metadata address
-			output ~= "mov [si], sp\n";
-			output ~= "add si, 2\n";
+			output ~= ".vsp LDZ2\n";
 		}
 	}
 
@@ -560,8 +545,8 @@ class BackendRM86 : CompilerBackend {
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
 		}
-		output ~= format("add sp, %d\n", scopeSize);
-		output ~= "ret\n";
+		output ~= format(".vsp LDZ2 #%.4x ADD2 .vsp STZ2\n", scopeSize);
+		output ~= "JMP2r\n";
 	}
 
 	override void CompileConst(ConstNode node) {
@@ -596,7 +581,7 @@ class BackendRM86 : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format("jmp __while_%d_end\n", currentLoop);
+		output ~= format(";while_%d_end JMP2\n", currentLoop);
 	}
 
 	override void CompileContinue(WordNode node) {
@@ -604,7 +589,7 @@ class BackendRM86 : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format("jmp __while_%d_condition\n", currentLoop);
+		output ~= format(";while_%d_condition JMP2\n", currentLoop);
 	}
 
 	override void CompileUnion(UnionNode node) {

@@ -166,6 +166,8 @@ class BackendLinux86 : CompilerBackend {
 		return ret ~ format("rm %s.asm %s.o", compiler.outFile, compiler.outFile);
 	}
 
+	override long MaxInt() => -1;
+
 	override void BeginMain() {
 		output ~= "__calmain:\n";
 	}

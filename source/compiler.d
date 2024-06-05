@@ -21,7 +21,8 @@ class CompilerBackend {
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
-	abstract void NewConst(string name, long value, ErrorInfo error);
+	abstract long     MaxInt();
+	abstract void     NewConst(string name, long value, ErrorInfo error);
 
 	abstract void BeginMain();
 
@@ -178,7 +179,7 @@ class Compiler {
 		backend.compiler = this;
 		backend.Init();
 
-		backend.NewConst("true", -1, ErrorInfo.init);
+		backend.NewConst("true",  backend.MaxInt(), ErrorInfo.init);
 		backend.NewConst("false", 0, ErrorInfo.init);
 
 		Node[] header;
