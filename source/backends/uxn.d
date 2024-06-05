@@ -147,11 +147,11 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void Init() {
-		output ~= "|0 @vsp $2\n";
+		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
 		output ~= "|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1\n";
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
-		output ~= "    #ffff .vsp STZ2";
+		output ~= "    #ffff .vsp STZ2\n";
 		output ~= "    calmain\n";
 		output ~= "    BRK\n";
 	}
@@ -167,6 +167,25 @@ class BackendUXN : CompilerBackend {
 			}
 
 			output ~= "\n";
+		}
+
+		foreach (i, ref array ; arrays) {
+			output ~= format("@array_%d ", i);
+
+			foreach (j, ref element ; array.values) {
+				output ~= element ~ (j == array.values.length - 1? "" : " ");
+			}
+
+			output ~= '\n';
+
+			if (array.global) {
+				output ~= format(
+					"@array_%d_meta %.4x %.4x =array_%d\n", i,
+					array.values.length,
+					array.type.size,
+					i
+				);
+			}
 		}
 
 		// pad for the stack
@@ -193,7 +212,7 @@ class BackendUXN : CompilerBackend {
 		}
 		else if (VariableExists(node.name)) {
 			auto var  = GetVariable(node.name);
-			output   ~= format(".vsp LDZ2 #%.4X ADD2\n", var.offset);
+			output   ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
 		}
 		else if (node.name in globals) {
 			output ~= format(";global_%s\n", node.name.Sanitise());
@@ -354,13 +373,13 @@ class BackendUXN : CompilerBackend {
 
 			variables ~= var;
 
-			output ~= format(";vsp LDA2 #%.4X SUB2 ;vsp STA2\n", var.Size());
+			output ~= format(".vsp LDZ2 #%.4x SUB2 .vsp STZ2\n", var.Size());
 
 			if (var.Size() == 1) {
-				output ~= format("#00 ;vsp LDA2 STA\n");
+				output ~= format("#00 .vsp LDZ2 STA\n");
 			}
 			else if (var.Size() == 2) {
-				output ~= format("#0000 ;vsp LDA2 STA2\n");
+				output ~= format("#0000 .vsp LDZ2 STA2\n");
 			}
 		}
 		else {
@@ -371,11 +390,101 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileArray(ArrayNode node) {
-		
+		Array array;
+
+		if (node.arrayType !in types) {
+			Error(node.error, "Type '%s' doesn't exist", node.arrayType);
+		}
+
+		array.type = types[node.arrayType];
+
+		foreach (ref elem ; node.elements) {
+			switch (elem.type) {
+				case NodeType.Integer: {
+					auto node2    = cast(IntegerNode) elem;
+
+					//array.values ~= node2.value.text();
+					final switch (array.type.size) {
+						case 1: array.values ~= format("%.2x", node2.value); break;
+						case 2: array.values ~= format("%.4x", node2.value); break;
+					}
+					break;
+				}
+				default: {
+					Error(elem.error, "Type '%s' can't be used in array literal");
+				}
+			}
+		}
+		array.global  = !inScope || node.constant;
+		arrays       ~= array;
+
+		if (!inScope || node.constant) {
+			output ~= format(";array_%d_meta\n", arrays.length - 1);
+		}
+		else {
+			// allocate a copy of the array
+			output ~= format(".vsp LDZ2 #%.4x SUB2 .vsp STZ2\n", array.Size());
+
+			// copy array contents
+			output ~= format(";array_%d .arraySrc STZ2\n", arrays.length - 1);
+			output ~= ".vsp LDZ2 .arrayDest STZ2\n";
+			output ~= format("#%.4x\n", array.Size());
+			output ~= format("@copy_loop_%d\n", arrays.length - 1);
+			output ~= ".arraySrc LDZ2 LDA .arrayDest LDZ2 STA\n";
+			output ~= ".arraySrc LDZ2 INC2 .arraySrc STZ2\n";
+			output ~= ".arrayDest LDZ2 INC2 .arrayDest STZ2\n";
+			output ~= format("#0001 SUB2 DUP2 #0000 NEQ2 ,copy_loop_%d JCN\n", arrays.length - 1);
+
+			Variable var;
+			var.type      = array.type;
+			var.offset    = 0;
+			var.array     = true;
+			var.arraySize = array.values.length;
+
+			foreach (ref var2 ; variables) {
+				var2.offset += var.Size();
+			}
+
+			variables ~= var;
+
+			// create metadata variable
+			var.type   = types["Array"];
+			var.offset = 0;
+			var.array  = false;
+
+			foreach (ref var2 ; variables) {
+				var2.offset += var.Size();
+			}
+
+			variables ~= var;
+
+			// save array address for later
+			output ~= ".vsp LDZ2\n";
+			// allocate metadata
+			output ~= format(".vsp LDZ2 #%.4x SUB2 .vsp STZ2\n", 2 * 3);
+			// length
+			output ~= format("#%.4x .vsp LDZ2 STA2\n", array.values.length);
+			// member size
+			output ~= format("#%.4x .vsp LDZ2 INC2 INC2 STA2\n", array.type.size);
+			// elements
+			output ~= ".vsp LDZ2 #0004 ADD2 STA2\n";
+
+			// push metadata address
+			output ~= ".vsp LDZ2\n";
+		}
 	}
 
 	override void CompileString(StringNode node) {
-		
+		auto arrayNode = new ArrayNode(node.error);
+
+		arrayNode.arrayType = "u8";
+		arrayNode.constant  = node.constant;
+
+		foreach (ref ch ; node.value) {
+			arrayNode.elements ~= new IntegerNode(node.error, cast(long) ch);
+		}
+
+		CompileArray(arrayNode);
 	}
 
 	override void CompileStruct(StructNode node) {
