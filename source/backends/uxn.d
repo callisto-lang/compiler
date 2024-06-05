@@ -112,6 +112,8 @@ class BackendUXN : CompilerBackend {
 		format("rm %s.tal", compiler.outFile)
 	];
 
+	override long MaxInt() => 0xFFFF;
+
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
 	}

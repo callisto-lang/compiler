@@ -115,6 +115,8 @@ class BackendY32 : CompilerBackend {
 		format("rm %s.asm", compiler.outFile)
 	];
 
+	override long MaxInt() => 0xFFFFFFFF;
+
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
 	}

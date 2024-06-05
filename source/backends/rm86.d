@@ -140,6 +140,8 @@ class BackendRM86 : CompilerBackend {
 		format("rm %s.asm", compiler.outFile)
 	];
 
+	override long MaxInt() => 0xFFFF;
+
 	override void BeginMain() {
 		output ~= "__calmain:\n";
 	}
