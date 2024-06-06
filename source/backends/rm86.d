@@ -156,7 +156,7 @@ class BackendRM86 : CompilerBackend {
 		output ~= "ret\n";
 
 		foreach (name, var ; globals) {
-			output ~= format("__global_%s: times %d db 0\n", name, var.Size());
+			output ~= format("__global_%s: times %d db 0\n", name.Sanitise(), var.Size());
 		}
 
 		foreach (i, ref array ; arrays) {
@@ -651,5 +651,21 @@ class BackendRM86 : CompilerBackend {
 		Word word;
 		word.raw         = node.raw;
 		words[node.func] = word;
+	}
+
+	override void CompileCall(WordNode node) {
+		output ~= "sub si, 2\n";
+		output ~= "mov ax, [si]\n";
+		output ~= "call ax\n";
+	}
+
+	override void CompileFuncAddr(FuncAddrNode node) {
+		if (node.func !in words) {
+			Error(node.error, "Function '%s' doesn't exist");
+		}
+
+		output ~= format("mov ax, __func__%s\n", node.func.Sanitise());
+		output ~= "mov [si], ax\n";
+		output ~= "add si, 2\n";
 	}
 }

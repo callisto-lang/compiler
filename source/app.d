@@ -8,7 +8,7 @@ import std.process;
 import std.algorithm;
 import callisto.compiler;
 import callisto.language;
-import callisto.optimiser;
+import callisto.codeRemover;
 import callisto.preprocessor;
 import callisto.backends.uxn;
 import callisto.backends.y32;
@@ -270,11 +270,9 @@ int main(string[] args) {
 		return 1;
 	}
 	
-	if (optimise) {
-		auto optimiser  = new Optimiser();
-		optimiser.Run(nodes);
-		nodes = optimiser.res;
-	}
+	/*auto codeRemover = new CodeRemover();
+	codeRemover.Run(nodes);
+	nodes = codeRemover.res;*/
 
 	compiler.versions = preproc.versions;
 	

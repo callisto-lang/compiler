@@ -160,7 +160,7 @@ class BackendUXN : CompilerBackend {
 		output ~= "JMP2r\n";
 
 		foreach (name, var ; globals) {
-			output ~= format("@global_%s", name);
+			output ~= format("@global_%s", name.Sanitise());
 
 			foreach (i ; 0 .. var.Size()) {
 				output ~= " #00";
@@ -226,6 +226,10 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileInteger(IntegerNode node) {
+		if (node.value > 0xFFFF) {
+			Error(node.error, "Value is too big for 16-bit target");
+		}
+
 		output ~= format("#%.4x\n", node.value);
 	}
 
@@ -636,5 +640,17 @@ class BackendUXN : CompilerBackend {
 		Word word;
 		word.raw         = node.raw;
 		words[node.func] = word;
+	}
+
+	override void CompileCall(WordNode node) {
+		output ~= "JSR2\n";
+	}
+
+	override void CompileFuncAddr(FuncAddrNode node) {
+		if (node.func !in words) {
+			Error(node.error, "Function '%s' doesn't exist");
+		}
+
+		output ~= format(";func__%s\n", node.func.Sanitise());
 	}
 }

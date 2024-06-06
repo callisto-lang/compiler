@@ -743,4 +743,20 @@ class BackendLinux86 : CompilerBackend {
 			output ~= format("extern %s\n", node.func);
 		}
 	}
+
+	override void CompileCall(WordNode node) {
+		output ~= "sub r15, 8\n";
+		output ~= "mov rax, [r15]\n";
+		output ~= "call rax\n";
+	}
+
+	override void CompileFuncAddr(FuncAddrNode node) {
+		if (node.func !in words) {
+			Error(node.error, "Function '%s' doesn't exist");
+		}
+
+		output ~= format("mov rax, __func__%s\n", node.func.Sanitise());
+		output ~= "mov [r15], rax\n";
+		output ~= "add r15, 8\n";
+	}
 }

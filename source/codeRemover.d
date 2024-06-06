@@ -1,4 +1,4 @@
-module callisto.optimiser;
+module callisto.codeRemover;
 
 import std.stdio;
 import std.format;
@@ -6,16 +6,17 @@ import std.algorithm;
 import callisto.error;
 import callisto.parser;
 
-class OptimiserError : Exception {
+class CodeRemoverError : Exception {
 	this() {
 		super("", "", 0);
 	}
 }
 
-class Optimiser {
+class CodeRemover {
 	Node[]         res;
 	string[]       usedFunctions;
 	Node[][string] functions;
+	string[]       funcStack;
 
 	this() {
 		
@@ -24,7 +25,7 @@ class Optimiser {
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
 		stderr.writeln(format(fmt, args));
-		throw new OptimiserError();
+		throw new CodeRemoverError();
 	}
 
 	void FindFunctions(Node[] nodes) {
@@ -39,7 +40,13 @@ class Optimiser {
 						continue;
 					}
 
+					if (funcStack.canFind(node.name)) {
+						return;
+					}
+
+					funcStack ~= node.name;
 					FindFunctions(functions[node.name]);
+					funcStack = funcStack[0 .. $ - 1];
 					break;
 				}
 				case NodeType.If: {

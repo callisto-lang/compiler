@@ -272,4 +272,12 @@ class BackendY32 : CompilerBackend {
 	override void CompileExtern(ExternNode node) {
 		assert(0);
 	}
+
+	override void CompileCall(WordNode node) {
+		assert(0);
+	}
+
+	override void CompileFuncAddr(FuncAddrNode node) {
+		assert(0);
+	}
 }

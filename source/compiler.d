@@ -45,6 +45,8 @@ class CompilerBackend {
 	abstract void CompileUnion(UnionNode node);
 	abstract void CompileAlias(AliasNode node);
 	abstract void CompileExtern(ExternNode node);
+	abstract void CompileCall(WordNode node);
+	abstract void CompileFuncAddr(FuncAddrNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -81,9 +83,10 @@ class Compiler {
 				auto node = cast(WordNode) inode;
 
 				switch (node.name) {
-					case "return":   backend.CompileReturn(node); break;
+					case "return":   backend.CompileReturn(node);   break;
 					case "continue": backend.CompileContinue(node); break;
-					case "break":    backend.CompileBreak(node); break;
+					case "break":    backend.CompileBreak(node);    break;
+					case "call":     backend.CompileCall(node);     break;
 					case "error":    backend.Error(node.error, "Error thrown by code"); break;
 					default:         backend.CompileWord(node);
 				}
@@ -159,14 +162,15 @@ class Compiler {
 				}
 				break;
 			}
-			case NodeType.Array:  backend.CompileArray(cast(ArrayNode) inode); break;
-			case NodeType.String: backend.CompileString(cast(StringNode) inode); break;
-			case NodeType.Struct: backend.CompileStruct(cast(StructNode) inode); break;
-			case NodeType.Const:  backend.CompileConst(cast(ConstNode) inode); break;
-			case NodeType.Enum:   backend.CompileEnum(cast(EnumNode) inode); break;
-			case NodeType.Union:  backend.CompileUnion(cast(UnionNode) inode); break;
-			case NodeType.Alias:  backend.CompileAlias(cast(AliasNode) inode); break;
-			case NodeType.Extern: backend.CompileExtern(cast(ExternNode) inode); break;
+			case NodeType.Array:    backend.CompileArray(cast(ArrayNode) inode); break;
+			case NodeType.String:   backend.CompileString(cast(StringNode) inode); break;
+			case NodeType.Struct:   backend.CompileStruct(cast(StructNode) inode); break;
+			case NodeType.Const:    backend.CompileConst(cast(ConstNode) inode); break;
+			case NodeType.Enum:     backend.CompileEnum(cast(EnumNode) inode); break;
+			case NodeType.Union:    backend.CompileUnion(cast(UnionNode) inode); break;
+			case NodeType.Alias:    backend.CompileAlias(cast(AliasNode) inode); break;
+			case NodeType.Extern:   backend.CompileExtern(cast(ExternNode) inode); break;
+			case NodeType.FuncAddr: backend.CompileFuncAddr(cast(FuncAddrNode) inode); break;
 			default: {
 				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}

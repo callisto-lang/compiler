@@ -29,7 +29,8 @@ enum NodeType {
 	Restrict,
 	Union,
 	Alias,
-	Extern
+	Extern,
+	FuncAddr
 }
 
 class Node {
@@ -408,6 +409,17 @@ class ExternNode : Node {
 	}
 
 	override string toString() => format("extern %s%s", raw? "" : "raw ", func);
+}
+
+class FuncAddrNode : Node {
+	string func;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.FuncAddr;
+		error = perror;
+	}
+
+	override string toString() => format("&%s", func);
 }
 
 class ParserError : Exception {
@@ -958,6 +970,17 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseFuncAddr() {
+		auto ret = new FuncAddrNode(GetError());
+		parsing  = NodeType.FuncAddr;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.func = tokens[i].contents;
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -985,8 +1008,9 @@ class Parser {
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}
-			case TokenType.LSquare: return ParseArray();
-			case TokenType.String:  return ParseString();
+			case TokenType.LSquare:   return ParseArray();
+			case TokenType.String:    return ParseString();
+			case TokenType.Ampersand: return ParseFuncAddr();
 			default: {
 				Error("Unexpected %s", tokens[i].type);
 			}

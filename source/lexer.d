@@ -14,7 +14,8 @@ enum TokenType {
 	String,
 	Identifier,
 	LSquare,
-	RSquare
+	RSquare,
+	Ampersand
 }
 
 struct Token {
@@ -200,6 +201,11 @@ class Lexer {
 
 						++ line;
 						col = 0;
+						break;
+					}
+					case '&': {
+						AddReading();
+						AddToken(TokenType.Ampersand);
 						break;
 					}
 					case '\'': {
