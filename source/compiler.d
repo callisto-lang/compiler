@@ -23,6 +23,7 @@ class CompilerBackend {
 	abstract string[] FinalCommands();
 	abstract long     MaxInt();
 	abstract void     NewConst(string name, long value, ErrorInfo error);
+	abstract string   DefaultHeader();
 
 	abstract void BeginMain();
 

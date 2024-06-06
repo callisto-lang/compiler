@@ -114,6 +114,11 @@ class BackendUXN : CompilerBackend {
 
 	override long MaxInt() => 0xFFFF;
 
+	override string DefaultHeader() => "
+		|0 @vsp $2 @arraySrc $2 @arrayDest $2
+		|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1
+	";
+
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
 	}
@@ -148,7 +153,6 @@ class BackendUXN : CompilerBackend {
 
 	override void Init() {
 		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
-		output ~= "|00 @System &vector $2 &pad $6 &r $2 &g $2 &b $2\n";
 		output ~= "|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1\n";
 		output ~= "|100\n";
 		output ~= "@on-reset\n";

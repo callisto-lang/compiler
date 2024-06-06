@@ -117,6 +117,8 @@ class BackendY32 : CompilerBackend {
 
 	override long MaxInt() => 0xFFFFFFFF;
 
+	override string DefaultHeader() => "";
+
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
 	}

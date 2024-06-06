@@ -142,6 +142,8 @@ class BackendRM86 : CompilerBackend {
 
 	override long MaxInt() => 0xFFFF;
 
+	override string DefaultHeader() => "";
+
 	override void BeginMain() {
 		output ~= "__calmain:\n";
 	}

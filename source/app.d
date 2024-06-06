@@ -35,6 +35,7 @@ Flags:
 	-d         - Enables debug symbols (if available)
 	-l LIB     - Links LIB with the linker (if available)
 	-dv VER    - Disables VER
+	-h FILE    - Puts the contents of FILE at the top of the assembly output
 
 Backends:
 	rm86    - Real mode x86 and MS-DOS
@@ -67,6 +68,7 @@ int main(string[] args) {
 	bool            exportSymbols;
 	string[]        link;
 	string[]        disabled;
+	string          header;
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -204,6 +206,21 @@ int main(string[] args) {
 					disabled ~= args[i];
 					break;
 				}
+				case "-h": {
+					++ i;
+					if (i >= args.length) {
+						stderr.writeln("-h expects FILE argument");
+						return 1;
+					}
+
+					if (header != "") {
+						stderr.writeln("Header set multiple times");
+						return 1;
+					}
+
+					header = args[i];
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -219,6 +236,21 @@ int main(string[] args) {
 			file = args[i];
 		}
 	}
+
+	if (header == "") {
+		header = backend.DefaultHeader();
+	}
+	else {
+		try {
+			header = readText(header);
+		}
+		catch (Exception e) {
+			stderr.writefln("%s: %s", header, e.msg);
+			return 1;
+		}
+	}
+
+	backend.output = header ~ '\n';
 
 	if (file == "") {
 		stderr.writeln("No source files");

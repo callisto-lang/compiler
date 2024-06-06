@@ -168,6 +168,8 @@ class BackendLinux86 : CompilerBackend {
 
 	override long MaxInt() => -1;
 
+	override string DefaultHeader() => "";
+
 	override void BeginMain() {
 		output ~= "__calmain:\n";
 	}
