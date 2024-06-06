@@ -339,13 +339,16 @@ class BackendLinux86 : CompilerBackend {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(false, false, []);
+			words[node.name] = Word(node.raw, false, []);
+
+			string symbol =
+				node.raw? node.name : format("__func__%s", node.name.Sanitise());
 
 			if (exportSymbols) {
-				output ~= format("global __func__%s\n", node.name.Sanitise());
+				output ~= format("global %s\n", symbol);
 			}
 
-			output ~= format("__func__%s:\n", node.name.Sanitise());
+			output ~= format("%s:\n", symbol);
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
@@ -755,7 +758,10 @@ class BackendLinux86 : CompilerBackend {
 			Error(node.error, "Function '%s' doesn't exist");
 		}
 
-		output ~= format("mov rax, __func__%s\n", node.func.Sanitise());
+		auto   word   = words[node.func];
+		string symbol = word.raw? node.func : format("__func__%s", node.func.Sanitise());
+
+		output ~= format("mov rax, %s\n", symbol);
 		output ~= "mov [r15], rax\n";
 		output ~= "add r15, 8\n";
 	}

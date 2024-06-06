@@ -249,9 +249,12 @@ class BackendRM86 : CompilerBackend {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(false, false, []);
+			words[node.name] = Word(node.raw, false, []);
 
-			output ~= format("__func__%s:\n", node.name.Sanitise());
+			string symbol =
+				node.raw? node.name : format("__func__%s", node.name.Sanitise());
+
+			output ~= format("%s:\n", symbol);
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
@@ -664,7 +667,11 @@ class BackendRM86 : CompilerBackend {
 			Error(node.error, "Function '%s' doesn't exist");
 		}
 
-		output ~= format("mov ax, __func__%s\n", node.func.Sanitise());
+		auto   word   = words[node.func];
+		string symbol =
+			word.raw? node.func : format("__func__%s", node.func.Sanitise());
+
+		output ~= format("mov ax, %s\n", symbol);
 		output ~= "mov [si], ax\n";
 		output ~= "add si, 2\n";
 	}

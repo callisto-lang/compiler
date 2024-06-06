@@ -148,6 +148,7 @@ class BackendUXN : CompilerBackend {
 
 	override void Init() {
 		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
+		output ~= "|00 @System &vector $2 &pad $6 &r $2 &g $2 &b $2\n";
 		output ~= "|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1\n";
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
@@ -250,9 +251,12 @@ class BackendUXN : CompilerBackend {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(false, false, []);
+			words[node.name] = Word(node.raw, false, []);
 
-			output ~= format("@func__%s\n", node.name.Sanitise());
+			string symbol =
+				node.raw? node.name : format("func__%s", node.name.Sanitise());
+
+			output ~= format("@%s\n", symbol);
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
@@ -651,6 +655,10 @@ class BackendUXN : CompilerBackend {
 			Error(node.error, "Function '%s' doesn't exist");
 		}
 
-		output ~= format(";func__%s\n", node.func.Sanitise());
+		auto   word   = words[node.func];
+		string symbol =
+			word.raw? node.func : format("func__%s", node.func.Sanitise());
+
+		output ~= format(";%s\n", symbol);
 	}
 }

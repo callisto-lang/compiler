@@ -204,8 +204,12 @@ class BackendY32 : CompilerBackend {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name]  = Word(false, false, []);
-			output           ~= format("__func__%s:\n", node.name.Sanitise());
+			words[node.name]  = Word(node.raw, false, []);
+
+			string symbol =
+				node.raw? node.name : format("__func__%s", node.name.Sanitise());
+
+			output ~= format("%s:\n", symbol);
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);

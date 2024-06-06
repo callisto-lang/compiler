@@ -79,6 +79,7 @@ class FuncDefNode : Node {
 	string name;
 	Node[] nodes;
 	bool   inline;
+	bool   raw;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.FuncDef;
@@ -470,6 +471,13 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "raw") {
+			ret.raw = true;
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
 		ret.name = tokens[i].contents;
 
 		Next();
