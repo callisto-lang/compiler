@@ -301,10 +301,12 @@ int main(string[] args) {
 	catch (PreprocessorError) {
 		return 1;
 	}
-	
-	/*auto codeRemover = new CodeRemover();
-	codeRemover.Run(nodes);
-	nodes = codeRemover.res;*/
+
+	if (optimise) {
+		auto codeRemover = new CodeRemover();
+		codeRemover.Run(nodes);
+		nodes = codeRemover.res;
+	}
 
 	compiler.versions = preproc.versions;
 	

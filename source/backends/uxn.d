@@ -115,7 +115,6 @@ class BackendUXN : CompilerBackend {
 	override long MaxInt() => 0xFFFF;
 
 	override string DefaultHeader() => "
-		|0 @vsp $2 @arraySrc $2 @arrayDest $2
 		|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1
 	";
 
@@ -153,7 +152,6 @@ class BackendUXN : CompilerBackend {
 
 	override void Init() {
 		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
-		output ~= "|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1\n";
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
 		output ~= "    #ffff .vsp STZ2\n";

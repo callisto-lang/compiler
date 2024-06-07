@@ -1,0 +1,68 @@
+# Compile with:
+# cac main.cal -b uxn -i ../../std -h header.tal -o sierpinski.rom
+
+include "cores/select.cal"
+
+func init_palette begin asm
+	# 0f 0f 3f 0f 0e 0f
+	"#0f0f .System/r DEO2"
+	"#3f0f .System/g DEO2"
+	"#0e0f .System/b DEO2"
+end end
+
+func set_screen_size begin asm # width, height
+	".Screen/height DEO2"
+	".Screen/width DEO2"
+end end
+
+func get_screen_size begin asm # -> width, height
+	".Screen/width DEI2"
+	".Screen/height DEI2"
+end end
+
+inline draw_pixel begin asm # colour, x, y
+	".Screen/y DEO2"
+	".Screen/x DEO2"
+	"NIP .Screen/pixel DEO"
+end end
+
+func sierpinski begin
+	let cell n
+	let cell x
+	let cell y
+	let cell pad
+	let cell rowStart
+	2 * n !
+
+	0 y !
+	n @ 2 / pad !
+
+	n @ 2 / n @ 2 / set_screen_size
+
+	while y @ n @ 2 / < do
+		0 x !
+
+		while x @ pad @ < do
+			x @ 1 + x !
+		end
+
+		x @ 2 / rowStart !
+		0 x !
+
+		while x @ n @ < do
+			if x @ n @ y @ 1 + - and then
+				
+			else
+				1 x @ rowStart @ + y @ draw_pixel
+			end
+
+			x @ 1 + x !
+		end
+
+		y @ 1 + y !
+		pad @ 1 - pad !
+	end
+end
+
+init_palette
+512 sierpinski
