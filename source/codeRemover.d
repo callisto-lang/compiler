@@ -52,6 +52,8 @@ class CodeRemover {
 				case NodeType.FuncAddr: {
 					auto node = cast(FuncAddrNode) inode;
 
+					usedFunctions ~= node.func;
+
 					if (node.func !in functions) {
 						continue;
 					}
