@@ -41,11 +41,27 @@ class CodeRemover {
 					}
 
 					if (funcStack.canFind(node.name)) {
-						return;
+						continue;
 					}
 
 					funcStack ~= node.name;
 					FindFunctions(functions[node.name]);
+					funcStack = funcStack[0 .. $ - 1];
+					break;
+				}
+				case NodeType.FuncAddr: {
+					auto node = cast(FuncAddrNode) inode;
+
+					if (node.func !in functions) {
+						continue;
+					}
+
+					if (funcStack.canFind(node.func)) {
+						continue;
+					}
+
+					funcStack ~= node.func;
+					FindFunctions(functions[node.func]);
 					funcStack = funcStack[0 .. $ - 1];
 					break;
 				}

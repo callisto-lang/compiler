@@ -653,6 +653,10 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileFuncAddr(FuncAddrNode node) {
+		foreach (name, word ; words) {
+			writeln(name);
+		}
+
 		if (node.func !in words) {
 			Error(node.error, "Function '%s' doesn't exist", node.func);
 		}
