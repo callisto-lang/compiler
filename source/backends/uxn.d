@@ -654,7 +654,7 @@ class BackendUXN : CompilerBackend {
 
 	override void CompileFuncAddr(FuncAddrNode node) {
 		if (node.func !in words) {
-			Error(node.error, "Function '%s' doesn't exist");
+			Error(node.error, "Function '%s' doesn't exist", node.func);
 		}
 
 		auto   word   = words[node.func];
