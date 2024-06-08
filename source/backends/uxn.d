@@ -166,7 +166,7 @@ class BackendUXN : CompilerBackend {
 			output ~= format("@global_%s", name.Sanitise());
 
 			foreach (i ; 0 .. var.Size()) {
-				output ~= " #00";
+				output ~= " 00";
 			}
 
 			output ~= "\n";
