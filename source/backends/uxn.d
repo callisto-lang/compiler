@@ -214,8 +214,14 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 		else if (VariableExists(node.name)) {
-			auto var  = GetVariable(node.name);
-			output   ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
+			auto var = GetVariable(node.name);
+
+			if (var.offset == 0) {
+				output ~= ".vsp LDZ2\n";
+			}
+			else {
+				output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
+			}
 		}
 		else if (node.name in globals) {
 			output ~= format(";global_%s\n", node.name.Sanitise());

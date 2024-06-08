@@ -293,7 +293,9 @@ class BackendLinux86 : CompilerBackend {
 			auto var = GetVariable(node.name);
 
 			output ~= "mov rdi, rsp\n";
-			output ~= format("add rdi, %d\n", var.offset);
+			if (var.offset > 0) {
+				output ~= format("add rdi, %d\n", var.offset);
+			}
 			output ~= "mov [r15], rdi\n";
 			output ~= "add r15, 8\n";
 		}

@@ -211,7 +211,9 @@ class BackendRM86 : CompilerBackend {
 			auto var = GetVariable(node.name);
 
 			output ~= "mov di, sp\n";
-			output ~= format("add di, %d\n", var.offset);
+			if (var.offset > 0) {
+				output ~= format("add di, %d\n", var.offset);
+			}
 			output ~= "mov [si], di\n";
 			output ~= "add si, 2\n";
 		}
