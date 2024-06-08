@@ -362,7 +362,12 @@ class BackendLinux86 : CompilerBackend {
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
 			}
-			output ~= format("add rsp, %d\n", scopeSize);
+			if (scopeSize == 1) {
+				output ~= "inc rsp\n";
+			}
+			else if (scopeSize > 0) {
+				output ~= format("add rsp, %d\n", scopeSize);
+			}
 
 			output    ~= "ret\n";
 			//output    ~= format("__func_end__%s:\n", node.name.Sanitise());
@@ -652,7 +657,13 @@ class BackendLinux86 : CompilerBackend {
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
 		}
-		output ~= format("add rsp, %d\n", scopeSize);
+		if (scopeSize == 1) {
+			output ~= "inc rsp\n";
+		}
+		else if (scopeSize > 0) {
+			output ~= format("add rsp, %d\n", scopeSize);
+		}
+
 		output ~= "ret\n";
 	}
 

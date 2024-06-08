@@ -268,7 +268,12 @@ class BackendRM86 : CompilerBackend {
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
 			}
-			output ~= format("add sp, %d\n", scopeSize);
+			if (scopeSize == 1) {
+				output ~= "inc sp\n";
+			}
+			else {
+				output ~= format("add sp, %d\n", scopeSize);
+			}
 
 			output    ~= "ret\n";
 			//output    ~= format("__func_end__%s:\n", node.name.Sanitise());
@@ -565,8 +570,12 @@ class BackendRM86 : CompilerBackend {
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
 		}
-		output ~= format("add sp, %d\n", scopeSize);
-		output ~= "ret\n";
+		if (scopeSize == 1) {
+			output ~= "inc sp\n";
+		}
+		else {
+			output ~= format("add sp, %d\n", scopeSize);
+		}
 	}
 
 	override void CompileConst(ConstNode node) {

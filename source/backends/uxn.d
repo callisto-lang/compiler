@@ -268,7 +268,19 @@ class BackendUXN : CompilerBackend {
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
 			}
-			output ~= format(".vsp LDZ2 #%.4x ADD2 .vsp STZ2\n", scopeSize);
+			//output ~= format(".vsp LDZ2 #%.4x ADD2 .vsp STZ2\n", scopeSize);
+			if (scopeSize > 0) {
+				output ~= ".vsp LDZ2 ";
+
+				switch (scopeSize) {
+					case 1:  output ~= "INC2 "; break;
+					case 2:  output ~= "INC2 INC2 "; break;
+					case 3:  output ~= "INC2 INC2 INC2 "; break;
+					default: output ~= format("#%.4x ADD2 ", scopeSize); break;
+				}
+
+				output ~= ".vsp STZ2\n";
+			}
 
 			output    ~= "JMP2r\n";
 			variables  = [];
