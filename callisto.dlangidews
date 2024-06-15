@@ -1,0 +1,7 @@
+{
+    "name": "callisto",
+    "description": "The Callisto compiler",
+    "projects": {
+        "callisto": "dub.json"
+    }
+}

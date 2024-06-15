@@ -36,6 +36,7 @@ private struct Variable {
 	uint   offset; // SP + offset to access
 	bool   array;
 	ulong  arraySize;
+	bool   readOnly;
 
 	size_t Size() => array? arraySize * type.size : type.size;
 }
@@ -72,6 +73,7 @@ class BackendUXN : CompilerBackend {
 	string           thisFunc;
 	bool             inWhile;
 	uint             currentLoop;
+	uint             counter;
 
 	this() {
 		types["u8"]    = Type(1);
@@ -151,7 +153,7 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void Init() {
-		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
+		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2 @copyCount $2\n";
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
 		output ~= "    #ffff .vsp STZ2\n";
@@ -222,6 +224,10 @@ class BackendUXN : CompilerBackend {
 			else {
 				output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
 			}
+
+			if (var.readOnly) {
+				output ~= "LDA2\n";
+			}
 		}
 		else if (node.name in globals) {
 			output ~= format(";global_%s\n", node.name.Sanitise());
@@ -265,6 +271,45 @@ class BackendUXN : CompilerBackend {
 				node.raw? node.name : format("func__%s", node.name.Sanitise());
 
 			output ~= format("@%s\n", symbol);
+
+			// allocate parameters
+			size_t paramSize;
+			foreach (ref type ; node.types) {
+				if (type !in types) {
+					Error(node.error, "Type '%s' doesn't exist", type);
+				}
+
+				paramSize += types[type].size;
+			}
+			if (paramSize > 0) {
+				output ~= format(".vsp LDZ2 %.4x SUB2 .vsp STZ2\n", paramSize);
+				foreach (ref var ; variables) {
+					var.offset += paramSize;
+				}
+
+				size_t offset;
+				foreach (i, ref type ; node.types) {
+					auto     param = node.params[i];
+					Variable var;
+
+					var.name      = param;
+					var.type      = types[type];
+					var.offset    = cast(uint) offset;
+					var.readOnly  = true;
+					offset       += var.Size();
+					variables    ~= var;
+				}
+
+				// copy data to parameters
+				output ~= format("#%.4x .copyCount STZ2\n", paramSize);
+				output ~= ".vsp LDZ2 .arrayDest STZ2\n";
+				++ counter;
+				output ~= format("@fcopy_loop_%d\n", counter);
+				output ~= ".arrayDest LDZ2 STA\n";
+				output ~= ".arrayDest LDZ2 INC2 .arrayDest STZ2\n";
+				output ~= ".copyCount LDZ2 #0001 SUB2 DUP2 .copyCount STZ2\n";
+				output ~= format("#0000 NEQ2 ,fcopy_loop_%d JCN\n", counter);
+			}
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
@@ -394,6 +439,7 @@ class BackendUXN : CompilerBackend {
 			var.offset    = 0;
 			var.array     = node.array;
 			var.arraySize = node.arraySize;
+			var.readOnly  = node.readOnly;
 
 			foreach (ref ivar ; variables) {
 				ivar.offset += var.Size();
@@ -461,7 +507,9 @@ class BackendUXN : CompilerBackend {
 			output ~= ".arraySrc LDZ2 LDA .arrayDest LDZ2 STA\n";
 			output ~= ".arraySrc LDZ2 INC2 .arraySrc STZ2\n";
 			output ~= ".arrayDest LDZ2 INC2 .arrayDest STZ2\n";
-			output ~= format("#0001 SUB2 DUP2 #0000 NEQ2 ,copy_loop_%d JCN\n", arrays.length - 1);
+			output ~= format(
+				"#0001 SUB2 DUP2 #0000 NEQ2 ,copy_loop_%d JCN\n", arrays.length - 1
+			);
 
 			Variable var;
 			var.type      = array.type;

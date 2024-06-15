@@ -1,0 +1,9 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+func print_number cell n begin
+	65 printch new_line
+	n printdec new_line
+end
+
+8 print_number

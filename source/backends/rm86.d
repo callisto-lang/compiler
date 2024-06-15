@@ -36,6 +36,7 @@ private struct Variable {
 	uint   offset; // SP + offset to access
 	bool   array;
 	ulong  arraySize;
+	bool   readOnly;
 
 	size_t Size() => array? arraySize * type.size : type.size;
 }
@@ -214,6 +215,9 @@ class BackendRM86 : CompilerBackend {
 			if (var.offset > 0) {
 				output ~= format("add di, %d\n", var.offset);
 			}
+			if (var.readOnly) {
+				output ~= "mov di, [di]\n";
+			}
 			output ~= "mov [si], di\n";
 			output ~= "add si, 2\n";
 		}
@@ -259,6 +263,43 @@ class BackendRM86 : CompilerBackend {
 				node.raw? node.name : format("__func__%s", node.name.Sanitise());
 
 			output ~= format("%s:\n", symbol);
+
+			// allocate parameters
+			size_t paramSize;
+			foreach (ref type ; node.types) {
+				if (type !in types) {
+					Error(node.error, "Type '%s' doesn't exist", type);
+				}
+
+				paramSize += types[type].size;
+			}
+			if (paramSize > 0) {
+				output ~= format("sub sp, %d\n", paramSize);
+				foreach (ref var ; variables) {
+					var.offset += paramSize;
+				}
+
+				size_t offset;
+				foreach (i, ref type ; node.types) {
+					auto     param = node.params[i];
+					Variable var;
+
+					var.name      = param;
+					var.type      = types[type];
+					var.offset    = cast(uint) offset;
+					var.readOnly  = true;
+					offset       += var.Size();
+					variables    ~= var;
+				}
+
+				// copy data to parameters
+				output ~= "mov ax, si\n";
+				output ~= format("sub si, %d\n", paramSize);
+				output ~= "mov di, sp\n";
+				output ~= format("mov cx, %d\n", paramSize);
+				output ~= "rep movsb\n";
+				output ~= "mov si, ax\n";
+			}
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
@@ -395,6 +436,7 @@ class BackendRM86 : CompilerBackend {
 			var.offset    = 0;
 			var.array     = node.array;
 			var.arraySize = node.arraySize;
+			var.readOnly  = node.readOnly;
 
 			foreach (ref ivar ; variables) {
 				ivar.offset += var.Size();
