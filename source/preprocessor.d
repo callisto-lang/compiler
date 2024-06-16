@@ -55,6 +55,8 @@ class Preprocessor {
 							exit(1);
 						}
 					}
+					
+					path = path.absolutePath().buildNormalizedPath();
 
 					if (included.canFind(path)) {
 						continue;
