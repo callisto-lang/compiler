@@ -302,13 +302,14 @@ class BackendUXN : CompilerBackend {
 
 				// copy data to parameters
 				output ~= format("#%.4x .copyCount STZ2\n", paramSize);
-				output ~= ".vsp LDZ2 .arrayDest STZ2\n";
+				output ~= ".vsp LDZ2\n";
 				++ counter;
+				output ~= "STH2\n";
+				output ~= "#00 SWP SUB"\n;
 				output ~= format("@fcopy_loop_%d\n", counter);
-				output ~= ".arrayDest LDZ2 STA\n";
-				output ~= ".arrayDest LDZ2 INC2 .arrayDest STZ2\n";
-				output ~= ".copyCount LDZ2 #0001 SUB2 DUP2 .copyCount STZ2\n";
-				output ~= format("#0000 NEQ2 ,fcopy_loop_%d JCN\n", counter);
+				output ~= "SWP STH2kr STA\n";
+				output ~= format("INC2r INC DUP ?fcopy_loop_%d", counter);
+				output ~= "POP POP2r JMP2r";
 			}
 
 			foreach (ref inode ; node.nodes) {
