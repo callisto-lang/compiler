@@ -102,6 +102,9 @@ class BackendLinux86 : CompilerBackend {
 		foreach (name, ref type ; types) {
 			NewConst(format("%s.sizeof", name), cast(long) type.size);
 		}
+
+		globals["__linux86_argv"] = Global(types["addr"], false, 0);
+		globals["__linux86_argc"] = Global(types["cell"], false, 0);
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
@@ -136,7 +139,7 @@ class BackendLinux86 : CompilerBackend {
 		// platform
 		"Linux86", "Linux", "LittleEndian", "16Bit", "32Bit", "64Bit",
 		// features
-		"IO", "Exit", "Time", "File"
+		"IO", "Exit", "Time", "File", "Args"
 	];
 
 	override string[] FinalCommands() {
@@ -178,6 +181,12 @@ class BackendLinux86 : CompilerBackend {
 		output ~= "global _start\n";
 		output ~= "section .text\n";
 		output ~= "_start:\n";
+
+		// get argv and argc
+		output ~= "mov rsi, [rsp + 8]\n";
+		output ~= format("mov [__global_%s], rsi\n", Sanitise("__linux86_argv"));
+		output ~= "mov rsi, [rsp]\n";
+		output ~= format("mov [__global_%s], rsi\n", Sanitise("__linux86_argc"));
 
 		// allocate data stack
 		output ~= "sub rsp, 4096\n"; // 512 cells
