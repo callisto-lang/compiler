@@ -1,0 +1,16 @@
+include "cores/select.cal"
+include "std/io.cal"
+include "std/args.cal"
+
+let cell i
+1 i !
+let Array arg
+
+while i @ get_args_length < do
+	i @ arg get_arg
+	arg printstr
+	' ' printch
+	i @ 1 + i !
+end
+
+new_line
