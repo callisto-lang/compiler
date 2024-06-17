@@ -60,6 +60,10 @@ private struct Array {
 	size_t Size() => type.size * values.length;
 }
 
+private struct RM86Opts {
+	bool noDos;
+}
+
 class BackendRM86 : CompilerBackend {
 	Word[string]     words;
 	uint             blockCounter; // used for block statements
@@ -72,6 +76,7 @@ class BackendRM86 : CompilerBackend {
 	string           thisFunc;
 	bool             inWhile;
 	uint             currentLoop;
+	RM86Opts         opts;
 
 	this() {
 		types["u8"]    = Type(1);
@@ -96,6 +101,11 @@ class BackendRM86 : CompilerBackend {
 
 		foreach (name, ref type ; types) {
 			NewConst(format("%s.sizeof", name), cast(long) type.size);
+		}
+
+		if (!opts.noDos) {
+			globals["__rm86_argv"] = Global(types["addr"], false, 0);
+			globals["__rm86_arglen"] = Global(types["cell"], false, 0);
 		}
 	}
 
@@ -131,7 +141,7 @@ class BackendRM86 : CompilerBackend {
 		// platform
 		"RM86", "LittleEndian", "16Bit",
 		// features
-		"IO"
+		"IO", "Args"
 	];
 
 	override string[] FinalCommands() => [
@@ -144,12 +154,32 @@ class BackendRM86 : CompilerBackend {
 
 	override string DefaultHeader() => "";
 
+	override bool HandleOption(string opt) {
+		switch (opt) {
+			case "no-dos": {
+				opts.noDos = true;
+				return true;
+			}
+			default: return false;
+		}
+	}
+
 	override void BeginMain() {
 		output ~= "__calmain:\n";
 	}
 
 	override void Init() {
 		output ~= format("org 0x%.4X\n", org);
+
+		if (!opts.noDos) {
+			// get argv and argc
+			output ~= "xor ah, ah\n";
+			output ~= "mov al, [0x80]\n";
+			output ~= format("mov [__global_%s], ax\n", Sanitise("__rm86_arglen"));
+			output ~= "mov ax, 0x81\n";
+			output ~= format("mov [__global_%s], ax\n", Sanitise("__rm86_argv"));
+		}
+		
 		output ~= "mov si, __stack\n";
 		output ~= "jmp __calmain\n";
 	}
@@ -578,6 +608,8 @@ class BackendRM86 : CompilerBackend {
 		else {
 			output ~= format("add sp, %d\n", scopeSize);
 		}
+
+		output ~= "ret\n";
 	}
 
 	override void CompileConst(ConstNode node) {

@@ -173,6 +173,8 @@ class BackendLinux86 : CompilerBackend {
 
 	override string DefaultHeader() => "";
 
+	override bool HandleOption(string opt) => false;
+
 	override void BeginMain() {
 		output ~= "__calmain:\n";
 	}

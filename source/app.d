@@ -36,12 +36,16 @@ Flags:
 	-l LIB     - Links LIB with the linker (if available)
 	-dv VER    - Disables VER
 	-h FILE    - Puts the contents of FILE at the top of the assembly output
+	-bo OPT    - Backend option, see below
 
 Backends:
 	rm86    - Real mode x86 and MS-DOS
 	linux86 - Linux for 64-bit x86
-	y32     - YETI-32
 	uxn     - Varvara/Uxn
+
+Backend options:
+	rm86:
+		no-dos - Disables DOS-specific features
 ";
 
 int main(string[] args) {
@@ -69,6 +73,7 @@ int main(string[] args) {
 	string[]        link;
 	string[]        disabled;
 	string          header;
+	string[]        backendOpts;
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -221,6 +226,16 @@ int main(string[] args) {
 					header = args[i];
 					break;
 				}
+				case "-bo": {
+					++ i;
+					if (i >= args.length) {
+						stderr.writeln("-h expects FILE argument");
+						return 1;
+					}
+
+					backendOpts ~= args[i];
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -234,6 +249,13 @@ int main(string[] args) {
 			}
 
 			file = args[i];
+		}
+	}
+
+	foreach (ref opt ; backendOpts) {
+		if (!backend.HandleOption(opt)) {
+			stderr.writefln("Unknown option '%s'", opt);
+			return 1;
 		}
 	}
 
