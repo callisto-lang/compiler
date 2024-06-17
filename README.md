@@ -8,6 +8,7 @@ language inspired by YSL-C3 and Forth
 - Uxn (complete)
 
 ## Build
+You need a [D compiler](https://dlang.org/download.html) to build the Callisto compiler
 ```
 dub build
 ```
@@ -23,3 +24,5 @@ and run like this:
 cac examples/exampleNameHere.cal -i std -o out
 ./out
 ```
+
+To learn more about Callisto, read the [docs](https://callisto.mesyeti.uk/docs)
