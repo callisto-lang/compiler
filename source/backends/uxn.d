@@ -282,7 +282,7 @@ class BackendUXN : CompilerBackend {
 				paramSize += types[type].size;
 			}
 			if (paramSize > 0) {
-				output ~= format(".vsp LDZ2 %.4x SUB2 .vsp STZ2\n", paramSize);
+				output ~= format(".vsp LDZ2 #%.4x SUB2 .vsp STZ2\n", paramSize);
 				foreach (ref var ; variables) {
 					var.offset += paramSize;
 				}
@@ -301,15 +301,19 @@ class BackendUXN : CompilerBackend {
 				}
 
 				// copy data to parameters
-				output ~= format("#%.4x .copyCount STZ2\n", paramSize);
+				if (paramSize > 255) {
+					Error(node.error, "The parameters are too big");
+				}
+
+				output ~= format("#%.2x .copyCount STZ2\n", paramSize);
 				output ~= ".vsp LDZ2\n";
 				++ counter;
 				output ~= "STH2\n";
-				output ~= "#00 SWP SUB"\n;
+				output ~= "#00 SWP SUB\n";
 				output ~= format("@fcopy_loop_%d\n", counter);
 				output ~= "SWP STH2kr STA\n";
-				output ~= format("INC2r INC DUP ?fcopy_loop_%d", counter);
-				output ~= "POP POP2r JMP2r";
+				output ~= format("INC2r INC DUP ?fcopy_loop_%d\n", counter);
+				output ~= "POP POP2r JMP2r\n";
 			}
 
 			foreach (ref inode ; node.nodes) {
