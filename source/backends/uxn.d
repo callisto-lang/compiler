@@ -313,7 +313,7 @@ class BackendUXN : CompilerBackend {
 				output ~= format("@fcopy_loop_%d\n", counter);
 				output ~= "SWP STH2kr STA\n";
 				output ~= format("INC2r INC DUP ?fcopy_loop_%d\n", counter);
-				output ~= "POP POP2r JMP2r\n";
+				output ~= "POP POP2r\n";
 			}
 
 			foreach (ref inode ; node.nodes) {
