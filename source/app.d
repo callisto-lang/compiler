@@ -46,6 +46,8 @@ Backends:
 Backend options:
 	rm86:
 		no-dos - Disables DOS-specific features
+	linux86:
+		use-libc - Makes Callisto use the C runtime and links libc
 ";
 
 int main(string[] args) {
@@ -253,7 +255,7 @@ int main(string[] args) {
 	}
 
 	foreach (ref opt ; backendOpts) {
-		if (!backend.HandleOption(opt)) {
+		if (!backend.HandleOption(opt, versions)) {
 			stderr.writefln("Unknown option '%s'", opt);
 			return 1;
 		}
@@ -290,13 +292,13 @@ int main(string[] args) {
 		return 0;
 	}
 
-	auto compiler                  = new Compiler();
-	compiler.backend               = backend;
-	compiler.backend.org           = org;
-	compiler.backend.orgSet        = orgSet;
-	compiler.backend.useDebug      = doDebug;
-	compiler.backend.exportSymbols = exportSymbols;
-	compiler.backend.link          = link;
+	auto compiler                   = new Compiler();
+	compiler.backend                = backend;
+	compiler.backend.org            = org;
+	compiler.backend.orgSet         = orgSet;
+	compiler.backend.useDebug       = doDebug;
+	compiler.backend.exportSymbols  = exportSymbols;
+	compiler.backend.link          ~= link;
 	
 	versions ~= compiler.backend.GetVersions();
 

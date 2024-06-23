@@ -72,6 +72,7 @@ class BackendLinux86 : CompilerBackend {
 	Variable[]       variables;
 	Global[string]   globals;
 	Array[]          arrays;
+	bool             useLibc;
 
 	this() {
 		// built in integer types
@@ -173,22 +174,41 @@ class BackendLinux86 : CompilerBackend {
 
 	override string DefaultHeader() => "";
 
-	override bool HandleOption(string opt) => false;
+	override bool HandleOption(string opt, ref string[] versions) {
+		switch (opt) {
+			case "use-libc": {
+				link     ~= "c";
+				useLibc   = true;
+				versions ~= "LibC";
+				return true;
+			}
+			default: return false;
+		}
+	}
 
 	override void BeginMain() {
 		output ~= "__calmain:\n";
 	}
 
 	override void Init() {
-		output ~= "global _start\n";
+		if (!useLibc) output ~= "global _start\n";
+		
 		output ~= "section .text\n";
-		output ~= "_start:\n";
+		
+		if (useLibc) output ~= "main:\n";
+		else         output ~= "_start:\n";
 
 		// get argv and argc
-		output ~= "mov rsi, [rsp + 8]\n";
-		output ~= format("mov [__global_%s], rsi\n", Sanitise("__linux86_argv"));
-		output ~= "mov rsi, [rsp]\n";
-		output ~= format("mov [__global_%s], rsi\n", Sanitise("__linux86_argc"));
+		if (useLibc) {
+			output ~= format("mov [__global_%s], rdi\n", Sanitise("__linux86_argc"));
+			output ~= format("mov [__global_%s], rsi\n", Sanitise("__linux86_argv"));
+		}
+		else {
+			output ~= "mov rsi, [rsp + 8]\n";
+			output ~= format("mov [__global_%s], rsi\n", Sanitise("__linux86_argv"));
+			output ~= "mov rsi, [rsp]\n";
+			output ~= format("mov [__global_%s], rsi\n", Sanitise("__linux86_argc"));
+		}
 
 		// allocate data stack
 		output ~= "sub rsp, 4096\n"; // 512 cells

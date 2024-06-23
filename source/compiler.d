@@ -24,7 +24,7 @@ class CompilerBackend {
 	abstract long     MaxInt();
 	abstract void     NewConst(string name, long value, ErrorInfo error);
 	abstract string   DefaultHeader();
-	abstract bool     HandleOption(string opt);
+	abstract bool     HandleOption(string opt, ref string[] versions);
 
 	abstract void BeginMain();
 

@@ -118,7 +118,7 @@ class BackendUXN : CompilerBackend {
 		|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1
 	";
 
-	override bool HandleOption(string opt) => false;
+	override bool HandleOption(string opt, ref string[] versions) => false;
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));

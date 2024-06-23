@@ -119,7 +119,7 @@ class BackendY32 : CompilerBackend {
 
 	override string DefaultHeader() => "";
 
-	override bool HandleOption(string opt) => false;
+	override bool HandleOption(string opt, ref string[] versions) => false;
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));

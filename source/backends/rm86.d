@@ -154,7 +154,7 @@ class BackendRM86 : CompilerBackend {
 
 	override string DefaultHeader() => "";
 
-	override bool HandleOption(string opt) {
+	override bool HandleOption(string opt, ref string[] versions) {
 		switch (opt) {
 			case "no-dos": {
 				opts.noDos = true;
