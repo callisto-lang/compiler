@@ -400,16 +400,40 @@ class AliasNode : Node {
 	override string toString() => format("alias %s %s", to, from);
 }
 
+enum ExternType {
+	Callisto,
+	Raw,
+	C
+}
+
 class ExternNode : Node {
-	string func;
-	bool   raw;
+	string     func;
+	ExternType externType;
+
+	// for C extern
+	string[] types;
+	string   retType;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Extern;
 		error = perror;
 	}
 
-	override string toString() => format("extern %s%s", raw? "" : "raw ", func);
+	override string toString() {
+		final switch (externType) {
+			case ExternType.Callisto: return format("extern %s", func);
+			case ExternType.Raw:      return format("extern raw %s", func);
+			case ExternType.C: {
+				string ret = format("extern C %s %s", retType, func);
+
+				foreach (i, ref type ; types) {
+					ret ~= format(" %s", type);
+				}
+
+				return ret ~ " end";
+			}
+		}
+	}
 }
 
 class FuncAddrNode : Node {
@@ -967,13 +991,38 @@ class Parser {
 		Expect(TokenType.Identifier);
 
 		if (tokens[i].contents == "raw") {
-			ret.raw = true;
+			ret.externType = ExternType.Raw;
 
 			Next();
 			Expect(TokenType.Identifier);
+			ret.func = tokens[i].contents;
 		}
+		else if (tokens[i].contents == "C") {
+			ret.externType = ExternType.C;
 
-		ret.func = tokens[i].contents;
+			Next();
+			Expect(TokenType.Identifier);
+			ret.retType = tokens[i].contents;
+
+			Next();
+			Expect(TokenType.Identifier);
+			ret.func = tokens[i].contents;
+
+			while (true) {
+				Next();
+				Expect(TokenType.Identifier);
+
+				if (tokens[i].contents == "end") {
+					break;
+				}
+
+				ret.types ~= tokens[i].contents;
+			}
+		}
+		else {
+			ret.externType = ExternType.Callisto;
+			ret.func       = tokens[i].contents;
+		}
 
 		return ret;
 	}

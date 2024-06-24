@@ -697,7 +697,7 @@ class BackendRM86 : CompilerBackend {
 
 	override void CompileExtern(ExternNode node) {
 		Word word;
-		word.raw         = node.raw;
+		word.raw         = node.externType == ExternType.Raw;
 		words[node.func] = word;
 	}
 

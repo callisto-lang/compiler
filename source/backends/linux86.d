@@ -11,10 +11,20 @@ import callisto.parser;
 import callisto.compiler;
 import callisto.language;
 
+private enum WordType {
+	Callisto,
+	Raw,
+	C
+}
+
 private struct Word {
-	bool   raw;
-	bool   inline;
-	Node[] inlineNodes;
+	WordType type;
+	bool     inline;
+	Node[]   inlineNodes;
+
+	// for C words
+	Type[] params;
+	Type*  ret;
 }
 
 private struct StructEntry {
@@ -312,8 +322,42 @@ class BackendLinux86 : CompilerBackend {
 				}
 			}
 			else {
-				if (word.raw) {
+				if (word.type == WordType.Raw) {
 					output ~= format("call %s\n", node.name);
+				}
+				else if (word.type == WordType.C) {
+					if (word.params.length >= 1) {
+						output ~= "sub r15, 8\n";
+						output ~= "mov rdi, [r15]\n";
+					}
+					if (word.params.length >= 2) {
+						output ~= "sub r15, 8\n";
+						output ~= "mov rsi, [r15]\n";
+					}
+					if (word.params.length >= 3) {
+						output ~= "sub r15, 8\n";
+						output ~= "mov rdx, [r15]\n";
+					}
+					if (word.params.length >= 4) {
+						output ~= "sub r15, 8\n";
+						output ~= "mov rcx, [r15]\n";
+					}
+					if (word.params.length >= 5) {
+						output ~= "sub r15, 8\n";
+						output ~= "mov r8, [r15]\n";
+					}
+					if (word.params.length >= 6) {
+						output ~= "sub r15, 8\n";
+						output ~= "mov r9, [r15]\n";
+					}
+					
+				
+					output ~= format("call %s\n", node.name);
+
+					if (word.ret !is null) {
+						output ~= "mov [r15], rax\n";
+						output ~= "add r15, 8\n";
+					}
 				}
 				else {
 					output ~= format("call __func__%s\n", node.name.Sanitise());
@@ -368,13 +412,13 @@ class BackendLinux86 : CompilerBackend {
 		thisFunc = node.name;
 
 		if (node.inline) {
-			words[node.name] = Word(false, true, node.nodes);
+			words[node.name] = Word(WordType.Callisto, true, node.nodes);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(node.raw, false, []);
+			words[node.name] = Word(node.raw? WordType.Raw : WordType.Callisto , false, []);
 
 			string symbol =
 				node.raw? node.name : format("__func__%s", node.name.Sanitise());
@@ -785,12 +829,37 @@ class BackendLinux86 : CompilerBackend {
 
 	override void CompileExtern(ExternNode node) {
 		Word word;
-		word.raw         = node.raw;
-		words[node.func] = word;
 
-		if (word.raw) {
+		final switch (node.externType) {
+			case ExternType.Callisto: word.type = WordType.Callisto; break;
+			case ExternType.Raw:      word.type = WordType.Raw;      break;
+			case ExternType.C: {
+				word.type = WordType.C;
+
+				foreach (ref param ; node.types) {
+					if (param !in types) {
+						Error(node.error, "Unknown type '%s'", param);
+					}
+
+					word.params ~= types[param];
+				}
+
+				if (node.retType != "void") {
+					if (node.retType !in types) {
+						Error(node.error, "Unknown type '%s'", node.retType);
+					}
+
+					word.ret = node.retType in types;
+				}
+				break;
+			}
+		}
+
+		if (word.type != WordType.Callisto) {
 			output ~= format("extern %s\n", node.func);
 		}
+
+		words[node.func] = word;
 	}
 
 	override void CompileCall(WordNode node) {
@@ -805,7 +874,8 @@ class BackendLinux86 : CompilerBackend {
 		}
 
 		auto   word   = words[node.func];
-		string symbol = word.raw? node.func : format("__func__%s", node.func.Sanitise());
+		string symbol = word.type == WordType.Callisto?
+			format("__func__%s", node.func.Sanitise()) : node.func;
 
 		output ~= format("mov rax, %s\n", symbol);
 		output ~= "mov [r15], rax\n";
