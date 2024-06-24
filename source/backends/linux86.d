@@ -327,30 +327,36 @@ class BackendLinux86 : CompilerBackend {
 				}
 				else if (word.type == WordType.C) {
 					if (word.params.length >= 1) {
-						output ~= "sub r15, 8\n";
-						output ~= "mov rdi, [r15]\n";
+						output ~= format(
+							"mov rdi, [r15 - %d]\n", word.params.length * 8
+						);
 					}
 					if (word.params.length >= 2) {
-						output ~= "sub r15, 8\n";
-						output ~= "mov rsi, [r15]\n";
+						output ~= format(
+							"mov rsi, [r15 - %d]\n", (word.params.length - 1) * 8
+						);
 					}
 					if (word.params.length >= 3) {
-						output ~= "sub r15, 8\n";
-						output ~= "mov rdx, [r15]\n";
+						output ~= format(
+							"mov rdx, [r15 - %d]\n", (word.params.length - 2) * 8
+						);
 					}
 					if (word.params.length >= 4) {
-						output ~= "sub r15, 8\n";
-						output ~= "mov rcx, [r15]\n";
+						output ~= format(
+							"mov rcx, [r15 - %d]\n", (word.params.length - 3) * 8
+						);
 					}
 					if (word.params.length >= 5) {
-						output ~= "sub r15, 8\n";
-						output ~= "mov r8, [r15]\n";
+						output ~= format(
+							"mov r8, [r15 - %d]\n", (word.params.length - 4) * 8
+						);
 					}
 					if (word.params.length >= 6) {
-						output ~= "sub r15, 8\n";
-						output ~= "mov r9, [r15]\n";
+						output ~= format(
+							"mov r9, [r15 - %d]\n", (word.params.length - 5) * 8
+						);
 					}
-					
+					output ~= format("sub r15, %d\n", word.params.length * 8);
 				
 					output ~= format("call %s\n", node.name);
 
