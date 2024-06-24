@@ -663,6 +663,11 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileExtern(ExternNode node) {
+		if (node.externType == ExternType.C) {
+			Error(node.error, "This backend doesn't support C externs");
+		}
+
+
 		Word word;
 		word.raw         = node.externType == ExternType.Raw;
 		words[node.func] = word;

@@ -357,6 +357,8 @@ class BackendLinux86 : CompilerBackend {
 						);
 					}
 					output ~= format("sub r15, %d\n", word.params.length * 8);
+
+					// TODO: support more than 6 parameters
 				
 					output ~= format("call %s\n", node.name);
 
