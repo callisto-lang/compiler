@@ -415,6 +415,8 @@ class BackendUXN : CompilerBackend {
 		else {
 			Global global;
 			global.type        = types[node.varType];
+			global.array       = node.array;
+			global.arraySize   = node.arraySize;
 			globals[node.name] = global;
 		}
 	}
