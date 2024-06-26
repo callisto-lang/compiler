@@ -210,7 +210,7 @@ class BackendLinux86 : CompilerBackend {
 
 		// get argv and argc
 		if (useLibc) {
-			output ~= format("mov [__global_%s], rdi\n", Sanitise("__linux86_argc"));
+			output ~= format("mov [__global_%s], edi\n", Sanitise("__linux86_argc"));
 			output ~= format("mov [__global_%s], rsi\n", Sanitise("__linux86_argv"));
 		}
 		else {
