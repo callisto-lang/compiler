@@ -1,0 +1,35 @@
+include "cores/select.cal"
+include "std/io.cal"
+include "std/args.cal"
+
+if get_args_length 2 < then
+	"Required parameter: path\n" printstr
+	0 exit
+end
+
+let Array path
+1 path get_arg
+
+let File file
+path FILE_READ open_file file file<
+
+if file @ -2 = then
+	"Failed to open file\n" printstr
+	1 exit
+end
+
+let cell fileSize
+let array 16384 u8 fileContents
+
+file 0 SEEK_END file_seek
+file file_peek fileSize !
+file 0 SEEK_SET file_seek
+
+let Array fileArray
+fileContents fileArray Array.elements + !
+1 fileArray Array.memberSize + !
+fileSize @ fileArray Array.length + !
+
+file fileContents fileSize @ file@ 
+
+fileArray printstr new_line
