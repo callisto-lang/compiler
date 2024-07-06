@@ -1,7 +1,8 @@
 module callisto.backends.linux86;
 
-import std.file;
 import std.conv;
+import std.file;
+import std.path;
 import std.stdio;
 import std.range;
 import std.format;
@@ -187,10 +188,10 @@ class BackendLinux86 : CompilerBackend {
 				if (exists(path)) {
 					crt1 = true;
 					linkCommand ~= format(" %s", path);
+					linkCommand ~= format(" %s/crti.o", path.dirName());
+					linkCommand ~= format(" %s/crtn.o", path.dirName());
 				}
 			}
-			
-			linkCommand ~= " /usr/lib/crt1.o";
 
 			if (!crt1) {
 				stderr.writeln("WARNING: Failed to find crt1.o, program may behave incorrectly");
