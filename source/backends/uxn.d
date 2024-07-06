@@ -109,7 +109,7 @@ class BackendUXN : CompilerBackend {
 	override string[] FinalCommands() => [
 		format("mv %s %s.tal", compiler.outFile, compiler.outFile),
 		format("uxnasm %s.tal %s", compiler.outFile, compiler.outFile),
-		format("rm %s.tal", compiler.outFile)
+		keepAssembly? "" : format("rm %s.tal", compiler.outFile)
 	];
 
 	override long MaxInt() => 0xFFFF;

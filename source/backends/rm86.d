@@ -147,7 +147,7 @@ class BackendRM86 : CompilerBackend {
 	override string[] FinalCommands() => [
 		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
 		format("nasm -f bin %s.asm -o %s", compiler.outFile, compiler.outFile),
-		format("rm %s.asm", compiler.outFile)
+		keepAssembly? "" : format("rm %s.asm", compiler.outFile)
 	];
 
 	override long MaxInt() => 0xFFFF;

@@ -37,6 +37,7 @@ Flags:
 	-dv VER    - Disables VER
 	-h FILE    - Puts the contents of FILE at the top of the assembly output
 	-bo OPT    - Backend option, see below
+	-ka        - Keep assembly
 
 Backends:
 	rm86    - Real mode x86 and MS-DOS
@@ -76,6 +77,7 @@ int main(string[] args) {
 	string[]        disabled;
 	string          header;
 	string[]        backendOpts;
+	bool            keepAssembly;
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -238,6 +240,10 @@ int main(string[] args) {
 					backendOpts ~= args[i];
 					break;
 				}
+				case "-ka": {
+					keepAssembly = true;
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -299,6 +305,7 @@ int main(string[] args) {
 	compiler.backend.useDebug       = doDebug;
 	compiler.backend.exportSymbols  = exportSymbols;
 	compiler.backend.link          ~= link;
+	backend.keepAssembly            = keepAssembly;
 	
 	versions ~= compiler.backend.GetVersions();
 

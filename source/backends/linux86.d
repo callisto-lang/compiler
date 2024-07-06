@@ -175,9 +175,30 @@ class BackendLinux86 : CompilerBackend {
 			linkCommand ~= " -dynamic-linker /lib64/ld-linux-x86-64.so.2";
 		}
 
+		if (useLibc) {
+			string[] possiblePaths = [
+				"/usr/lib/crt1.o",
+				"/usr/lib/x86_64-linux-gnu/crt1.o"
+			];
+			bool crt1;
+
+			foreach (ref path ; possiblePaths) {
+				if (exists(path)) {
+					crt1 = true;
+					linkCommand ~= format(" %s", path);
+				}
+			}
+			
+			linkCommand ~= " /usr/lib/crt1.o";
+		}
+
 		ret ~= linkCommand;
 
-		return ret ~ format("rm %s.asm %s.o", compiler.outFile, compiler.outFile);
+		if (!keepAssembly) {
+			 ret ~= format("rm %s.asm %s.o", compiler.outFile, compiler.outFile);
+		}
+		
+		return ret;
 	}
 
 	override long MaxInt() => -1;
@@ -201,7 +222,8 @@ class BackendLinux86 : CompilerBackend {
 	}
 
 	override void Init() {
-		if (!useLibc) output ~= "global _start\n";
+		if (useLibc) output ~= "global main\n";
+		else         output ~= "global _start\n";
 		
 		output ~= "section .text\n";
 		

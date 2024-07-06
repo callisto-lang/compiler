@@ -18,6 +18,7 @@ class CompilerBackend {
 	bool     useDebug;
 	bool     exportSymbols;
 	string[] link;
+	bool     keepAssembly;
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
