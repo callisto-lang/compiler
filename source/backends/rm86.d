@@ -726,4 +726,8 @@ class BackendRM86 : CompilerBackend {
 		output ~= "mov [si], ax\n";
 		output ~= "add si, 2\n";
 	}
+
+	override void CompileImplement(ImplementNode node) {
+		assert(0);
+	}
 }

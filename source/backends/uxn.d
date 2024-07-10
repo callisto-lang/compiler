@@ -690,4 +690,8 @@ class BackendUXN : CompilerBackend {
 
 		output ~= format(";%s\n", symbol);
 	}
+
+	override void CompileImplement(ImplementNode node) {
+		assert(0);
+	}
 }
