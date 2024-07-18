@@ -256,7 +256,7 @@ class BackendLinux86 : CompilerBackend {
 		foreach (key, global ; globals) {
 			if (global.type.hasInit) {
 				output ~= format(
-					"mov qword[r15], qword __global_%s\n", key.Sanitise()
+					"mov qword [r15], qword __global_%s\n", key.Sanitise()
 				);
 				output ~= "add r15, 8\n";
 				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
