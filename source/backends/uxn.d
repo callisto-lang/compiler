@@ -176,13 +176,6 @@ class BackendUXN : CompilerBackend {
 
 	override void BeginMain() {
 		output ~= "@calmain\n";
-
-		foreach (key, global ; globals) {
-			if (global.type.hasInit) {
-				output ~= format(";global_%s\n", key.Sanitise());
-				output ~= format("type_init_%s\n", global.type.name.Sanitise());
-			}
-		}
 	}
 
 	override void Init() {
@@ -502,6 +495,11 @@ class BackendUXN : CompilerBackend {
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
 			globals[node.name] = global;
+
+			if (global.type.hasInit) {
+				output ~= format(";global_%s\n", node.name.Sanitise());
+				output ~= format("type_init_%s\n", global.type.name.Sanitise());
+			}
 		}
 	}
 

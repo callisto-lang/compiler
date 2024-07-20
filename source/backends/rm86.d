@@ -192,16 +192,6 @@ class BackendRM86 : CompilerBackend {
 
 	override void BeginMain() {
 		output ~= "__calmain:\n";
-
-		foreach (key, global ; globals) {
-			if (global.type.hasInit) {
-				output ~= format(
-					"mov word [si], word __global_%s\n", key.Sanitise()
-				);
-				output ~= "add si, 2\n";
-				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
-			}
-		}
 	}
 
 	override void Init() {
@@ -532,6 +522,14 @@ class BackendRM86 : CompilerBackend {
 
 			if (!orgSet) {
 				Warn(node.error, "Declaring global variables without a set org value");
+			}
+
+			if (global.type.hasInit) {
+				output ~= format(
+					"mov word [si], word __global_%s\n", node.name.Sanitise()
+				);
+				output ~= "add si, 2\n";
+				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
 			}
 		}
 	} 

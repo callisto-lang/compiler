@@ -252,16 +252,6 @@ class BackendLinux86 : CompilerBackend {
 
 	override void BeginMain() {
 		output ~= "__calmain:\n";
-
-		foreach (key, global ; globals) {
-			if (global.type.hasInit) {
-				output ~= format(
-					"mov qword [r15], qword __global_%s\n", key.Sanitise()
-				);
-				output ~= "add r15, 8\n";
-				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
-			}
-		}
 	}
 
 	override void Init() {
@@ -713,6 +703,14 @@ class BackendLinux86 : CompilerBackend {
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
 			globals[node.name] = global;
+
+			if (global.type.hasInit) { // call constructor
+				output ~= format(
+					"mov qword [r15], qword __global_%s\n", node.name.Sanitise()
+				);
+				output ~= "add r15, 8\n";
+				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
+			}
 		}
 	}
 	

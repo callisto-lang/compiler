@@ -85,6 +85,12 @@ class CodeRemover {
 					FindFunctions(blocks);
 					break;
 				}
+				case NodeType.Implement: {
+					auto node = cast(ImplementNode) inode;
+
+					FindFunctions(node.nodes);
+					break;
+				}
 				default: break;
 			}
 		}
