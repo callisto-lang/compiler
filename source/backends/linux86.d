@@ -26,20 +26,24 @@ private struct Word {
 
 	// for C words
 	Type[] params;
-	Type*  ret;
+	Type   ret;
+	bool   isVoid;
 }
 
 private struct StructEntry {
-	Type*  type;
+	Type   type;
 	string name;
 	bool   array;
 	size_t size;
 }
 
 private struct Type {
+	string        name;
 	ulong         size;
 	bool          isStruct;
 	StructEntry[] structure;
+	bool          hasInit;
+	bool          hasDeinit;
 }
 
 private struct Variable {
@@ -74,7 +78,7 @@ private struct Array {
 
 class BackendLinux86 : CompilerBackend {
 	Word[string]     words;
-	Type[string]     types;
+	Type[]           types;
 	string           thisFunc;
 	Constant[string] consts;
 	bool             inScope;
@@ -88,24 +92,24 @@ class BackendLinux86 : CompilerBackend {
 
 	this() {
 		// built in integer types
-		types["u8"]    = Type(1);
-		types["i8"]    = Type(1);
-		types["u16"]   = Type(2);
-		types["i16"]   = Type(2);
-		types["u32"]   = Type(4);
-		types["i32"]   = Type(4);
-		types["u64"]   = Type(8);
-		types["i64"]   = Type(8);
-		types["addr"]  = Type(8);
-		types["size"]  = Type(8);
-		types["usize"] = Type(8);
-		types["cell"]  = Type(8);
+		types ~= Type("u8",    1);
+		types ~= Type("i8",    1);
+		types ~= Type("u16",   2);
+		types ~= Type("i16",   2);
+		types ~= Type("u32",   4);
+		types ~= Type("i32",   4);
+		types ~= Type("u64",   8);
+		types ~= Type("i64",   8);
+		types ~= Type("addr",  8);
+		types ~= Type("size",  8);
+		types ~= Type("usize", 8);
+		types ~= Type("cell",  8);
 
 		// built in structs
-		types["Array"] = Type(24, true, [
-			StructEntry("usize" in types, "length"),
-			StructEntry("usize" in types, "memberSize"),
-			StructEntry("addr" in types,  "elements")
+		types ~= Type("Array", 24, true, [
+			StructEntry(GetType("usize"), "length"),
+			StructEntry(GetType("usize"), "memberSize"),
+			StructEntry(GetType("addr"),  "elements")
 		]);
 		NewConst("Array.length",     0);
 		NewConst("Array.memberSize", 8);
@@ -116,8 +120,8 @@ class BackendLinux86 : CompilerBackend {
 			NewConst(format("%s.sizeof", name), cast(long) type.size);
 		}
 
-		globals["__linux86_argv"] = Global(types["addr"], false, 0);
-		globals["__linux86_argc"] = Global(types["cell"], false, 0);
+		globals["__linux86_argv"] = Global(GetType("addr"), false, 0);
+		globals["__linux86_argc"] = Global(GetType("cell"), false, 0);
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
@@ -130,6 +134,29 @@ class BackendLinux86 : CompilerBackend {
 		foreach (ref var ; variables) {
 			if (var.name == name) {
 				return var;
+			}
+		}
+
+		assert(0);
+	}
+
+	bool TypeExists(string name) => types.any!(v => v.name == name);
+
+	Type GetType(string name) {
+		foreach (ref type ; types) {
+			if (type.name == name) {
+				return type;
+			}
+		}
+
+		assert(0);
+	}
+
+	void SetType(string name, Type ptype) {
+		foreach (i, ref type ; types) {
+			if (type.name == name) {
+				types[i] = ptype;
+				return;
 			}
 		}
 
@@ -275,6 +302,16 @@ class BackendLinux86 : CompilerBackend {
 	}
 	
 	override void End() {
+		// call destructors
+		foreach (name, global ; globals) {
+			if (global.type.hasDeinit) {
+				output ~= format("mov qword [r15], qword __global_%s\n", Sanitise(name));
+				output ~= "add r15, 8\n";
+				output ~= format("call __type_deinit_%s\n", Sanitise(global.type.name));
+			}
+		}
+
+		// exit program
 		output ~= "mov rax, 60\n";
 		output ~= "mov rdi, 0\n";
 		output ~= "syscall\n";
@@ -339,7 +376,7 @@ class BackendLinux86 : CompilerBackend {
 			}
 		}
 	}
-	
+
 	override void CompileWord(WordNode node) {
 		if (node.name in words) {
 			auto word = words[node.name];
@@ -390,7 +427,7 @@ class BackendLinux86 : CompilerBackend {
 				
 					output ~= format("call %s\n", node.name);
 
-					if (word.ret !is null) {
+					if (!word.isVoid) {
 						output ~= "mov [r15], rax\n";
 						output ~= "add r15, 8\n";
 					}
@@ -474,6 +511,13 @@ class BackendLinux86 : CompilerBackend {
 			size_t scopeSize;
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
+
+				if (var.type.hasDeinit) {
+					output ~= format("lea rax, [rsp + %d\n]", var.offset);
+					output ~= "mov [r15], rax\n";
+					output ~= "add r15, 8\n";
+					output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				}
 			}
 			if (scopeSize == 1) {
 				output ~= "inc rsp\n";
@@ -512,6 +556,15 @@ class BackendLinux86 : CompilerBackend {
 			}
 
 			// remove scope
+			foreach (ref var ; variables) {
+				if (oldVars.canFind(var)) continue;
+				if (!var.type.hasDeinit)  continue;
+
+				output ~= format("lea rax, [rsp + %d\n]", var.offset);
+				output ~= "mov [r15], rax\n";
+				output ~= "add r15, 8\n";
+				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
 			}
@@ -533,6 +586,15 @@ class BackendLinux86 : CompilerBackend {
 			}
 
 			// remove scope
+			foreach (ref var ; variables) {
+				if (oldVars.canFind(var)) continue;
+				if (!var.type.hasDeinit)  continue;
+
+				output ~= format("lea rax, [rsp + %d\n]", var.offset);
+				output ~= "mov [r15], rax\n";
+				output ~= "add r15, 8\n";
+				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
 			}
@@ -562,6 +624,16 @@ class BackendLinux86 : CompilerBackend {
 		}
 
 		// restore scope
+		output ~= format("__while_%d_next:\n", blockNum);
+		foreach (ref var ; variables) {
+			if (oldVars.canFind(var)) continue;
+			if (!var.type.hasDeinit)  continue;
+
+			output ~= format("lea rax, [rsp + %d\n]", var.offset);
+			output ~= "mov [r15], rax\n";
+			output ~= "add r15, 8\n";
+			output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+		}
 		if (GetStackSize() - oldSize > 0) {
 			output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
 		}
@@ -583,7 +655,7 @@ class BackendLinux86 : CompilerBackend {
 	}
 	
 	override void CompileLet(LetNode node) {
-		if (node.varType !in types) {
+		if (!TypeExists(node.varType)) {
 			Error(node.error, "Undefined type '%s'", node.varType);
 		}
 		if (VariableExists(node.name) || (node.name in words)) {
@@ -596,7 +668,7 @@ class BackendLinux86 : CompilerBackend {
 		if (inScope) {
 			Variable var;
 			var.name      = node.name;
-			var.type      = types[node.varType];
+			var.type      = GetType(node.varType);
 			var.offset    = 0;
 			var.array     = node.array;
 			var.arraySize = node.arraySize;
@@ -619,13 +691,27 @@ class BackendLinux86 : CompilerBackend {
 			else {
 				output ~= format("sub rsp, %d\n", var.Size());
 			}
+
+			if (var.type.hasInit) { // call constructor
+				output ~= "mov [r15], rsp\n";
+				output ~= "add r15, 8\n";
+				output ~= format("call __type_init_%s\n", Sanitise(var.type.name));
+			}
 		}
 		else {
 			Global global;
-			global.type        = types[node.varType];
+			global.type        = GetType(node.varType);
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
 			globals[node.name] = global;
+
+			if (global.type.hasInit) { // call constructor
+				output ~= format(
+					"mov qword [r15], qword __global_%s\n", node.name.Sanitise()
+				);
+				output ~= "add r15, 8\n";
+				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
+			}
 		}
 	}
 	
@@ -645,11 +731,11 @@ class BackendLinux86 : CompilerBackend {
 			}
 		}
 
-		if (node.arrayType !in types) {
+		if (!TypeExists(node.arrayType)) {
 			Error(node.error, "Type '%s' doesn't exist", node.arrayType);
 		}
 
-		array.type    = types[node.arrayType];
+		array.type    = GetType(node.arrayType);
 		array.global  = !inScope || node.constant;
 		arrays       ~= array;
 
@@ -679,7 +765,7 @@ class BackendLinux86 : CompilerBackend {
 			variables ~= var;
 
 			// create metadata variable
-			var.type   = types["Array"];
+			var.type   = GetType("Array");
 			var.offset = 0;
 			var.array  = false;
 
@@ -717,7 +803,7 @@ class BackendLinux86 : CompilerBackend {
 	override void CompileStruct(StructNode node) {
 		size_t offset;
 
-		if (node.name in types) {
+		if (TypeExists(node.name)) {
 			Error(node.error, "Type '%s' defined multiple times", node.name);
 		}
 
@@ -725,23 +811,23 @@ class BackendLinux86 : CompilerBackend {
 		string[]      members;
 
 		if (node.inherits) {
-			if (node.inheritsFrom !in types) {
+			if (!TypeExists(node.inheritsFrom)) {
 				Error(node.error, "Type '%s' doesn't exist", node.inheritsFrom);
 			}
 
-			if (!types[node.inheritsFrom].isStruct) {
+			if (!GetType(node.inheritsFrom).isStruct) {
 				Error(node.error, "Type '%s' is not a structure", node.inheritsFrom);
 			}
 
-			entries = types[node.inheritsFrom].structure;
+			entries = GetType(node.inheritsFrom).structure;
 
-			foreach (ref member ; types[node.inheritsFrom].structure) {
+			foreach (ref member ; GetType(node.inheritsFrom).structure) {
 				members ~= member.name;
 			}
 		}
 
 		foreach (ref member ; node.members) {
-			if (member.type !in types) {
+			if (!TypeExists(member.type)) {
 				Error(node.error, "Type '%s' doesn't exist", member.type);
 			}
 			if (members.canFind(member.name)) {
@@ -749,7 +835,7 @@ class BackendLinux86 : CompilerBackend {
 			}
 
 			entries ~= StructEntry(
-				member.type in types, member.name, member.array, member.size
+				GetType(member.type), member.name, member.array, member.size
 			);
 			members ~= member.name;
 		}
@@ -760,7 +846,7 @@ class BackendLinux86 : CompilerBackend {
 		}
 
 		NewConst(format("%s.sizeof", node.name), offset);
-		types[node.name] = Type(offset, true, entries);
+		types ~= Type(node.name, offset, true, entries);
 	}
 	
 	override void CompileReturn(WordNode node) {
@@ -771,6 +857,13 @@ class BackendLinux86 : CompilerBackend {
 		size_t scopeSize;
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
+
+			if (var.type.hasDeinit) {
+				output ~= format("lea rax, [rsp + %d\n]", var.offset);
+				output ~= "mov [r15], rax\n";
+				output ~= "add r15, 8\n";
+				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+			}
 		}
 		if (scopeSize == 1) {
 			output ~= "inc rsp\n";
@@ -791,14 +884,16 @@ class BackendLinux86 : CompilerBackend {
 	}
 
 	override void CompileEnum(EnumNode node) {
-		if (node.enumType !in types) {
+		if (!TypeExists(node.enumType)) {
 			Error(node.error, "Enum base type '%s' doesn't exist", node.enumType);
 		}
-		if (node.name in types) {
+		if (TypeExists(node.name)) {
 			Error(node.error, "Enum name is already used by type '%s'", node.enumType);
 		}
 
-		types[node.name] = types[node.enumType];
+		auto baseType  = GetType(node.enumType);
+		baseType.name  = node.name;
+		types         ~= baseType;
 
 		foreach (i, ref name ; node.names) {
 			NewConst(format("%s.%s", node.name, name), node.values[i]);
@@ -806,7 +901,7 @@ class BackendLinux86 : CompilerBackend {
 
 		NewConst(format("%s.min", node.name), node.values.minElement());
 		NewConst(format("%s.max", node.name), node.values.maxElement());
-		NewConst(format("%s.sizeof", node.name), types[node.name].size);
+		NewConst(format("%s.sizeof", node.name), GetType(node.name).size);
 	}
 
 	override void CompileBreak(WordNode node) {
@@ -822,13 +917,13 @@ class BackendLinux86 : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format("jmp __while_%d_condition\n", currentLoop);
+		output ~= format("jmp __while_%d_next\n", currentLoop);
 	}
 
 	override void CompileUnion(UnionNode node) {
 		size_t maxSize = 0;
 
-		if (node.name in types) {
+		if (TypeExists(node.name)) {
 			Error(node.error, "Type '%s' already exists", node.name);
 		}
 
@@ -840,29 +935,32 @@ class BackendLinux86 : CompilerBackend {
 			}
 			unionTypes ~= type;
 
-			if (type !in types) {
+			if (!TypeExists(type)) {
 				Error(node.error, "Type '%s' doesn't exist", type);
 			}
 
-			if (types[type].size > maxSize) {
-				maxSize = types[type].size;
+			if (GetType(type).size > maxSize) {
+				maxSize = GetType(type).size;
 			}
 		}
 
-		types[node.name] = Type(maxSize);
+		types ~= Type(node.name, maxSize);
 		NewConst(format("%s.sizeof", node.name), cast(long) maxSize);
 	}
 
 	override void CompileAlias(AliasNode node) {
-		if (node.from !in types) {
+		if (!TypeExists(node.from)) {
 			Error(node.error, "Type '%s' doesn't exist", node.from);
 		}
-		if ((node.to in types) && !node.overwrite) {
+		if ((TypeExists(node.to)) && !node.overwrite) {
 			Error(node.error, "Type '%s' already defined", node.to);
 		}
 
-		types[node.to] = types[node.from];
-		NewConst(format("%s.sizeof", node.to), cast(long) types[node.to].size);
+		auto baseType  = GetType(node.from);
+		baseType.name  = node.to;
+		types         ~= baseType;
+
+		NewConst(format("%s.sizeof", node.to), cast(long) GetType(node.to).size);
 	}
 
 	override void CompileExtern(ExternNode node) {
@@ -875,19 +973,22 @@ class BackendLinux86 : CompilerBackend {
 				word.type = WordType.C;
 
 				foreach (ref param ; node.types) {
-					if (param !in types) {
+					if (!TypeExists(param)) {
 						Error(node.error, "Unknown type '%s'", param);
 					}
 
-					word.params ~= types[param];
+					word.params ~= GetType(param);
 				}
 
-				if (node.retType != "void") {
-					if (node.retType !in types) {
+				if (node.retType == "void") {
+					word.isVoid = true;
+				}
+				else {
+					if (!TypeExists(node.retType)) {
 						Error(node.error, "Unknown type '%s'", node.retType);
 					}
 
-					word.ret = node.retType in types;
+					word.ret = GetType(node.retType);
 				}
 				break;
 			}
@@ -918,5 +1019,69 @@ class BackendLinux86 : CompilerBackend {
 		output ~= format("mov rax, %s\n", symbol);
 		output ~= "mov [r15], rax\n";
 		output ~= "add r15, 8\n";
+	}
+
+	override void CompileImplement(ImplementNode node) {
+		if (!TypeExists(node.structure)) {
+			Error(node.error, "Type '%s' doesn't exist", node.structure);
+		}
+		auto type = GetType(node.structure);
+
+		string labelName;
+
+		switch (node.method) {
+			case "init": {
+				if (GetType(node.structure).hasInit) {
+					Error(node.error, "Already implemented in type");
+				}
+
+				type.hasInit = true;
+				labelName = format("__type_init_%s", Sanitise(node.structure));
+				break;
+			}
+			case "deinit": {
+				if (GetType(node.structure).hasDeinit) {
+					Error(node.error, "Already implemented in type");
+				}
+
+				type.hasDeinit = true;
+				labelName = format("__type_deinit_%s", Sanitise(node.structure));
+				break;
+			}
+			default: Error(node.error, "Unknown method '%s'", node.method);
+		}
+
+		SetType(type.name, type);
+
+		assert(!inScope);
+		inScope = true;
+
+		output ~= format("%s:\n", labelName);
+
+		foreach (ref inode ; node.nodes) {
+			compiler.CompileNode(inode);
+		}
+
+		size_t scopeSize;
+		foreach (ref var ; variables) {
+			scopeSize += var.Size();
+
+			if (var.type.hasDeinit) {
+				output ~= format("lea rax, [rsp + %d\n]", var.offset);
+				output ~= "mov [r15], rax\n";
+				output ~= "add r15, 8\n";
+				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+			}
+		}
+		if (scopeSize == 1) {
+			output ~= "inc rsp\n";
+		}
+		else if (scopeSize > 0) {
+			output ~= format("add rsp, %d\n", scopeSize);
+		}
+
+		output    ~= "ret\n";
+		inScope    = false;
+		variables  = [];
 	}
 }

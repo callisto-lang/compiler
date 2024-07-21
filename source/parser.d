@@ -30,7 +30,8 @@ enum NodeType {
 	Union,
 	Alias,
 	Extern,
-	FuncAddr
+	FuncAddr,
+	Implement
 }
 
 class Node {
@@ -445,6 +446,27 @@ class FuncAddrNode : Node {
 	}
 
 	override string toString() => format("&%s", func);
+}
+
+class ImplementNode : Node {
+	string structure;
+	string method;
+	Node[] nodes;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Implement;
+		error = perror;
+	}
+
+	override string toString() {
+		string ret = format("implement %s %s\n", structure, method);
+
+		foreach (ref node ; nodes) {
+			ret ~= format("    %s\n", node.toString());
+		}
+
+		return ret ~ "end";
+	}
 }
 
 class ParserError : Exception {
@@ -1038,6 +1060,39 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseImplement() {
+		auto ret = new ImplementNode(GetError());
+		parsing  = NodeType.Implement;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.structure = tokens[i].contents;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.method = tokens[i].contents;
+
+		Next();
+		while (true) {
+			if (
+				(tokens[i].type == TokenType.Identifier) &&
+				(tokens[i].contents == "end")
+			) {
+				break;
+			}
+
+			ret.nodes ~= ParseStatement();
+
+			if (ret.nodes[$ - 1].type == NodeType.FuncDef) {
+				Error("Function definitions can't be nested");
+			}
+
+			Next();
+		}
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -1062,6 +1117,7 @@ class Parser {
 					case "union":      return ParseUnion();
 					case "alias":      return ParseAlias();
 					case "extern":     return ParseExtern();
+					case "implement":  return ParseImplement();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

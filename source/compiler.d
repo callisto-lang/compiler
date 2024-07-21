@@ -50,6 +50,7 @@ class CompilerBackend {
 	abstract void CompileExtern(ExternNode node);
 	abstract void CompileCall(WordNode node);
 	abstract void CompileFuncAddr(FuncAddrNode node);
+	abstract void CompileImplement(ImplementNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -165,15 +166,16 @@ class Compiler {
 				}
 				break;
 			}
-			case NodeType.Array:    backend.CompileArray(cast(ArrayNode) inode); break;
-			case NodeType.String:   backend.CompileString(cast(StringNode) inode); break;
-			case NodeType.Struct:   backend.CompileStruct(cast(StructNode) inode); break;
-			case NodeType.Const:    backend.CompileConst(cast(ConstNode) inode); break;
-			case NodeType.Enum:     backend.CompileEnum(cast(EnumNode) inode); break;
-			case NodeType.Union:    backend.CompileUnion(cast(UnionNode) inode); break;
-			case NodeType.Alias:    backend.CompileAlias(cast(AliasNode) inode); break;
-			case NodeType.Extern:   backend.CompileExtern(cast(ExternNode) inode); break;
-			case NodeType.FuncAddr: backend.CompileFuncAddr(cast(FuncAddrNode) inode); break;
+			case NodeType.Array:     backend.CompileArray(cast(ArrayNode) inode); break;
+			case NodeType.String:    backend.CompileString(cast(StringNode) inode); break;
+			case NodeType.Struct:    backend.CompileStruct(cast(StructNode) inode); break;
+			case NodeType.Const:     backend.CompileConst(cast(ConstNode) inode); break;
+			case NodeType.Enum:      backend.CompileEnum(cast(EnumNode) inode); break;
+			case NodeType.Union:     backend.CompileUnion(cast(UnionNode) inode); break;
+			case NodeType.Alias:     backend.CompileAlias(cast(AliasNode) inode); break;
+			case NodeType.Extern:    backend.CompileExtern(cast(ExternNode) inode); break;
+			case NodeType.FuncAddr:  backend.CompileFuncAddr(cast(FuncAddrNode) inode); break;
+			case NodeType.Implement: backend.CompileImplement(cast(ImplementNode) inode); break;
 			default: {
 				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}
@@ -196,7 +198,7 @@ class Compiler {
 			switch (node.type) {
 				case NodeType.FuncDef:
 				case NodeType.Include:
-				case NodeType.Let:
+				//case NodeType.Let:
 				case NodeType.Enable:
 				case NodeType.Requires:
 				case NodeType.Struct:
@@ -204,7 +206,8 @@ class Compiler {
 				case NodeType.Enum:
 				case NodeType.Union:
 				case NodeType.Alias:
-				case NodeType.Extern: {
+				case NodeType.Extern:
+				case NodeType.Implement: {
 					header ~= node;
 					break;
 				}
