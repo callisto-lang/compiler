@@ -5,7 +5,7 @@ language inspired by YSL-C3 and Forth
 ## Supported targets
 - x86 real mode (complete)
 - x86_64 Linux (complete)
-- Uxn (complete)
+- Uxn (complete, `implement` broken)
 
 ## Build
 You need a [D compiler](https://dlang.org/download.html) to build the Callisto compiler
