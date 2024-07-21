@@ -624,6 +624,7 @@ class BackendLinux86 : CompilerBackend {
 		}
 
 		// restore scope
+		output ~= format("__while_%d_next:\n", blockNum);
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
 			if (!var.type.hasDeinit)  continue;
@@ -916,7 +917,7 @@ class BackendLinux86 : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format("jmp __while_%d_condition\n", currentLoop);
+		output ~= format("jmp __while_%d_next\n", currentLoop);
 	}
 
 	override void CompileUnion(UnionNode node) {

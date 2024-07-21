@@ -424,6 +424,7 @@ class BackendUXN : CompilerBackend {
 		}
 
 		// remove scope
+		output ~= format("@while_%d_next\n", blockNum);
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
 			if (!var.type.hasDeinit)  continue;
@@ -710,7 +711,7 @@ class BackendUXN : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format(";while_%d_condition JMP2\n", currentLoop);
+		output ~= format(";while_%d_next JMP2\n", currentLoop);
 	}
 
 	override void CompileUnion(UnionNode node) {
