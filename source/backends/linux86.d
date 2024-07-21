@@ -179,7 +179,7 @@ class BackendLinux86 : CompilerBackend {
 		// platform
 		"Linux86", "Linux", "LittleEndian", "16Bit", "32Bit", "64Bit",
 		// features
-		"IO", "Exit", "Time", "File", "Args"
+		"IO", "Exit", "Time", "File", "Args", "Heap"
 	];
 
 	override string[] FinalCommands() {
