@@ -168,7 +168,7 @@ class BackendRM86 : CompilerBackend {
 		"RM86", "LittleEndian", "16Bit",
 		// features
 		"IO"
-	] ~ (os == "dos"? ["DOS", "Args"] : []);
+	] ~ (os == "dos"? ["DOS", "Args"] : os == "bare-metal"? ["BareMetal"] : []);
 
 	override string[] FinalCommands() => [
 		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
