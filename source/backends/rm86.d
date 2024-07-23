@@ -167,8 +167,8 @@ class BackendRM86 : CompilerBackend {
 		// platform
 		"RM86", "LittleEndian", "16Bit",
 		// features
-		"IO", "Args"
-	];
+		"IO"
+	] ~ (os == "dos"? ["DOS", "Args"] : []);
 
 	override string[] FinalCommands() => [
 		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
@@ -194,18 +194,32 @@ class BackendRM86 : CompilerBackend {
 		output ~= "__calmain:\n";
 	}
 
-	override void Init() {
-		output ~= format("org 0x%.4X\n", org);
+	void CallFunction(string name) {
+		auto word = words[name];
 
-		if (!opts.noDos) {
-			// get argv and argc
-			output ~= "xor ah, ah\n";
-			output ~= "mov al, [0x80]\n";
-			output ~= format("mov [__global_%s], ax\n", Sanitise("__rm86_arglen"));
-			output ~= "mov ax, 0x81\n";
-			output ~= format("mov [__global_%s], ax\n", Sanitise("__rm86_argv"));
+		if (word.inline) {
+			foreach (inode ; word.inlineNodes) {
+				compiler.CompileNode(inode);
+			}
 		}
-		
+		else {
+			if (word.raw) {
+				output ~= format("call %s\n", name);
+			}
+			else {
+				output ~= format("call __func__%s\n", name.Sanitise());
+			}
+		}
+	}
+
+	override void Init() {
+		string[] oses = ["bare-metal", "dos"];
+		if (!oses.canFind(os)) {
+			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
+		}
+
+		output ~= format("org 0x%.4X\n", org);
+		output ~= "call __init\n";
 		output ~= "mov si, __stack\n";
 		output ~= "jmp __calmain\n";
 	}
@@ -219,6 +233,21 @@ class BackendRM86 : CompilerBackend {
 			}
 		}
 
+		if ("__rm86_program_exit" in words) {
+			CallFunction("__rm86_program_exit");
+		}
+		else {
+			WarnNoInfo("No exit function available, expect bugs");
+		}
+
+		// create init function
+		output ~= "__init:\n";
+		if ("__rm86_program_init" in words) {
+			CallFunction("__rm86_program_init");
+		}
+		else {
+			WarnNoInfo("No program init function available");
+		}
 		output ~= "ret\n";
 
 		foreach (name, var ; globals) {

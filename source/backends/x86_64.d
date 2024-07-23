@@ -1,4 +1,4 @@
-module callisto.backends.linux86;
+module callisto.backends.x86_64;
 
 import std.conv;
 import std.file;
@@ -76,7 +76,7 @@ private struct Array {
 	size_t Size() => type.size * values.length;
 }
 
-class BackendLinux86 : CompilerBackend {
+class BackendX86_64 : CompilerBackend {
 	Word[string]     words;
 	Type[]           types;
 	string           thisFunc;
@@ -119,9 +119,6 @@ class BackendLinux86 : CompilerBackend {
 		foreach (name, ref type ; types) {
 			NewConst(format("%s.sizeof", name), cast(long) type.size);
 		}
-
-		globals["__linux86_argv"] = Global(GetType("addr"), false, 0);
-		globals["__linux86_argc"] = Global(GetType("cell"), false, 0);
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
@@ -176,11 +173,8 @@ class BackendLinux86 : CompilerBackend {
 	}
 
 	override string[] GetVersions() => [
-		// platform
-		"Linux86", "Linux", "LittleEndian", "16Bit", "32Bit", "64Bit",
-		// features
-		"IO", "Exit", "Time", "File", "Args", "Heap"
-	];
+		"x86_64", "LittleEndian", "16Bit", "32Bit", "64Bit"
+	] ~ (os == "linux"? ["Linux", "IO", "Exit", "Time", "File", "Args", "Heap"] : []);
 
 	override string[] FinalCommands() {
 		string[] ret = [
@@ -254,7 +248,31 @@ class BackendLinux86 : CompilerBackend {
 		output ~= "__calmain:\n";
 	}
 
+	void CallFunction(string name) {
+		auto word = words[name];
+
+		if (word.inline) {
+			foreach (inode ; word.inlineNodes) {
+				compiler.CompileNode(inode);
+			}
+		}
+		else if (word.type == WordType.Raw) {
+			output ~= format("call %s\n", name);
+		}
+		else if (word.type == WordType.C) {
+			assert(0); // TODO: error
+		}
+		else {
+			output ~= format("call __func__%s\n", name.Sanitise());
+		}
+	}
+
 	override void Init() {
+		string[] oses = ["linux"];
+		if (!oses.canFind(os)) {
+			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
+		}
+
 		if (useLibc) output ~= "global main\n";
 		else         output ~= "global _start\n";
 		
@@ -263,17 +281,7 @@ class BackendLinux86 : CompilerBackend {
 		if (useLibc) output ~= "main:\n";
 		else         output ~= "_start:\n";
 
-		// get argv and argc
-		if (useLibc) {
-			output ~= format("mov [__global_%s], edi\n", Sanitise("__linux86_argc"));
-			output ~= format("mov [__global_%s], rsi\n", Sanitise("__linux86_argv"));
-		}
-		else {
-			output ~= "mov rsi, [rsp + 8]\n";
-			output ~= format("mov [__global_%s], rsi\n", Sanitise("__linux86_argv"));
-			output ~= "mov rsi, [rsp]\n";
-			output ~= format("mov [__global_%s], rsi\n", Sanitise("__linux86_argc"));
-		}
+		output ~= "call __init\n";
 
 		// allocate data stack
 		output ~= "sub rsp, 4096\n"; // 512 cells
@@ -312,9 +320,12 @@ class BackendLinux86 : CompilerBackend {
 		}
 
 		// exit program
-		output ~= "mov rax, 60\n";
-		output ~= "mov rdi, 0\n";
-		output ~= "syscall\n";
+		if ("__x86_64_program_exit" in words) {
+			CallFunction("__x86_64_program_exit");
+		}
+		else {
+			WarnNoInfo("No exit function available, expect bugs");
+		}
 
 		// create copy arrays function
 		output ~= "__copy_arrays:\n";
@@ -326,6 +337,17 @@ class BackendLinux86 : CompilerBackend {
 			output ~= "rep movsb\n";
 		}
 
+		output ~= "ret\n";
+
+		// create init function
+		output ~= "__init:\n";
+		output ~= "mov rsi, rsp\n";
+		if ("__x86_64_program_init" in words) {
+			CallFunction("__x86_64_program_init");
+		}
+		else {
+			WarnNoInfo("No program init function available");
+		}
 		output ~= "ret\n";
 
 		// create global variables

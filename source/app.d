@@ -12,7 +12,7 @@ import callisto.codeRemover;
 import callisto.preprocessor;
 import callisto.backends.uxn;
 import callisto.backends.rm86;
-import callisto.backends.linux86;
+import callisto.backends.x86_64;
 
 const static string usage = "
 Usage: %s FILE [FLAGS]
@@ -37,11 +37,13 @@ Flags:
 	-h FILE    - Puts the contents of FILE at the top of the assembly output
 	-bo OPT    - Backend option, see below
 	-ka        - Keep assembly
+	-al        - Print assembly line numbers for callisto nodes
+	-os OS     - Set operating system for backend - see below
 
-Backends:
-	rm86    - Real mode x86 and MS-DOS
-	linux86 - Linux for 64-bit x86
-	uxn     - Varvara/Uxn
+Backends and their operating systems:
+	rm86   - Real mode x86, for bare-metal, dos
+	x86_64 - 64-bit x86, for linux
+	uxn    - Varvara/Uxn
 
 Backend options:
 	rm86:
@@ -68,7 +70,7 @@ int main(string[] args) {
 	bool            optimise;
 	string[]        versions;
 	bool            runFinal = true;
-	CompilerBackend backend = new BackendLinux86();
+	CompilerBackend backend = new BackendX86_64();
 	bool            doDebug;
 	bool            debugParser;
 	bool            exportSymbols;
@@ -77,6 +79,8 @@ int main(string[] args) {
 	string          header;
 	string[]        backendOpts;
 	bool            keepAssembly;
+	bool            assemblyLines;
+	string          os = "linux";
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -151,8 +155,8 @@ int main(string[] args) {
 							backend = new BackendRM86();
 							break;
 						}
-						case "linux86": {
-							backend = new BackendLinux86();
+						case "x86_64": {
+							backend = new BackendX86_64();
 							break;
 						}
 						case "uxn": {
@@ -239,6 +243,20 @@ int main(string[] args) {
 					keepAssembly = true;
 					break;
 				}
+				case "-al": {
+					assemblyLines = true;
+					break;
+				}
+				case "-os": {
+					++ i;
+					if (i >= args.length) {
+						stderr.writeln("-os expects OS argument");
+						return 1;
+					}
+
+					os = args[i];
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
 					return 1;
@@ -300,7 +318,9 @@ int main(string[] args) {
 	compiler.backend.useDebug       = doDebug;
 	compiler.backend.exportSymbols  = exportSymbols;
 	compiler.backend.link          ~= link;
+	compiler.backend.os             = os;
 	backend.keepAssembly            = keepAssembly;
+	compiler.assemblyLines          = assemblyLines;
 	
 	versions ~= compiler.backend.GetVersions();
 

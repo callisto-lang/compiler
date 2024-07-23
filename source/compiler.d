@@ -2,6 +2,7 @@ module callisto.compiler;
 
 import std.file;
 import std.path;
+import std.array;
 import std.stdio;
 import std.format;
 import std.algorithm;
@@ -19,6 +20,7 @@ class CompilerBackend {
 	bool     exportSymbols;
 	string[] link;
 	bool     keepAssembly;
+	string   os;
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
@@ -76,6 +78,7 @@ class Compiler {
 	string[]        included;
 	string          outFile;
 	string[]        versions;
+	bool            assemblyLines;
 
 	this() {
 		
@@ -179,6 +182,15 @@ class Compiler {
 			default: {
 				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}
+		}
+
+		if (assemblyLines) {
+			backend.output ~= "; " ~ inode.toString().replace("\n", "\n; ") ~ '\n';
+			size_t line = backend.output.count!((ch) => ch == '\n');
+			writefln(
+				"%s:%d:%d - line %d, node %s", inode.error.file, inode.error.line, inode.error.col,
+				line, inode.type
+			);
 		}
 	}
 

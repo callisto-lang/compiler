@@ -178,13 +178,31 @@ class BackendUXN : CompilerBackend {
 		output ~= "@calmain\n";
 	}
 
+	void CallFunction(string name) {
+		auto word = words[name];
+
+		if (word.inline) {
+			foreach (inode ; word.inlineNodes) {
+				compiler.CompileNode(inode);
+			}
+		}
+		else {
+			if (word.raw) {
+				output ~= format("%s\n", name);
+			}
+			else {
+				output ~= format("func__%s\n", name.Sanitise());
+			}
+		}
+	}
+
 	override void Init() {
 		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
+		output ~= "    init\n";
 		output ~= "    #ffff .vsp STZ2\n";
 		output ~= "    calmain\n";
-		output ~= "    BRK\n";
 	}
 
 	override void End() {
@@ -196,7 +214,21 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 
-		// exit program
+		if ("uxn_program_exit" in words) {
+			CallFunction("uxn_program_exit");
+		}
+		else {
+			WarnNoInfo("No exit function available, expect bugs");
+		}
+
+		// create init function
+		output ~= "@init\n";
+		if ("uxn_program_init" in words) {
+			CallFunction("uxn_program_init");
+		}
+		else {
+			WarnNoInfo("No program init function available");
+		}
 		output ~= "JMP2r\n";
 
 		foreach (name, var ; globals) {
