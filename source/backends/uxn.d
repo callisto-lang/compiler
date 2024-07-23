@@ -200,9 +200,9 @@ class BackendUXN : CompilerBackend {
 		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
-		output ~= "    init\n";
 		output ~= "    #ffff .vsp STZ2\n";
 		output ~= "    calmain\n";
+		output ~= "    BRK\n";
 	}
 
 	override void End() {
@@ -214,22 +214,7 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 
-		if ("uxn_program_exit" in words) {
-			CallFunction("uxn_program_exit");
-		}
-		else {
-			WarnNoInfo("No exit function available, expect bugs");
-		}
-
-		// create init function
-		output ~= "@init\n";
-		if ("uxn_program_init" in words) {
-			CallFunction("uxn_program_init");
-		}
-		else {
-			WarnNoInfo("No program init function available");
-		}
-		output ~= "JMP2r\n";
+		output ~= "JMP2r";
 
 		foreach (name, var ; globals) {
 			output ~= format("@global_%s", name.Sanitise());

@@ -339,7 +339,7 @@ class BackendX86_64 : CompilerBackend {
 
 		output ~= "ret\n";
 
-		// create init function
+		// run init function
 		output ~= "__init:\n";
 		output ~= "mov rsi, rsp\n";
 		if ("__x86_64_program_init" in words) {
