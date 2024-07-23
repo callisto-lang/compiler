@@ -82,6 +82,8 @@ class BackendRM86 : CompilerBackend {
 	RM86Opts         opts;
 
 	this() {
+		defaultOS = "dos";
+
 		types ~= Type("u8", 1);
 		types ~= Type("i8", 1);
 		types ~= Type("u16", 2);

@@ -80,7 +80,7 @@ int main(string[] args) {
 	string[]        backendOpts;
 	bool            keepAssembly;
 	bool            assemblyLines;
-	string          os = "linux";
+	string          os = "DEFAULT";
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -271,6 +271,10 @@ int main(string[] args) {
 
 			file = args[i];
 		}
+	}
+
+	if (os == "DEFAULT") {
+		os = backend.defaultOS;
 	}
 
 	foreach (ref opt ; backendOpts) {

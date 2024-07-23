@@ -91,6 +91,8 @@ class BackendX86_64 : CompilerBackend {
 	bool             useLibc;
 
 	this() {
+		defaultOS = "linux";
+
 		// built in integer types
 		types ~= Type("u8",    1);
 		types ~= Type("i8",    1);

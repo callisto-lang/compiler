@@ -21,6 +21,7 @@ class CompilerBackend {
 	string[] link;
 	bool     keepAssembly;
 	string   os;
+	string   defaultOS;
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
