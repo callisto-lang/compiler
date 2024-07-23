@@ -42,7 +42,7 @@ Flags:
 
 Backends and their operating systems:
 	rm86   - Real mode x86, for bare-metal, dos
-	x86_64 - 64-bit x86, for linux
+	x86_64 - 64-bit x86, for bare-metal, linux
 	uxn    - Varvara/Uxn
 
 Backend options:

@@ -270,7 +270,7 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	override void Init() {
-		string[] oses = ["linux"];
+		string[] oses = ["linux", "bare-metal"];
 		if (!oses.canFind(os)) {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
 		}
