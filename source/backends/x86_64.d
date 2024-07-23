@@ -481,6 +481,7 @@ class BackendX86_64 : CompilerBackend {
 			compiler.CompileNode(consts[node.name].value);
 		}
 		else {
+			writeln(globals);
 			Error(node.error, "Undefined identifier '%s'", node.name);
 		}
 	}

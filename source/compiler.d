@@ -210,7 +210,7 @@ class Compiler {
 			switch (node.type) {
 				case NodeType.FuncDef:
 				case NodeType.Include:
-				//case NodeType.Let:
+				case NodeType.Let:
 				case NodeType.Enable:
 				case NodeType.Requires:
 				case NodeType.Struct:

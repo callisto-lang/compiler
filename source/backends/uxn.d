@@ -214,7 +214,7 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 
-		output ~= "JMP2r";
+		output ~= "JMP2r\n";
 
 		foreach (name, var ; globals) {
 			output ~= format("@global_%s", name.Sanitise());
