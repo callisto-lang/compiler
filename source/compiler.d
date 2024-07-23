@@ -2,6 +2,7 @@ module callisto.compiler;
 
 import std.file;
 import std.path;
+import std.array;
 import std.stdio;
 import std.format;
 import std.algorithm;
@@ -19,6 +20,8 @@ class CompilerBackend {
 	bool     exportSymbols;
 	string[] link;
 	bool     keepAssembly;
+	string   os;
+	string   defaultOS;
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
@@ -76,6 +79,7 @@ class Compiler {
 	string[]        included;
 	string          outFile;
 	string[]        versions;
+	bool            assemblyLines;
 
 	this() {
 		
@@ -180,6 +184,15 @@ class Compiler {
 				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}
 		}
+
+		if (assemblyLines) {
+			backend.output ~= "; " ~ inode.toString().replace("\n", "\n; ") ~ '\n';
+			size_t line = backend.output.count!((ch) => ch == '\n');
+			writefln(
+				"%s:%d:%d - line %d, node %s", inode.error.file, inode.error.line, inode.error.col,
+				line, inode.type
+			);
+		}
 	}
 
 	void Compile(Node[] nodes) {
@@ -198,7 +211,7 @@ class Compiler {
 			switch (node.type) {
 				case NodeType.FuncDef:
 				case NodeType.Include:
-				//case NodeType.Let:
+				case NodeType.Let:
 				case NodeType.Enable:
 				case NodeType.Requires:
 				case NodeType.Struct:

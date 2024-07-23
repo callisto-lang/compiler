@@ -178,6 +178,24 @@ class BackendUXN : CompilerBackend {
 		output ~= "@calmain\n";
 	}
 
+	void CallFunction(string name) {
+		auto word = words[name];
+
+		if (word.inline) {
+			foreach (inode ; word.inlineNodes) {
+				compiler.CompileNode(inode);
+			}
+		}
+		else {
+			if (word.raw) {
+				output ~= format("%s\n", name);
+			}
+			else {
+				output ~= format("func__%s\n", name.Sanitise());
+			}
+		}
+	}
+
 	override void Init() {
 		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
 		output ~= "|100\n";
@@ -196,7 +214,6 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 
-		// exit program
 		output ~= "JMP2r\n";
 
 		foreach (name, var ; globals) {
