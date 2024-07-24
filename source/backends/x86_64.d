@@ -91,7 +91,16 @@ class BackendX86_64 : CompilerBackend {
 	bool             useLibc;
 
 	this() {
-		defaultOS = "linux";
+		version (linux) {
+			defaultOS = "linux";
+		}
+		else version (OSX) {
+			defaultOS = "osx";
+		}
+		else {
+			defaultOS = "bare-metal";
+			WarnNoInfo("Default operating system, defaulting to bare-metal OS");
+		}
 
 		// built in integer types
 		types ~= Type("u8",    1);
@@ -174,16 +183,41 @@ class BackendX86_64 : CompilerBackend {
 		return size;
 	}
 
-	override string[] GetVersions() => [
-		"x86_64", "LittleEndian", "16Bit", "32Bit", "64Bit"
-	] ~ (os == "linux"? ["Linux", "IO", "Exit", "Time", "File", "Args", "Heap"] : []);
+	//override string[] GetVersions() => [
+	//	"x86_64", "LittleEndian", "16Bit", "32Bit", "64Bit"
+	//] ~ (os == "linux"? ["Linux", "IO", "Exit", "Time", "File", "Args", "Heap"] :
+	//	 os == "osx"? ["OSX"]);
+	override string[] GetVersions() {
+		// CPU features
+		string[] ret = ["x86_64", "LittleEndian", "16Bit", "32Bit", "64Bit"];
+
+		// OS features
+		switch (os) {
+			case "linux": {
+				ret ~= ["Linux", "IO", "Exit", "Time", "File", "Args", "Heap"];
+				break;
+			}
+			case "osx": {
+				ret ~= ["OSX"];
+				break;
+			}
+			default: break;
+		}
+
+		return ret;
+	}
 
 	override string[] FinalCommands() {
+		string objFormat = "elf64";
+		if (os == "osx") {
+			objFormat = "macho64";
+		}
+
 		string[] ret = [
 			format("mv %s %s.asm", compiler.outFile, compiler.outFile),
 			useDebug?
 				format(
-					"nasm -f elf64 %s.asm -o %s.o -F dwarf -g", compiler.outFile,
+					"nasm -f %s %s.asm -o %s.o -F dwarf -g", objFormat, compiler.outFile,
 					compiler.outFile
 				) :
 				format("nasm -f elf64 %s.asm -o %s.o", compiler.outFile, compiler.outFile)
@@ -270,18 +304,20 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	override void Init() {
-		string[] oses = ["linux", "bare-metal"];
+		string[] oses = ["linux", "bare-metal", "osx"];
 		if (!oses.canFind(os)) {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
 		}
 
-		if (useLibc) output ~= "global main\n";
-		else         output ~= "global _start\n";
+		if (useLibc)          output ~= "global main\n";
+		else if (os == "osx") output ~= "global _main\n";
+		else                  output ~= "global _start\n";
 		
 		output ~= "section .text\n";
 		
-		if (useLibc) output ~= "main:\n";
-		else         output ~= "_start:\n";
+		if (useLibc)          output ~= "main:\n";
+		else if (os == "osx") output ~= "_main:\n";
+		else                  output ~= "_start:\n";
 
 		output ~= "call __init\n";
 
