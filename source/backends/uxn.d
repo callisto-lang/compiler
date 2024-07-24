@@ -281,6 +281,9 @@ class BackendUXN : CompilerBackend {
 			output ~= format(";global_%s\n", node.name.Sanitise());
 		}
 		else if (node.name in consts) {
+			auto value  = consts[node.name].value;
+			value.error = node.error;
+
 			compiler.CompileNode(consts[node.name].value);
 		}
 		else {

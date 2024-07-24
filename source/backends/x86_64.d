@@ -516,6 +516,9 @@ class BackendX86_64 : CompilerBackend {
 			output ~= "add r15, 8\n";
 		}
 		else if (node.name in consts) {
+			auto value  = consts[node.name].value;
+			value.error = node.error;
+
 			compiler.CompileNode(consts[node.name].value);
 		}
 		else {
