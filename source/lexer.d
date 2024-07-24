@@ -110,21 +110,20 @@ class Lexer {
 		}
 	}
 
-	void HandleColLine() {
+	void Next(bool error = true) {
+		++ i;
+
+		if (i >= code.length) {
+			if (error) Error("Unexpected EOF");
+			else       return;
+		}
+
 		if (code[i] == '\n') {
 			++ line;
 			col = 0;
 		}
 		else {
 			++ col;
-		}
-	}
-
-	void Next() {
-		++ i;
-
-		if (i > code.length) {
-			Error("Unexpected EOF");
 		}
 	}
 
@@ -135,17 +134,11 @@ class Lexer {
 	}
 
 	void Lex() {
-		for (i = 0; i < code.length; ++ i) {
+		for (i = 0; i < code.length; Next(false)) {
 			if (inString) {
 				switch (code[i]) {
 					case '\\': {
-						++ i;
-
-						HandleColLine();
-
-						if (i >= code.length) {
-							Error("Unexpected EOF");
-						}
+						Next();
 
 						if (code[i] !in escapes) {
 							Error("Invalid escape character: %c", code[i]);
@@ -192,15 +185,12 @@ class Lexer {
 						AddReading();
 
 						while (true) {
-							++ i;
+							Next(false);
 
 							if ((i >= code.length) || (code[i] == '\n')) {
 								break;
 							}
 						}
-
-						++ line;
-						col = 0;
 						break;
 					}
 					case '&': {
@@ -233,8 +223,6 @@ class Lexer {
 					}
 				}
 			}
-
-			HandleColLine();
 		}
 	}
 }
