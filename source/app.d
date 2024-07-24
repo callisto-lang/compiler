@@ -64,7 +64,7 @@ int main(string[] args) {
 
 	string          file;
 	string          outFile = "out";
-	ulong           org;
+	ulong           org = 0xFFFF;
 	bool            orgSet;
 	string[]        includeDirs;
 	bool            optimise;

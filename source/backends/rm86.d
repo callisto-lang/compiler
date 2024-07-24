@@ -215,6 +215,15 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override void Init() {
+		if (org == 0xFFFF) {
+			switch (os) {
+				case "dos": org = 0x100; break;
+				default: {
+					WarnNoInfo("No org seems to be set");
+				}
+			}
+		}
+
 		string[] oses = ["bare-metal", "dos"];
 		if (!oses.canFind(os)) {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);

@@ -19,7 +19,14 @@ class CodeRemover {
 	string[]       funcStack;
 
 	this() {
-		
+		usedFunctions = [
+			"__x86_64_program_init",
+			"__x86_64_program_exit",
+			"__rm86_program_init",
+			"__rm86_program_exit",
+			"uxn_program_init",
+			"uxn_program_end"
+		];
 	}
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {

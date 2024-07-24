@@ -36,19 +36,19 @@ void WarningBegin(ErrorInfo info) {
 
 void WarnNoInfo(Char, A...)(in Char[] fmt, A args) {
 	version (Windows) {
-		stderr.writeln("warning: %s", format(fmt, args));
+		stderr.writefln("warning: %s", format(fmt, args));
 	}
 	else {
-		stderr.writeln("\x1b[33mwarning:\x1b[0m %s", format(fmt, args));
+		stderr.writefln("\x1b[33mwarning:\x1b[0m %s", format(fmt, args));
 	}
 }
 
 void ErrorNoInfo(Char, A...)(in Char[] fmt, A args) {
 	version (Windows) {
-		stderr.writeln("error: ", format(fmt, args));
+		stderr.writefln("error: ", format(fmt, args));
 	}
 	else {
-		stderr.writeln("\x1b[31merror:\x1b[0m ", format(fmt, args));
+		stderr.writefln("\x1b[31merror:\x1b[0m ", format(fmt, args));
 	}
 	exit(1);
 }
