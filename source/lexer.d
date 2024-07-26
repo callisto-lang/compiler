@@ -70,6 +70,8 @@ class Lexer {
 		reading     = "";
 		extra       = "";
 		tokenError  = GetError();
+
+		writeln(tokens[$ - 1]);
 	}
 
 	void AddReading() {
@@ -133,6 +135,8 @@ class Lexer {
 	}
 
 	void Lex() {
+		tokenError = GetError();
+
 		for (i = 0; i < code.length; Next(false)) {
 			if (inString) {
 				switch (code[i]) {
