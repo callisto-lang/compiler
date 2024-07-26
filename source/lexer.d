@@ -27,22 +27,18 @@ struct Token {
 	size_t    col;
 }
 
-class LexerError : Exception {
-	this() {
-		super("", "", 0);
-	}
-}
-
 class Lexer {
-	Token[] tokens;
-	size_t  i;
-	string  code;
-	string  file;
-	size_t  line;
-	size_t  col;
-	bool    inString;
-	string  reading;
-	string  extra;
+	Token[]   tokens;
+	size_t    i;
+	string    code;
+	string    file;
+	size_t    line;
+	size_t    col;
+	bool      inString;
+	string    reading;
+	string    extra;
+	ErrorInfo tokenError;
+	bool      success = true;
 
 	char[char] escapes;
 
@@ -65,18 +61,21 @@ class Lexer {
 	void Error(Char, A...)(in Char[] fmt, A args) {
 		ErrorBegin(GetError());
 		stderr.writeln(format(fmt, args));
-		throw new LexerError();
+		PrintErrorLine(GetError());
+		success = false;
 	}
 
 	void AddToken(TokenType type) {
-		tokens  ~= Token(type, reading, extra, file, line, col);
-		reading  = "";
-		extra    = "";
+		tokens     ~= Token(type, reading, extra, tokenError.file, tokenError.line, tokenError.col);
+		reading     = "";
+		extra       = "";
+		tokenError  = GetError();
 	}
 
 	void AddReading() {
 		if (reading.strip() == "") {
-			reading = "";
+			reading    = "";
+			tokenError = GetError();
 		}
 		else if (reading.isNumeric()) {
 			AddToken(TokenType.Integer);
@@ -224,5 +223,6 @@ class Lexer {
 				}
 			}
 		}
+		// TODO: here
 	}
 }

@@ -6,17 +6,12 @@ import std.algorithm;
 import callisto.error;
 import callisto.parser;
 
-class CodeRemoverError : Exception {
-	this() {
-		super("", "", 0);
-	}
-}
-
 class CodeRemover {
 	Node[]         res;
 	string[]       usedFunctions;
 	Node[][string] functions;
 	string[]       funcStack;
+	bool           success = true;
 
 	this() {
 		usedFunctions = [
@@ -32,7 +27,8 @@ class CodeRemover {
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
 		stderr.writeln(format(fmt, args));
-		throw new CodeRemoverError();
+		PrintErrorLine(error);
+		success = false;
 	}
 
 	void FindFunctions(Node[] nodes) {

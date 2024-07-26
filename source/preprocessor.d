@@ -10,22 +10,18 @@ import callisto.error;
 import callisto.parser;
 import callisto.language;
 
-class PreprocessorError : Exception {
-	this() {
-		super("", "", 0);
-	}
-}
-
 class Preprocessor {
 	string[] includeDirs;
 	string[] included;
 	string[] versions;
 	string[] restricted = ["IO", "File", "Time", "Exit"];
+	bool     success = true;
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
 		stderr.writeln(format(fmt, args));
-		throw new PreprocessorError();
+		PrintErrorLine(error);
+		success = false;
 	}
 
 	Node[] Run(Node[] nodes) {

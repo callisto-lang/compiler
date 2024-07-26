@@ -486,12 +486,15 @@ class Parser {
 	}
 
 	ErrorInfo GetError() {
-		return ErrorInfo(tokens[i].file, tokens[i].line, tokens[i].col);
+		return ErrorInfo(
+			tokens[i].file, tokens[i].line, tokens[i].col, tokens[i].contents.length
+		);
 	}
 
 	void Error(Char, A...)(in Char[] fmt, A args) {
 		ErrorBegin(GetError());
 		stderr.writeln(format(fmt, args));
+		PrintErrorLine(GetError());
 		throw new ParserError();
 	}
 

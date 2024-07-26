@@ -58,11 +58,13 @@ class CompilerBackend {
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
 		stderr.writeln(format(fmt, args));
-		throw new CompilerError();
+		PrintErrorLine(error);
+		compiler.success = false;
 	}
 
 	final void Warn(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		WarningBegin(error);
+		PrintErrorLine(error);
 		stderr.writeln(format(fmt, args));
 	}
 }
@@ -80,6 +82,7 @@ class Compiler {
 	string          outFile;
 	string[]        versions;
 	bool            assemblyLines;
+	bool            success = true;
 
 	this() {
 		

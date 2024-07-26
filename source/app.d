@@ -345,27 +345,20 @@ int main(string[] args) {
 	preproc.includeDirs = includeDirs;
 	preproc.versions    = versions;
 
-	try {
-		nodes = preproc.Run(nodes);
-	}
-	catch (PreprocessorError) {
-		return 1;
-	}
+	nodes = preproc.Run(nodes);
+	if (!preproc.success) return 1;
 
 	if (optimise) {
 		auto codeRemover = new CodeRemover();
 		codeRemover.Run(nodes);
 		nodes = codeRemover.res;
+		if (!codeRemover.success) return 1;
 	}
 
 	compiler.versions = preproc.versions;
 	
-	try {
-		compiler.Compile(nodes);
-	}
-	catch (CompilerError) {
-		return 1;
-	}
+	compiler.Compile(nodes);
+	if (!compiler.success) return 1;
 
 	std.file.write(outFile, compiler.backend.output);
 

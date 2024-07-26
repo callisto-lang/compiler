@@ -3,11 +3,13 @@ module callisto.error;
 import std.stdio;
 import std.format;
 import core.stdc.stdlib : exit;
+import callisto.util;
 
 struct ErrorInfo {
 	string file;
 	size_t line;
 	size_t col;
+	size_t length;
 }
 
 void ErrorBegin(ErrorInfo info) {
@@ -51,4 +53,23 @@ void ErrorNoInfo(Char, A...)(in Char[] fmt, A args) {
 		stderr.writefln("\x1b[31merror:\x1b[0m ", format(fmt, args));
 	}
 	exit(1);
+}
+
+void PrintErrorLine(ErrorInfo info) {
+	writef(" %d | ", info.line + 1);
+
+	string line = GetFileLine(info.file, info.line);
+
+	foreach (i, ref ch ; line) {
+		if (i == info.col) {
+			writef("\x1b[31m-> ");
+		}
+
+		writef("%c", ch);
+
+		if (i == info.col + info.length - 1) {
+			writef(" <-\x1b[0m");
+		}
+	}
+	writeln("\n");
 }
