@@ -70,8 +70,6 @@ class Lexer {
 		reading     = "";
 		extra       = "";
 		tokenError  = GetError();
-
-		writeln(tokens[$ - 1]);
 	}
 
 	void AddReading() {
