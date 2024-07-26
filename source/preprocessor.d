@@ -34,6 +34,7 @@ class Preprocessor {
 					auto path = format("%s/%s", dirName(node.error.file), node.path);
 
 					if (!exists(path)) {
+						auto oldPath = path;
 						bool found;
 						
 						foreach (ref ipath ; includeDirs) {
@@ -47,7 +48,10 @@ class Preprocessor {
 
 						if (!found) {
 							ErrorBegin(node.error);
-							stderr.writefln("Can't find file '%s'", node.path);
+							stderr.writefln(
+								"Can't find file '%s', tried '%s' and in include paths",
+								node.path, oldPath
+							);
 							exit(1);
 						}
 					}
