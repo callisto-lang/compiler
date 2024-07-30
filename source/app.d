@@ -12,6 +12,7 @@ import callisto.codeRemover;
 import callisto.preprocessor;
 import callisto.backends.uxn;
 import callisto.backends.rm86;
+import callisto.backends.fox32;
 import callisto.backends.x86_64;
 
 const static string usage = "
@@ -70,7 +71,7 @@ int main(string[] args) {
 	bool            optimise;
 	string[]        versions;
 	bool            runFinal = true;
-	CompilerBackend backend = new BackendX86_64();
+	CompilerBackend backend  = new BackendX86_64();
 	bool            doDebug;
 	bool            debugParser;
 	bool            exportSymbols;
@@ -151,18 +152,10 @@ int main(string[] args) {
 					}
 
 					switch (args[i]) {
-						case "rm86": {
-							backend = new BackendRM86();
-							break;
-						}
-						case "x86_64": {
-							backend = new BackendX86_64();
-							break;
-						}
-						case "uxn": {
-							backend = new BackendUXN();
-							break;
-						}
+						case "rm86":   backend = new BackendRM86();   break;
+						case "x86_64": backend = new BackendX86_64(); break;
+						case "uxn":    backend = new BackendUXN();    break;
+						case "fox32":  backend = new BackendFox32();  break;
 						default: {
 							stderr.writefln("Unknown backend '%s'", args[i]);
 							return 1;

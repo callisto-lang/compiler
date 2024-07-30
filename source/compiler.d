@@ -64,8 +64,8 @@ class CompilerBackend {
 
 	final void Warn(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		WarningBegin(error);
-		PrintErrorLine(error);
 		stderr.writeln(format(fmt, args));
+		PrintErrorLine(error);
 	}
 }
 

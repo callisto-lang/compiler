@@ -1,0 +1,124 @@
+; fox32rom routine definitions
+
+; system jump table
+get_rom_version:                          jmp [0xF0040000]
+system_vsync_handler:                     jmp [0xF0040004]
+get_mouse_position:                       jmp [0xF0040008]
+new_event:                                jmp [0xF004000C]
+wait_for_event:                           jmp [0xF0040010]
+get_next_event:                           jmp [0xF0040014]
+panic:                                    jmp [0xF0040018]
+get_mouse_button:                         jmp [0xF004001C]
+scancode_to_ascii:                        jmp [0xF0040020]
+shift_pressed:                            jmp [0xF0040024]
+shift_released:                           jmp [0xF0040028]
+caps_pressed:                             jmp [0xF004002C]
+poweroff:                                 jmp [0xF0040030]
+get_rom_api_version:                      jmp [0xF0040034]
+
+; generic drawing jump table
+draw_str_generic:                         jmp [0xF0041000]
+draw_format_str_generic:                  jmp [0xF0041004]
+draw_decimal_generic:                     jmp [0xF0041008]
+draw_hex_generic:                         jmp [0xF004100C]
+draw_font_tile_generic:                   jmp [0xF0041010]
+draw_tile_generic:                        jmp [0xF0041014]
+set_tilemap:                              jmp [0xF0041018]
+draw_pixel_generic:                       jmp [0xF004101C]
+draw_filled_rectangle_generic:            jmp [0xF0041020]
+get_tilemap:                              jmp [0xF0041024]
+
+; background jump table
+fill_background:                          jmp [0xF0042000]
+draw_str_to_background:                   jmp [0xF0042004]
+draw_format_str_to_background:            jmp [0xF0042008]
+draw_decimal_to_background:               jmp [0xF004200C]
+draw_hex_to_background:                   jmp [0xF0042010]
+draw_font_tile_to_background:             jmp [0xF0042014]
+draw_tile_to_background:                  jmp [0xF0042018]
+draw_pixel_to_background:                 jmp [0xF004201C]
+draw_filled_rectangle_to_background:      jmp [0xF0042020]
+
+; overlay jump table
+fill_overlay:                             jmp [0xF0043000]
+draw_str_to_overlay:                      jmp [0xF0043004]
+draw_format_str_to_overlay:               jmp [0xF0043008]
+draw_decimal_to_overlay:                  jmp [0xF004300C]
+draw_hex_to_overlay:                      jmp [0xF0043010]
+draw_font_tile_to_overlay:                jmp [0xF0043014]
+draw_tile_to_overlay:                     jmp [0xF0043018]
+draw_pixel_to_overlay:                    jmp [0xF004301C]
+draw_filled_rectangle_to_overlay:         jmp [0xF0043020]
+check_if_overlay_covers_position:         jmp [0xF0043024]
+check_if_enabled_overlay_covers_position: jmp [0xF0043028]
+enable_overlay:                           jmp [0xF004302C]
+disable_overlay:                          jmp [0xF0043030]
+move_overlay:                             jmp [0xF0043034]
+resize_overlay:                           jmp [0xF0043038]
+set_overlay_framebuffer_pointer:          jmp [0xF004303C]
+get_unused_overlay:                       jmp [0xF0043040]
+make_coordinates_relative_to_overlay:     jmp [0xF0043044]
+
+; menu bar jump table
+enable_menu_bar:                          jmp [0xF0044000]
+disable_menu_bar:                         jmp [0xF0044004]
+menu_bar_click_event:                     jmp [0xF0044008]
+clear_menu_bar:                           jmp [0xF004400C]
+draw_menu_bar_root_items:                 jmp [0xF0044010]
+draw_menu_items:                          jmp [0xF0044014]
+close_menu:                               jmp [0xF0044018]
+menu_update_event:                        jmp [0xF004401C]
+
+; disk jump table
+read_sector:                              jmp [0xF0045000]
+write_sector:                             jmp [0xF0045004]
+ryfs_open:                                jmp [0xF0045008]
+ryfs_seek:                                jmp [0xF004500C]
+ryfs_read:                                jmp [0xF0045010]
+ryfs_read_whole_file:                     jmp [0xF0045014]
+ryfs_get_size:                            jmp [0xF0045018]
+ryfs_get_file_list:                       jmp [0xF004501C]
+ryfs_tell:                                jmp [0xF0045020]
+ryfs_write:                               jmp [0xF0045024]
+is_romdisk_available:                     jmp [0xF0045028]
+ryfs_create:                              jmp [0xF004502C]
+ryfs_delete:                              jmp [0xF0045030]
+ryfs_format:                              jmp [0xF0045034]
+is_ramdisk_formatted:                     jmp [0xF0045038]
+
+; memory copy/compare jump table
+copy_memory_bytes:                        jmp [0xF0046000]
+copy_memory_words:                        jmp [0xF0046004]
+copy_string:                              jmp [0xF0046008]
+compare_memory_bytes:                     jmp [0xF004600C]
+compare_memory_words:                     jmp [0xF0046010]
+compare_string:                           jmp [0xF0046014]
+string_length:                            jmp [0xF0046018]
+
+; integer jump table
+string_to_int:                            jmp [0xF0047000]
+
+; audio jump table
+play_audio:                               jmp [0xF0048000]
+stop_audio:                               jmp [0xF0048004]
+
+; random number jump table
+random:                                   jmp [0xF0049000]
+random_range:                             jmp [0xF0049004]
+
+; event types
+const EVENT_TYPE_MOUSE_CLICK:    0x00000000
+const EVENT_TYPE_MOUSE_RELEASE:  0x00000001
+const EVENT_TYPE_KEY_DOWN:       0x00000002
+const EVENT_TYPE_KEY_UP:         0x00000003
+const EVENT_TYPE_MENU_BAR_CLICK: 0x00000004
+const EVENT_TYPE_MENU_UPDATE:    0x00000005
+const EVENT_TYPE_MENU_CLICK:     0x00000006
+const EVENT_TYPE_MENU_ACK:       0x00000007
+const EVENT_TYPE_EMPTY:          0xFFFFFFFF
+
+; keys
+const KEY_CTRL:   0x1D
+const KEY_LSHIFT: 0x2A
+const KEY_RSHIFT: 0x36
+const KEY_CAPS:   0x3A
