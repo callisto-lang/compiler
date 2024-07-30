@@ -23,7 +23,7 @@ string Sanitise(string str) {
 			case '(':  ret ~= "__lparen__"; break;
 			case ')':  ret ~= "__rparen__"; break;
 			case '-':  ret ~= "__dash__"; break;
-			case '_':  ret ~= "__underscore__"; break;
+			//case '_':  ret ~= "__underscore__"; break;
 			case '+':  ret ~= "__plus__"; break;
 			case '=':  ret ~= "__equal__"; break;
 			case '[':  ret ~= "__lsquare__"; break;
