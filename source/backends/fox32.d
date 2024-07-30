@@ -297,6 +297,7 @@ class BackendFox32 : CompilerBackend {
 			foreach (ref inode ; condition) {
 				compiler.CompileNode(inode);
 			}
+
 			output ~= "sub r31, 4\n";
 			output ~= "cmp [r31], 0\n";
 			output ~= format("ifz jmp __if_%d_%d\n", blockNum, condCounter + 1);
