@@ -322,7 +322,37 @@ class BackendFox32 : CompilerBackend {
 	}
 
 	override void CompileWhile(WhileNode node) {
-		assert(0);
+		++ blockCounter;
+		uint blockNum = blockCounter;
+		currentLoop   = blockNum;
+
+		output ~= format("jmp __while_%d_condition\n", blockNum);
+		output ~= format("__while_%d:\n", blockNum);
+
+		foreach (ref inode ; node.doWhile) {
+			inWhile = true;
+			compiler.CompileNode(inode);
+
+			currentLoop = blockNum;
+
+			output ~= "push r31\n";
+			output ~= "call yield_task\n";
+			output ~= "pop r31\n";
+		}
+
+		inWhile = false;
+
+		output ~= format("__while_%d_condition:\n", blockNum);
+		
+		foreach (ref inode ; node.condition) {
+			compiler.CompileNode(inode);
+		}
+
+		output ~= "sub r31, 4\n";
+		output ~= "mov r0, [r31]\n";
+		output ~= "cmp r0, 0\n";
+		output ~= format("ifnz jmp __while_%d\n", blockNum);
+		output ~= format("__while_%d_end:\n", blockNum);
 	}
 
 	override void CompileLet(LetNode node) {
