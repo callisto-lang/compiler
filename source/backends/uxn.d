@@ -270,15 +270,36 @@ class BackendUXN : CompilerBackend {
 		else if (VariableExists(node.name)) {
 			auto var = GetVariable(node.name);
 
+			if (var.type.isStruct) {
+				Error(node.error, "Can't push value of struct");
+			}
+
 			if (var.offset == 0) {
 				output ~= ".vsp LDZ2\n";
 			}
 			else {
 				output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
 			}
+
+			switch (var.type.size) {
+				case 1: output ~= "LDA NIP\n"; break;
+				case 2: output ~= "LDA2\n"; break;
+				default: Error(node.error, "Bad variable type size");
+			}
 		}
 		else if (node.name in globals) {
+			auto var = globals[node.name];
 			output ~= format(";global_%s\n", node.name.Sanitise());
+
+			if (var.type.isStruct) {
+				Error(node.error, "Can't push value of struct");
+			}
+
+			switch (var.type.size) {
+				case 1: output ~= "LDA NIP\n"; break;
+				case 2: output ~= "LDA2\n"; break;
+				default: Error(node.error, "Bad variable type size");
+			}
 		}
 		else if (node.name in consts) {
 			auto value  = consts[node.name].value;
@@ -792,15 +813,29 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileFuncAddr(FuncAddrNode node) {
-		if (node.func !in words) {
-			Error(node.error, "Function '%s' doesn't exist", node.func);
+		if (node.func in words) {
+			auto   word   = words[node.func];
+			string symbol =
+				word.raw? node.func : format("func__%s", node.func.Sanitise());
+
+			output ~= format(";%s\n", symbol);
 		}
+		else if (VariableExists(node.func)) {
+			auto var = GetVariable(node.func);
 
-		auto   word   = words[node.func];
-		string symbol =
-			word.raw? node.func : format("func__%s", node.func.Sanitise());
-
-		output ~= format(";%s\n", symbol);
+			if (var.offset == 0) {
+				output ~= ".vsp LDZ2\n";
+			}
+			else {
+				output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
+			}
+		}
+		else if (node.func in globals) {
+			output ~= format(";global_%s\n", node.func.Sanitise());
+		}
+		else {
+			Error(node.error, "Undefined identifier '%s'", node.func);
+		}
 	}
 
 	override void CompileImplement(ImplementNode node) {
@@ -872,6 +907,51 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileSet(SetNode node) {
-		
+		if (VariableExists(node.var)) {
+			auto var = GetVariable(node.var);
+
+			if (var.type.isStruct) {
+				Error(node.error, "Can't set struct value");
+			}
+
+			if (var.offset == 0) {
+				switch (var.type.size) {
+					case 1: output ~= "NIP .vsp LDZ2 STA\n"; break;
+					case 2: output ~= ".vsp LDZ2 STA2\n"; break;
+					default: Error(node.error, "Bad variable type size");
+				}
+			}
+			else {
+				switch (var.type.size) {
+					case 1: {
+						output ~= format("NIP .vsp LDZ2 #%.4X ADD2 STA\n", var.offset);
+						break;
+					}
+					case 2: {
+						output ~= format(".vsp LDZ2 #%.4X ADD2 STA2\n", var.offset);
+						break;
+					}
+					default: Error(node.error, "Bad variable type size");
+				}
+			}
+		}
+		else if (node.var in globals) {
+			auto global = globals[node.var];
+
+			if (global.type.isStruct) {
+				Error(node.error, "Can't set struct value");
+			}
+
+			string symbol = format("global_%s", node.var.Sanitise());
+
+			switch (global.type.size) {
+				case 1: output ~= format("NIP ;%s STA\n", symbol); break;
+				case 2: output ~= format(";%s STA2\n", symbol); break;
+				default: Error(node.error, "Bad variable type size");
+			}
+		}
+		else {
+			Error(node.error, "Variable '%s' doesn't exist", node.var);
+		}
 	}
 }
