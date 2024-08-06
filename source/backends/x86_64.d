@@ -504,15 +504,48 @@ class BackendX86_64 : CompilerBackend {
 			if (var.offset > 0) {
 				output ~= format("add rdi, %d\n", var.offset);
 			}
-			output ~= "mov [r15], rdi\n";
+
+			if (var.type.isStruct) {
+				Error(node.error, "Can't push value of struct");
+			}
+
+			if (var.type.size != 8) {
+				output ~= "xor rax, rax\n";
+			}
+
+			switch (var.type.size) {
+				case 1: output ~= format("mov al, [rdi]\n"); break;
+				case 2: output ~= format("mov ax, [rdi]\n"); break;
+				case 4: output ~= format("mov eax, [rdi]\n"); break;
+				case 8: output ~= format("mov rax, [rdi]\n"); break;
+				default: Error(node.error, "Bad variable type size");
+			}
+
+			output ~= "mov [r15], rax\n";
 			output ~= "add r15, 8\n";
 		}
 		else if (node.name in globals) {
 			auto var = globals[node.name];
 
-			output ~= format(
-				"mov qword [r15], qword __global_%s\n", node.name.Sanitise()
-			);
+			if (var.type.size != 8) {
+				output ~= "xor rax, rax\n";
+			}
+
+			if (var.type.isStruct) {
+				Error(node.error, "Can't push value of struct");
+			}
+
+			string symbol = format("__global_%s", node.name.Sanitise());
+
+			switch (var.type.size) {
+				case 1: output ~= format("mov al, [%s]\n", symbol); break;
+				case 2: output ~= format("mov ax, [%s]\n", symbol); break;
+				case 4: output ~= format("mov eax, [%s]\n", symbol); break;
+				case 8: output ~= format("mov rax, [%s]\n", symbol); break;
+				default: Error(node.error, "Bad variable type size");
+			}
+
+			output ~= "mov [r15], rax\n";
 			output ~= "add r15, 8\n";
 		}
 		else if (node.name in consts) {
@@ -1071,17 +1104,36 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	override void CompileFuncAddr(FuncAddrNode node) {
-		if (node.func !in words) {
-			Error(node.error, "Function '%s' doesn't exist");
+		if (node.func in words) {
+			auto   word   = words[node.func];
+			string symbol = word.type == WordType.Callisto?
+				format("__func__%s", node.func.Sanitise()) : node.func;
+
+			output ~= format("mov rax, %s\n", symbol);
+			output ~= "mov [r15], rax\n";
+			output ~= "add r15, 8\n";
 		}
+		else if (node.func in globals) {
+			auto var = globals[node.func];
 
-		auto   word   = words[node.func];
-		string symbol = word.type == WordType.Callisto?
-			format("__func__%s", node.func.Sanitise()) : node.func;
+			output ~= format(
+				"mov qword [r15], qword __global_%s\n", node.func.Sanitise()
+			);
+			output ~= "add r15, 8\n";
+		}
+		else if (VariableExists(node.func)) {
+			auto var = GetVariable(node.func);
 
-		output ~= format("mov rax, %s\n", symbol);
-		output ~= "mov [r15], rax\n";
-		output ~= "add r15, 8\n";
+			output ~= "mov rdi, rsp\n";
+			if (var.offset > 0) {
+				output ~= format("add rdi, %d\n", var.offset);
+			}
+			output ~= "mov [r15], rdi\n";
+			output ~= "add r15, 8\n";
+		}
+		else {
+			Error(node.error, "Undefined identifier '%s'", node.func);
+		}
 	}
 
 	override void CompileImplement(ImplementNode node) {
@@ -1146,5 +1198,51 @@ class BackendX86_64 : CompilerBackend {
 		output    ~= "ret\n";
 		inScope    = false;
 		variables  = [];
+	}
+
+	override void CompileSet(SetNode node) {
+		output ~= "sub r15, 8\n";
+		output ~= "mov rax, [r15]\n";
+
+		if (VariableExists(node.var)) {
+			auto var = GetVariable(node.var);
+
+			if (var.type.isStruct) {
+				Error(node.error, "Can't set struct value");
+			}
+
+			switch (var.type.size) {
+				case 1: output ~= format("mov [rsp + %d], al\n", var.offset); break;
+				case 2: output ~= format("mov [rsp + %d], ax\n", var.offset); break;
+				case 4: output ~= format("mov [rsp + %d], eax\n", var.offset); break;
+				case 8: output ~= format("mov [rsp + %d], rax\n", var.offset); break;
+				default: Error(node.error, "Bad variable type size");
+			}
+		}
+		else if (node.var in globals) {
+			auto global = globals[node.var];
+
+			if (global.type.isStruct) {
+				Error(node.error, "Can't set struct value");
+			}
+
+			string symbol = format("__global_%s", node.var.Sanitise());
+
+			if (global.type.size != 8) {
+				output ~= "xor rbx, rbx\n";
+				output ~= format("mov [%s], rbx\n", symbol);
+			}
+
+			switch (global.type.size) {
+				case 1: output ~= format("mov [%s], al\n", symbol); break;
+				case 2: output ~= format("mov [%s], ax\n", symbol); break;
+				case 4: output ~= format("mov [%s], eax\n", symbol); break;
+				case 8: output ~= format("mov [%s], rax\n", symbol); break;
+				default: Error(node.error, "Bad variable type size");
+			}
+		}
+		else {
+			Error(node.error, "Variable '%s' doesn't exist", node.var);
+		}
 	}
 }

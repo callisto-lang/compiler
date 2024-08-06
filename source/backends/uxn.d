@@ -870,4 +870,8 @@ class BackendUXN : CompilerBackend {
 		inScope    = false;
 		variables  = [];
 	}
+
+	override void CompileSet(SetNode node) {
+		
+	}
 }

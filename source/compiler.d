@@ -54,6 +54,7 @@ class CompilerBackend {
 	abstract void CompileCall(WordNode node);
 	abstract void CompileFuncAddr(FuncAddrNode node);
 	abstract void CompileImplement(ImplementNode node);
+	abstract void CompileSet(SetNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -183,6 +184,7 @@ class Compiler {
 			case NodeType.Extern:    backend.CompileExtern(cast(ExternNode) inode); break;
 			case NodeType.FuncAddr:  backend.CompileFuncAddr(cast(FuncAddrNode) inode); break;
 			case NodeType.Implement: backend.CompileImplement(cast(ImplementNode) inode); break;
+			case NodeType.Set:       backend.CompileSet(cast(SetNode) inode); break;
 			default: {
 				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}

@@ -927,4 +927,8 @@ class BackendRM86 : CompilerBackend {
 		inScope    = false;
 		variables  = [];
 	}
+
+	override void CompileSet(SetNode node) {
+		
+	}
 }

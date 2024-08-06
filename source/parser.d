@@ -31,7 +31,8 @@ enum NodeType {
 	Alias,
 	Extern,
 	FuncAddr,
-	Implement
+	Implement,
+	Set
 }
 
 class Node {
@@ -69,6 +70,7 @@ class IntegerNode : Node {
 	}
 
 	this(ErrorInfo perror, long pvalue) {
+		error = perror;
 		type  = NodeType.Integer;
 		value = pvalue;
 	}
@@ -467,6 +469,17 @@ class ImplementNode : Node {
 
 		return ret ~ "end";
 	}
+}
+
+class SetNode : Node {
+	string var;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Set;
+		error = perror;
+	}
+
+	override string toString() => format("-> %s", var);
 }
 
 class ParserError : Exception {
@@ -1096,6 +1109,17 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseSet() {
+		auto ret = new SetNode(GetError());
+		parsing  = NodeType.Set;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.var = tokens[i].contents;
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -1121,6 +1145,7 @@ class Parser {
 					case "alias":      return ParseAlias();
 					case "extern":     return ParseExtern();
 					case "implement":  return ParseImplement();
+					case "->":         return ParseSet();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}
