@@ -52,8 +52,9 @@ class CompilerBackend {
 	abstract void CompileAlias(AliasNode node);
 	abstract void CompileExtern(ExternNode node);
 	abstract void CompileCall(WordNode node);
-	abstract void CompileFuncAddr(FuncAddrNode node);
+	abstract void CompileAddr(AddrNode node);
 	abstract void CompileImplement(ImplementNode node);
+	abstract void CompileSet(SetNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -64,8 +65,8 @@ class CompilerBackend {
 
 	final void Warn(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		WarningBegin(error);
-		PrintErrorLine(error);
 		stderr.writeln(format(fmt, args));
+		PrintErrorLine(error);
 	}
 }
 
@@ -181,8 +182,9 @@ class Compiler {
 			case NodeType.Union:     backend.CompileUnion(cast(UnionNode) inode); break;
 			case NodeType.Alias:     backend.CompileAlias(cast(AliasNode) inode); break;
 			case NodeType.Extern:    backend.CompileExtern(cast(ExternNode) inode); break;
-			case NodeType.FuncAddr:  backend.CompileFuncAddr(cast(FuncAddrNode) inode); break;
+			case NodeType.Addr:  backend.CompileAddr(cast(AddrNode) inode); break;
 			case NodeType.Implement: backend.CompileImplement(cast(ImplementNode) inode); break;
+			case NodeType.Set:       backend.CompileSet(cast(SetNode) inode); break;
 			default: {
 				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}

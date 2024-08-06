@@ -30,8 +30,9 @@ enum NodeType {
 	Union,
 	Alias,
 	Extern,
-	FuncAddr,
-	Implement
+	Addr,
+	Implement,
+	Set
 }
 
 class Node {
@@ -69,6 +70,7 @@ class IntegerNode : Node {
 	}
 
 	this(ErrorInfo perror, long pvalue) {
+		error = perror;
 		type  = NodeType.Integer;
 		value = pvalue;
 	}
@@ -437,11 +439,11 @@ class ExternNode : Node {
 	}
 }
 
-class FuncAddrNode : Node {
+class AddrNode : Node {
 	string func;
 
 	this(ErrorInfo perror) {
-		type  = NodeType.FuncAddr;
+		type  = NodeType.Addr;
 		error = perror;
 	}
 
@@ -467,6 +469,17 @@ class ImplementNode : Node {
 
 		return ret ~ "end";
 	}
+}
+
+class SetNode : Node {
+	string var;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Set;
+		error = perror;
+	}
+
+	override string toString() => format("-> %s", var);
 }
 
 class ParserError : Exception {
@@ -1052,9 +1065,9 @@ class Parser {
 		return ret;
 	}
 
-	Node ParseFuncAddr() {
-		auto ret = new FuncAddrNode(GetError());
-		parsing  = NodeType.FuncAddr;
+	Node ParseAddr() {
+		auto ret = new AddrNode(GetError());
+		parsing  = NodeType.Addr;
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1096,6 +1109,17 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseSet() {
+		auto ret = new SetNode(GetError());
+		parsing  = NodeType.Set;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.var = tokens[i].contents;
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -1121,12 +1145,13 @@ class Parser {
 					case "alias":      return ParseAlias();
 					case "extern":     return ParseExtern();
 					case "implement":  return ParseImplement();
+					case "->":         return ParseSet();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}
 			case TokenType.LSquare:   return ParseArray();
 			case TokenType.String:    return ParseString();
-			case TokenType.Ampersand: return ParseFuncAddr();
+			case TokenType.Ampersand: return ParseAddr();
 			default: {
 				Error("Unexpected %s", tokens[i].type);
 			}
