@@ -318,13 +318,44 @@ class BackendRM86 : CompilerBackend {
 			if (var.offset > 0) {
 				output ~= format("add di, %d\n", var.offset);
 			}
-			output ~= "mov [si], di\n";
+
+			if (var.type.isStruct) {
+				Error(node.error, "Can't push value of struct");
+			}
+
+			if (var.type.size != 2) {
+				output ~= "xor ax, ax\n";
+			}
+
+			switch (var.type.size) {
+				case 1: output ~= format("mov al, [di]\n"); break;
+				case 2: output ~= format("mov ax, [di]\n"); break;
+				default: Error(node.error, "Bad variable type size");
+			}
+
+			output ~= "mov [si], ax\n";
 			output ~= "add si, 2\n";
 		}
 		else if (node.name in globals) {
 			auto var = globals[node.name];
 
-			output ~= format("mov word [si], __global_%s\n", node.name.Sanitise());
+			if (var.type.size != 8) {
+				output ~= "xor ax, ax\n";
+			}
+
+			if (var.type.isStruct) {
+				Error(node.error, "Can't push value of struct");
+			}
+
+			string symbol = format("__global_%s", node.name.Sanitise());
+
+			switch (var.type.size) {
+				case 1: output ~= format("mov al, [%s]\n", symbol); break;
+				case 2: output ~= format("mov ax, [%s]\n", symbol); break;
+				default: Error(node.error, "Bad variable type size");
+			}
+
+			output ~= "mov [si], ax\n";
 			output ~= "add si, 2\n";
 		}
 		else if (node.name in consts) {
@@ -851,17 +882,36 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override void CompileFuncAddr(FuncAddrNode node) {
-		if (node.func !in words) {
-			Error(node.error, "Function '%s' doesn't exist");
+		if (node.func in words) {
+			auto   word   = words[node.func];
+			string symbol =
+				word.raw? node.func : format("__func__%s", node.func.Sanitise());
+
+			output ~= format("mov ax, %s\n", symbol);
+			output ~= "mov [si], ax\n";
+			output ~= "add si, 2\n";
 		}
+		else if (node.func in globals) {
+			auto var = globals[node.func];
 
-		auto   word   = words[node.func];
-		string symbol =
-			word.raw? node.func : format("__func__%s", node.func.Sanitise());
+			output ~= format(
+				"mov [si], word __global_%s\n", node.func.Sanitise()
+			);
+			output ~= "add si, 2\n";
+		}
+		else if (VariableExists(node.func)) {
+			auto var = GetVariable(node.func);
 
-		output ~= format("mov ax, %s\n", symbol);
-		output ~= "mov [si], ax\n";
-		output ~= "add si, 2\n";
+			output ~= "mov di, sp\n";
+			if (var.offset > 0) {
+				output ~= format("add di, %d\n", var.offset);
+			}
+			output ~= "mov [si], di\n";
+			output ~= "add si, 2\n";
+		}
+		else {
+			Error(node.error, "Undefined identifier '%s'", node.func);
+		}
 	}
 
 	override void CompileImplement(ImplementNode node) {
@@ -929,6 +979,44 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override void CompileSet(SetNode node) {
-		
+		output ~= "sub si, 2\n";
+		output ~= "mov ax, [si]\n";
+
+		if (VariableExists(node.var)) {
+			auto var = GetVariable(node.var);
+
+			if (var.type.isStruct) {
+				Error(node.error, "Can't set struct value");
+			}
+
+			switch (var.type.size) {
+				case 1: output ~= format("mov [sp + %d], al\n", var.offset); break;
+				case 2: output ~= format("mov [sp + %d], ax\n", var.offset); break;
+				default: Error(node.error, "Bad variable type size");
+			}
+		}
+		else if (node.var in globals) {
+			auto global = globals[node.var];
+
+			if (global.type.isStruct) {
+				Error(node.error, "Can't set struct value");
+			}
+
+			string symbol = format("__global_%s", node.var.Sanitise());
+
+			if (global.type.size != 2) {
+				output ~= "xor bx, bx\n";
+				output ~= format("mov [%s], bx\n", symbol);
+			}
+
+			switch (global.type.size) {
+				case 1: output ~= format("mov [%s], al\n", symbol); break;
+				case 2: output ~= format("mov [%s], ax\n", symbol); break;
+				default: Error(node.error, "Bad variable type size");
+			}
+		}
+		else {
+			Error(node.error, "Variable '%s' doesn't exist", node.var);
+		}
 	}
 }
