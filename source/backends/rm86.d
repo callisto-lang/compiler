@@ -881,7 +881,7 @@ class BackendRM86 : CompilerBackend {
 		output ~= "call ax\n";
 	}
 
-	override void CompileFuncAddr(FuncAddrNode node) {
+	override void CompileAddr(AddrNode node) {
 		if (node.func in words) {
 			auto   word   = words[node.func];
 			string symbol =

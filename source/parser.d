@@ -30,7 +30,7 @@ enum NodeType {
 	Union,
 	Alias,
 	Extern,
-	FuncAddr,
+	Addr,
 	Implement,
 	Set
 }
@@ -439,11 +439,11 @@ class ExternNode : Node {
 	}
 }
 
-class FuncAddrNode : Node {
+class AddrNode : Node {
 	string func;
 
 	this(ErrorInfo perror) {
-		type  = NodeType.FuncAddr;
+		type  = NodeType.Addr;
 		error = perror;
 	}
 
@@ -1065,9 +1065,9 @@ class Parser {
 		return ret;
 	}
 
-	Node ParseFuncAddr() {
-		auto ret = new FuncAddrNode(GetError());
-		parsing  = NodeType.FuncAddr;
+	Node ParseAddr() {
+		auto ret = new AddrNode(GetError());
+		parsing  = NodeType.Addr;
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1151,7 +1151,7 @@ class Parser {
 			}
 			case TokenType.LSquare:   return ParseArray();
 			case TokenType.String:    return ParseString();
-			case TokenType.Ampersand: return ParseFuncAddr();
+			case TokenType.Ampersand: return ParseAddr();
 			default: {
 				Error("Unexpected %s", tokens[i].type);
 			}

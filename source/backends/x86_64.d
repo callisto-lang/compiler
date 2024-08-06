@@ -1103,7 +1103,7 @@ class BackendX86_64 : CompilerBackend {
 		output ~= "call rax\n";
 	}
 
-	override void CompileFuncAddr(FuncAddrNode node) {
+	override void CompileAddr(AddrNode node) {
 		if (node.func in words) {
 			auto   word   = words[node.func];
 			string symbol = word.type == WordType.Callisto?
