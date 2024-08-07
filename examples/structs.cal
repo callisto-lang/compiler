@@ -12,9 +12,9 @@ end
 
 # Create animal instance
 let Animal cat
-"cat" cat Animal.name + a<
-"mrrrp" cat Animal.sound + a<
+"cat" &cat Animal.name + a<
+"mrrrp" &cat Animal.sound + a<
 
 # Print fields
-"Name: " printstr cat Animal.name + printstr new_line
-"Sound: " printstr cat Animal.sound + printstr new_line
+"Name: " printstr &cat Animal.name + printstr new_line
+"Sound: " printstr &cat Animal.sound + printstr new_line

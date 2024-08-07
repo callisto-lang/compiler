@@ -5,15 +5,15 @@ include "std/array.cal"
 let Array str1
 let Array str2
 
-"Hello" str1 a<
-"Hello" str2 a<
+"Hello" &str1 a<
+"Hello" &str2 a<
 
-str1 str2 a= printdec new_line
+&str1 &str2 a= printdec new_line
 
 "Hi" str2 a<
-str1 str2 a= printdec new_line
+&str1 &str2 a= printdec new_line
 
 "Greetings" str1 a<
-str1 str2 a= printdec new_line
+&str1 &str2 a= printdec new_line
 
-str1 "Greetings" a= printdec new_line
+&str1 "Greetings" a= printdec new_line

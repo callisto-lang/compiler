@@ -10,8 +10,8 @@ end
 
 let MyUnion foo
 
-65 foo !
-foo @ printdec new_line
+65 -> foo
+&foo @ printdec new_line
 
 "Hello, world!\n" foo a<
 foo printstr

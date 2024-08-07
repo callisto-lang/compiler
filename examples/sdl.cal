@@ -28,20 +28,20 @@ let addr renderer
 SDL_INIT_VIDEO SDL_Init printdec new_line
 
 "Window " printstr
-"Callisto\0" Array.elements + @ 0 0 320 240 0 SDL_CreateWindow window !
-window @ printdec new_line
+"Callisto\0" Array.elements + @ 0 0 320 240 0 SDL_CreateWindow -> window
+window printdec new_line
 
 "Renderer " printstr
-window @ -1 SDL_RENDERER_PRESENTVSYNC SDL_RENDERER_ACCELERATED or SDL_CreateRenderer renderer !
-renderer @ printdec new_line
+window -1 SDL_RENDERER_PRESENTVSYNC SDL_RENDERER_ACCELERATED or SDL_CreateRenderer -> renderer
+renderer printdec new_line
 
 while true do
 	let SDL_Event e
-	while e SDL_PollEvent do
-		if e d@ SDL_QUIT = then
+	while &e SDL_PollEvent do
+		if &e d@ SDL_QUIT = then
 			"Bye!\n" printstr
-			renderer @ SDL_DestroyRenderer
-			window @ SDL_DestroyWindow
+			renderer SDL_DestroyRenderer
+			window SDL_DestroyWindow
 			SDL_Quit
 			0 exit
 		end

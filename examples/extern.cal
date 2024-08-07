@@ -7,8 +7,8 @@ extern raw puts
 
 func cputs begin
 	let addr str
-	Array.elements + @ str !
-	str @ __linux86_pop_rdi puts
+	Array.elements + @ -> str
+	str __linux86_pop_rdi puts
 end
 
 "Hello, world!\n\0" cputs

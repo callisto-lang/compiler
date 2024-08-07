@@ -1,19 +1,21 @@
 include "cores/select.cal"
 
-let cell x 0 x !
-let cell y 0 y !
+let cell x
+0 -> x
+let cell y
+0 -> y
 
-while y @ 20 < do
-	while x @ 40 < do
-		if x @ 1 + y @ 1 + % 0 = then
+while y 20 < do
+	while x 40 < do
+		if x 1 + y 1 + % 0 = then
 			'*' printch
 		else
 			' ' printch
 		end
 
-		x @ 1 + x !
+		x 1 + -> x
 	end
 	13 printch 10 printch
-	y @ 1 + y !
-	0 x !
+	y 1 + -> y
+	0 -> x
 end

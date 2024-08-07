@@ -3,9 +3,9 @@ include "std/io.cal"
 include "std/random.cal"
 
 let cell i
-0 i !
+0 -> i
 
-while i @ 10 < do
+while i 10 < do
 	rand printdec new_line
-	i @ 1 + i !
+	i 1 + -> i
 end
