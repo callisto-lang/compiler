@@ -10,6 +10,7 @@ import callisto.compiler;
 import callisto.language;
 import callisto.codeRemover;
 import callisto.preprocessor;
+import callisto.backends.lua;
 import callisto.backends.uxn;
 import callisto.backends.rm86;
 import callisto.backends.x86_64;
@@ -161,6 +162,11 @@ int main(string[] args) {
 						}
 						case "uxn": {
 							backend = new BackendUXN();
+							break;
+						}
+						case "lua": {
+							writeln("Language subset 'CallistoScript' in use");
+							backend = new BackendLua();
 							break;
 						}
 						default: {
