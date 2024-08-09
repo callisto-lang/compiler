@@ -22,7 +22,6 @@ private struct Word {
 	WordType type;
 	bool     inline;
 	Node[]   inlineNodes;
-
 }
 
 private struct StructEntry {
@@ -52,10 +51,11 @@ private struct Variable {
 }
 
 private struct Global {
-	Type  type;
-	ulong addr;
-	bool  array;
-	ulong arraySize;
+	string name;
+	Type   type;
+	ulong  addr;
+	bool   array;
+	ulong  arraySize;
 
 	size_t Size() => array? arraySize * type.size : type.size;
 }
@@ -68,6 +68,8 @@ private struct Array {
 	string[] values;
 	Type     type;
 	bool     global;
+	ulong    metaAddr;
+	ulong    elements;
 
 	size_t Size() => type.size * values.length;
 }
@@ -82,10 +84,11 @@ class BackendLua : CompilerBackend {
 	bool             inWhile;
 	uint             currentLoop;
 	Variable[]       variables;
-	Global[string]   globals;
-	Array[]          arrays;
+	Global[]         globals;
 	bool             useLibc;
 	ulong            globalStack;
+	Array[]          arrays;
+	ulong            arrayStack = 524287;
 
 	this() {
 		// built in integer types
@@ -118,6 +121,18 @@ class BackendLua : CompilerBackend {
 
 	Variable GetVariable(string name) {
 		foreach (ref var ; variables) {
+			if (var.name == name) {
+				return var;
+			}
+		}
+
+		assert(0);
+	}
+
+	bool GlobalExists(string name) => globals.any!(v => v.name == name);
+
+	Global GetGlobal(string name) {
+		foreach (ref var ; globals) {
 			if (var.name == name) {
 				return var;
 			}
@@ -161,7 +176,7 @@ class BackendLua : CompilerBackend {
 		return size;
 	}
 
-	override string[] GetVersions() => ["Lua", "CallistoScript"];
+	override string[] GetVersions() => ["Lua", "CallistoScript", "IO"];
 
 	override string[] FinalCommands() => [];
 
@@ -172,15 +187,15 @@ class BackendLua : CompilerBackend {
 	override bool HandleOption(string opt, ref string[] versions) => false;
 
 	override void Init() {
-		output ~= "local mem = {};\n";
+		output ~= "mem = {};\n";
 		output ~= "for i = 1, 1048576 do\n";
 		output ~= "    table.insert(mem, 0);\n";
 		output ~= "end\n";
-		output ~= "local dsp = 1;\n";
-		output ~= "local vsp = 1048576;\n";
-		output ~= "local gsp = 524288;\n";
-		output ~= "local regA = 0;\n";
-		output ~= "local regB = 0;\n";
+		output ~= "dsp = 1;\n";
+		output ~= "vsp = 1048576;\n";
+		output ~= "gsp = 524288;\n";
+		output ~= "regA = 0;\n";
+		output ~= "regB = 0;\n";
 
 		output ~= "
 			function cal_pop()
@@ -192,6 +207,34 @@ class BackendLua : CompilerBackend {
 
 	override void End() {
 		output ~= "end\n";
+
+		// create arrays
+		foreach (ref array ; arrays) {
+			// create metadata
+			output ~= format("mem[%d] = %d\n", array.metaAddr, array.values.length);
+			output ~= format("mem[%d + 1] = %d\n", array.metaAddr, array.type.size);
+			output ~= format("mem[%d + 2] = %d\n", array.metaAddr, array.elements);
+
+			// create array contents
+			output ~= "regA = {";
+
+			foreach (i, ref value ; array.values) {
+				output ~= value;
+
+				if (i < array.values.length - 1) {
+					output ~= ",";
+				}
+			}
+
+			output ~= "}\n";
+			output ~= format("
+				for i = 1, %d do
+					mem[%d + (i - 1)] = regA[i]
+				end
+			", array.values.length, array.elements);
+		}
+
+		output ~= "regA = 0\n";
 		output ~= "calmain();\n";
 	}
 
@@ -226,8 +269,8 @@ class BackendLua : CompilerBackend {
 			output ~= format("mem[dsp] = mem[vsp + %d]\n", var.offset);
 			output ~= "dsp = dsp + 1\n";
 		}
-		else if (node.name in globals) {
-			auto var = globals[node.name];
+		else if (GlobalExists(node.name)) {
+			auto var = GetGlobal(node.name);
 
 			if (var.type.isStruct) {
 				Error(node.error, "Can't push value of struct");
@@ -279,9 +322,16 @@ class BackendLua : CompilerBackend {
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
 			}
+
+			size_t scopeSize;
+			foreach (ref var ; variables) {
+				scopeSize += var.Size();
+			}
+			output ~= format("vsp = vsp + %d\n", scopeSize);
 			output ~= "end\n";
 
-			inScope = false;
+			inScope   = false;
+			variables = [];
 		}
 	}
 
@@ -299,9 +349,19 @@ class BackendLua : CompilerBackend {
 			output ~= format("goto if_%d_%d\n", blockNum, condCounter + 1);
 			output ~= "end\n";
 
+			// create scope
+			auto oldVars = variables.dup;
+			auto oldSize = GetStackSize();
+
 			foreach (ref inode ; node.doIf[i]) {
 				compiler.CompileNode(inode);
 			}
+
+			// remove scope
+			if (GetStackSize() - oldSize > 0) {
+				output ~= format("vsp = vsp + %d\n", GetStackSize() - oldSize);
+			}
+			variables = oldVars;
 
 			output ~= format("goto if_%d_end\n", blockNum);
 
@@ -326,12 +386,23 @@ class BackendLua : CompilerBackend {
 		output ~= format("goto while_%d_condition\n", blockNum);
 		output ~= format("::while_%d::\n", blockNum);
 
+		// make scope
+		auto oldVars = variables.dup;
+		auto oldSize = GetStackSize();
+
 		foreach (ref inode ; node.doWhile) {
 			inWhile = true;
 			compiler.CompileNode(inode);
 
 			currentLoop = blockNum;
 		}
+
+		// restore scope
+		output ~= format("::while_%d_next::\n", blockNum);
+		if (GetStackSize() - oldSize > 0) {
+			output ~= format("vsp = vsp + %d\n", GetStackSize() - oldSize);
+		}
+		variables = oldVars;
 
 		inWhile  = false;
 		output  ~= format("::while_%d_condition::\n", blockNum);
@@ -379,19 +450,120 @@ class BackendLua : CompilerBackend {
 		}
 		else {
 			Global global;
-			global.type        = GetType(node.varType);
-			global.array       = node.array;
-			global.arraySize   = node.arraySize;
-			global.addr        = globalStack;
-			globals[node.name] = global;
+			global.name       = node.name;
+			global.type       = GetType(node.varType);
+			global.array      = node.array;
+			global.arraySize  = node.arraySize;
+			global.addr       = globalStack;
+			globals          ~= global;
 			
 			globalStack += global.Size();
 		}
 	}
 
-	override void CompileArray(ArrayNode node) {}
+	override void CompileArray(ArrayNode node) {
+		Array array;
 
-	override void CompileString(StringNode node) {}
+		foreach (ref elem ; node.elements) {
+			switch (elem.type) {
+				case NodeType.Integer: {
+					auto node2    = cast(IntegerNode) elem;
+					array.values ~= node2.value.text();
+					break;
+				}
+				default: {
+					Error(elem.error, "Type '%s' can't be used in array literal");
+				}
+			}
+		}
+
+		if (!TypeExists(node.arrayType)) {
+			Error(node.error, "Type '%s' doesn't exist", node.arrayType);
+		}
+
+		array.type    = GetType(node.arrayType);
+		array.global  = !inScope || node.constant;
+
+		if (!inScope || node.constant) {
+			arrayStack     -= array.Size();
+			array.elements  = arrayStack;
+			arrayStack     -= 3;
+			array.metaAddr  = arrayStack;
+
+			output ~= format("mem[dsp] = %d\n", array.metaAddr);
+			output ~= "dsp = dsp + 1\n";
+		}
+		else {
+			// allocate a copy of this array
+			output ~= format("vsp = vsp - %d\n", array.Size());
+			output ~= "regA = {";
+
+			foreach (i, ref value ; array.values) {
+				output ~= value;
+
+				if (i < array.values.length - 1) {
+					output ~= ",";
+				}
+			}
+
+			output ~= "}\n";
+			output ~= format("
+				for i = 1, %d do
+					mem[vsp + (i - 1)] = regA[i]
+				end
+			", array.values.length);
+
+			output ~= "regA = 0\n";
+
+			Variable var;
+			var.type      = array.type;
+			var.offset    = 0;
+			var.array     = true;
+			var.arraySize = array.values.length;
+
+			foreach (ref var2 ; variables) {
+				var2.offset += var.Size();
+			}
+
+			variables ~= var;
+
+			// create metadata variable
+			var.type   = GetType("Array");
+			var.offset = 0;
+			var.array  = false;
+
+			foreach (ref var2 ; variables) {
+				var2.offset += var.Size();
+			}
+
+			variables ~= var;
+
+			output ~= "regA = vsp\n";
+			output ~= "vsp = vsp - 3\n";
+			output ~= format("mem[vsp] = %d\n", array.values.length);
+			output ~= format("mem[vsp + 1] = %d\n", array.type.size);
+			output ~= "mem[vsp + 3] = regA\n";
+
+			// push metadata address
+			output ~= "mem[dsp] = vsp\n";
+			output ~= "dsp = dsp + 1\n";
+		}
+
+		arrays ~= array;
+	}
+
+	override void CompileString(StringNode node) {
+		auto arrayNode = new ArrayNode(node.error);
+
+		arrayNode.arrayType = "cell";
+		arrayNode.constant  = node.constant;
+
+		foreach (ref ch ; node.value) {
+			arrayNode.elements ~= new IntegerNode(node.error, cast(long) ch);
+		}
+
+		CompileArray(arrayNode);
+	}
 
 	override void CompileStruct(StructNode node) {}
 
@@ -427,8 +599,8 @@ class BackendLua : CompilerBackend {
 
 			output ~= format("mem[vsp + %d] = cal_pop()\n", var.offset);
 		}
-		else if (node.var in globals) {
-			auto global = globals[node.var];
+		else if (GlobalExists(node.var)) {
+			auto global = GetGlobal(node.var);
 
 			if (global.type.isStruct) {
 				Error(node.error, "Can't set struct value");
