@@ -176,7 +176,7 @@ class BackendLua : CompilerBackend {
 		return size;
 	}
 
-	override string[] GetVersions() => ["Lua", "CallistoScript", "IO"];
+	override string[] GetVersions() => ["Lua", "CallistoScript", "IO", "Time", "Exit"];
 
 	override string[] FinalCommands() => [];
 
