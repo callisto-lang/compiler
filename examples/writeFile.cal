@@ -1,0 +1,17 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+let File file
+"test" FILE_WRITE open_file &file file<
+
+if &file @ -2 = then
+	"Failed to open file\n" printstr
+	1 exit
+end
+
+let Array str
+"meow\n" str a<
+
+&file
+&str Array.elements + @
+&str Array.length + @ file!

@@ -1,0 +1,9 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+alias int cell
+"int.sizeof = " printstr int.sizeof printdec new_line
+
+let int myInt
+65 -> myInt
+myInt printdec new_line

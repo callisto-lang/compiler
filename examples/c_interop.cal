@@ -1,0 +1,7 @@
+include "cores/select.cal"
+include "std/io.cal"
+include "std/nullterm.cal"
+
+extern C i32 puts addr end
+
+"Hello!\0" Array.elements + @ puts drop

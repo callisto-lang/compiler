@@ -24,12 +24,8 @@ Node[] ParseFile(string path) {
 		exit(1);
 	}
 
-	try {
-		lexer.Lex();
-	}
-	catch (LexerError) {
-		exit(1);
-	}
+	lexer.Lex();
+	if (!lexer.success) exit(1);
 
 	parser.tokens = lexer.tokens;
 

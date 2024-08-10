@@ -4,10 +4,11 @@ language inspired by YSL-C3 and Forth
 
 ## Supported targets
 - x86 real mode (complete)
-- YETI-16 Mk2 (in progress)
 - x86_64 Linux (complete)
+- Uxn (complete, `implement` broken, see #6)
 
 ## Build
+You need a [D compiler](https://dlang.org/download.html) to build the Callisto compiler
 ```
 dub build
 ```
@@ -23,3 +24,5 @@ and run like this:
 cac examples/exampleNameHere.cal -i std -o out
 ./out
 ```
+
+To learn more about Callisto, read the [docs](https://callisto.mesyeti.uk/docs)

@@ -1,0 +1,7 @@
+include "cores/select.cal"
+include "std/io.cal"
+include "std/nullterm.cal"
+
+let cell a
+36762444129608 -> a
+&a printntstr new_line # Prints "Hello!"

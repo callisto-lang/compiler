@@ -1,0 +1,18 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+struct meow
+	cell meow
+end
+
+implement meow init
+	"meow init\n" printstr
+	5 swap !
+end
+
+implement meow deinit
+	"meow end\n" printstr
+end
+
+let meow myMeow
+myMeow @ printdec new_line

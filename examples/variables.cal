@@ -4,13 +4,13 @@ let cell myGlobal
 
 func myFunc begin
 	let cell myVar
-	'A' myVar !
-	myVar @ printch
+	'A' -> myVar
+	myVa printch
 end
 
 myFunc
 
-'B' myGlobal !
-myGlobal @ printch
+'B' -> myGlobal
+myGlobal printch
 
 '\n' printch

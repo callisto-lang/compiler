@@ -2,6 +2,7 @@ module callisto.compiler;
 
 import std.file;
 import std.path;
+import std.array;
 import std.stdio;
 import std.format;
 import std.algorithm;
@@ -16,10 +17,18 @@ class CompilerBackend {
 	bool     orgSet;
 	Compiler compiler;
 	bool     useDebug;
+	bool     exportSymbols;
+	string[] link;
+	bool     keepAssembly;
+	string   os;
+	string   defaultOS;
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
-	abstract void NewConst(string name, long value, ErrorInfo error);
+	abstract long     MaxInt();
+	abstract void     NewConst(string name, long value, ErrorInfo error);
+	abstract string   DefaultHeader();
+	abstract bool     HandleOption(string opt, ref string[] versions);
 
 	abstract void BeginMain();
 
@@ -36,16 +45,28 @@ class CompilerBackend {
 	abstract void CompileStruct(StructNode node);
 	abstract void CompileReturn(WordNode node);
 	abstract void CompileConst(ConstNode node);
+	abstract void CompileEnum(EnumNode node);
+	abstract void CompileBreak(WordNode node);
+	abstract void CompileContinue(WordNode node);
+	abstract void CompileUnion(UnionNode node);
+	abstract void CompileAlias(AliasNode node);
+	abstract void CompileExtern(ExternNode node);
+	abstract void CompileCall(WordNode node);
+	abstract void CompileAddr(AddrNode node);
+	abstract void CompileImplement(ImplementNode node);
+	abstract void CompileSet(SetNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
 		stderr.writeln(format(fmt, args));
-		throw new CompilerError();
+		PrintErrorLine(error);
+		compiler.success = false;
 	}
 
 	final void Warn(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		WarningBegin(error);
 		stderr.writeln(format(fmt, args));
+		PrintErrorLine(error);
 	}
 }
 
@@ -58,9 +79,11 @@ class CompilerError : Exception {
 class Compiler {
 	CompilerBackend backend;
 	string[]        includeDirs;
-	string[]        features;
 	string[]        included;
 	string          outFile;
+	string[]        versions;
+	bool            assemblyLines;
+	bool            success = true;
 
 	this() {
 		
@@ -72,24 +95,17 @@ class Compiler {
 				auto node = cast(WordNode) inode;
 
 				switch (node.name) {
-					case "return": {
-						backend.CompileReturn(node);
-						break;
-					}
-					default: {
-						backend.CompileWord(node);
-					}
+					case "return":   backend.CompileReturn(node);   break;
+					case "continue": backend.CompileContinue(node); break;
+					case "break":    backend.CompileBreak(node);    break;
+					case "call":     backend.CompileCall(node);     break;
+					case "error":    backend.Error(node.error, "Error thrown by code"); break;
+					default:         backend.CompileWord(node);
 				}
 				break;
 			}
-			case NodeType.Integer: {
-				backend.CompileInteger(cast(IntegerNode) inode);
-				break;
-			}
-			case NodeType.FuncDef: {
-				backend.CompileFuncDef(cast(FuncDefNode) inode);
-				break;
-			}
+			case NodeType.Integer: backend.CompileInteger(cast(IntegerNode) inode); break;
+			case NodeType.FuncDef: backend.CompileFuncDef(cast(FuncDefNode) inode); break;
 			case NodeType.Include: {
 				auto node  = cast(IncludeNode) inode;
 				auto path  = format("%s/%s", dirName(node.error.file), node.path);
@@ -129,10 +145,7 @@ class Compiler {
 				backend.output ~= node.code;
 				break;
 			}
-			case NodeType.If: {
-				backend.CompileIf(cast(IfNode) inode);
-				break;
-			}
+			case NodeType.If: backend.CompileIf(cast(IfNode) inode); break;
 			case NodeType.While: {
 				auto node = cast(WhileNode) inode;
 
@@ -152,49 +165,38 @@ class Compiler {
 				backend.CompileWhile(node);
 				break;
 			}
-			case NodeType.Let: {
-				backend.CompileLet(cast(LetNode) inode);
-				break;
-			}
-			case NodeType.Implements: {
-				auto node = cast(ImplementsNode) inode;
-
-				if (features.canFind(node.feature)) {
-					CompileNode(node.node);
-				}
-				break;
-			}
-			case NodeType.Feature: {
-				auto node = cast(FeatureNode) inode;
-
-				features ~= node.feature;
-				break;
-			}
+			case NodeType.Let: backend.CompileLet(cast(LetNode) inode); break;
 			case NodeType.Requires: {
 				auto node = cast(RequiresNode) inode;
 
-				if (!features.canFind(node.feature)) {
-					backend.Error(node.error, "Feature '%s' required", node.feature);
+				if (!versions.canFind(node.ver)) {
+					backend.Error(node.error, "Version '%s' required", node.ver);
 				}
 				break;
 			}
-			case NodeType.Array: {
-				backend.CompileArray(cast(ArrayNode) inode);
-				break;
+			case NodeType.Array:     backend.CompileArray(cast(ArrayNode) inode); break;
+			case NodeType.String:    backend.CompileString(cast(StringNode) inode); break;
+			case NodeType.Struct:    backend.CompileStruct(cast(StructNode) inode); break;
+			case NodeType.Const:     backend.CompileConst(cast(ConstNode) inode); break;
+			case NodeType.Enum:      backend.CompileEnum(cast(EnumNode) inode); break;
+			case NodeType.Union:     backend.CompileUnion(cast(UnionNode) inode); break;
+			case NodeType.Alias:     backend.CompileAlias(cast(AliasNode) inode); break;
+			case NodeType.Extern:    backend.CompileExtern(cast(ExternNode) inode); break;
+			case NodeType.Addr:  backend.CompileAddr(cast(AddrNode) inode); break;
+			case NodeType.Implement: backend.CompileImplement(cast(ImplementNode) inode); break;
+			case NodeType.Set:       backend.CompileSet(cast(SetNode) inode); break;
+			default: {
+				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}
-			case NodeType.String: {
-				backend.CompileString(cast(StringNode) inode);
-				break;
-			}
-			case NodeType.Struct: {
-				backend.CompileStruct(cast(StructNode) inode);
-				break;
-			}
-			case NodeType.Const: {
-				backend.CompileConst(cast(ConstNode) inode);
-				break;
-			}
-			default: assert(0);
+		}
+
+		if (assemblyLines) {
+			backend.output ~= "; " ~ inode.toString().replace("\n", "\n; ") ~ '\n';
+			size_t line = backend.output.count!((ch) => ch == '\n');
+			writefln(
+				"%s:%d:%d - line %d, node %s", inode.error.file, inode.error.line + 1,
+				inode.error.col + 1, line, inode.type
+			);
 		}
 	}
 
@@ -204,6 +206,9 @@ class Compiler {
 		backend.compiler = this;
 		backend.Init();
 
+		backend.NewConst("true",  backend.MaxInt(), ErrorInfo.init);
+		backend.NewConst("false", 0, ErrorInfo.init);
+
 		Node[] header;
 		Node[] main;
 
@@ -212,11 +217,15 @@ class Compiler {
 				case NodeType.FuncDef:
 				case NodeType.Include:
 				case NodeType.Let:
-				case NodeType.Implements:
-				case NodeType.Feature:
+				case NodeType.Enable:
 				case NodeType.Requires:
 				case NodeType.Struct:
-				case NodeType.Const: {
+				case NodeType.Const:
+				case NodeType.Enum:
+				case NodeType.Union:
+				case NodeType.Alias:
+				case NodeType.Extern:
+				case NodeType.Implement: {
 					header ~= node;
 					break;
 				}

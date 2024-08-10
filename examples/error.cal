@@ -1,0 +1,10 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+# will print Hello, world! on RM86, will error on x86_64
+
+version x86_64
+	error
+end
+
+"Hello, world!" printstr

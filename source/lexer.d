@@ -14,7 +14,8 @@ enum TokenType {
 	String,
 	Identifier,
 	LSquare,
-	RSquare
+	RSquare,
+	Ampersand
 }
 
 struct Token {
@@ -26,22 +27,18 @@ struct Token {
 	size_t    col;
 }
 
-class LexerError : Exception {
-	this() {
-		super("", "", 0);
-	}
-}
-
 class Lexer {
-	Token[] tokens;
-	size_t  i;
-	string  code;
-	string  file;
-	size_t  line;
-	size_t  col;
-	bool    inString;
-	string  reading;
-	string  extra;
+	Token[]   tokens;
+	size_t    i;
+	string    code;
+	string    file;
+	size_t    line;
+	size_t    col;
+	bool      inString;
+	string    reading;
+	string    extra;
+	ErrorInfo tokenError;
+	bool      success = true;
 
 	char[char] escapes;
 
@@ -52,7 +49,8 @@ class Lexer {
 			't':  '\t',
 			'e':  '\x1b',
 			'"':  '"',
-			'\\': '\\'
+			'\\': '\\',
+			'0':  '\0'
 		];
 	}
 
@@ -63,18 +61,21 @@ class Lexer {
 	void Error(Char, A...)(in Char[] fmt, A args) {
 		ErrorBegin(GetError());
 		stderr.writeln(format(fmt, args));
-		throw new LexerError();
+		PrintErrorLine(GetError());
+		success = false;
 	}
 
 	void AddToken(TokenType type) {
-		tokens  ~= Token(type, reading, extra, file, line, col);
-		reading  = "";
-		extra    = "";
+		tokens     ~= Token(type, reading, extra, tokenError.file, tokenError.line, tokenError.col);
+		reading     = "";
+		extra       = "";
+		tokenError  = GetError();
 	}
 
 	void AddReading() {
 		if (reading.strip() == "") {
-			reading = "";
+			reading    = "";
+			tokenError = GetError();
 		}
 		else if (reading.isNumeric()) {
 			AddToken(TokenType.Integer);
@@ -108,21 +109,20 @@ class Lexer {
 		}
 	}
 
-	void HandleColLine() {
+	void Next(bool error = true) {
+		++ i;
+
+		if (i >= code.length) {
+			if (error) Error("Unexpected EOF");
+			else       return;
+		}
+
 		if (code[i] == '\n') {
 			++ line;
 			col = 0;
 		}
 		else {
 			++ col;
-		}
-	}
-
-	void Next() {
-		++ i;
-
-		if (i > code.length) {
-			Error("Unexpected EOF");
 		}
 	}
 
@@ -133,17 +133,13 @@ class Lexer {
 	}
 
 	void Lex() {
-		for (i = 0; i < code.length; ++ i) {
+		tokenError = GetError();
+
+		for (i = 0; i < code.length; Next(false)) {
 			if (inString) {
 				switch (code[i]) {
 					case '\\': {
-						++ i;
-
-						HandleColLine();
-
-						if (i >= code.length) {
-							Error("Unexpected EOF");
-						}
+						Next();
 
 						if (code[i] !in escapes) {
 							Error("Invalid escape character: %c", code[i]);
@@ -190,15 +186,17 @@ class Lexer {
 						AddReading();
 
 						while (true) {
-							++ i;
+							Next(false);
 
 							if ((i >= code.length) || (code[i] == '\n')) {
 								break;
 							}
 						}
-
-						++ line;
-						col = 0;
+						break;
+					}
+					case '&': {
+						AddReading();
+						AddToken(TokenType.Ampersand);
 						break;
 					}
 					case '\'': {
@@ -226,8 +224,7 @@ class Lexer {
 					}
 				}
 			}
-
-			HandleColLine();
 		}
+		// TODO: here
 	}
 }

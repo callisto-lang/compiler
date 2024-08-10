@@ -1,4 +1,4 @@
-module callisto.optimiser;
+module callisto.codeRemover;
 
 import std.stdio;
 import std.format;
@@ -6,25 +6,29 @@ import std.algorithm;
 import callisto.error;
 import callisto.parser;
 
-class OptimiserError : Exception {
-	this() {
-		super("", "", 0);
-	}
-}
-
-class Optimiser {
+class CodeRemover {
 	Node[]         res;
 	string[]       usedFunctions;
 	Node[][string] functions;
+	string[]       funcStack;
+	bool           success = true;
 
 	this() {
-		
+		usedFunctions = [
+			"__x86_64_program_init",
+			"__x86_64_program_exit",
+			"__rm86_program_init",
+			"__rm86_program_exit",
+			"uxn_program_init",
+			"uxn_program_end"
+		];
 	}
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
 		stderr.writeln(format(fmt, args));
-		throw new OptimiserError();
+		PrintErrorLine(error);
+		success = false;
 	}
 
 	void FindFunctions(Node[] nodes) {
@@ -39,7 +43,31 @@ class Optimiser {
 						continue;
 					}
 
+					if (funcStack.canFind(node.name)) {
+						continue;
+					}
+
+					funcStack ~= node.name;
 					FindFunctions(functions[node.name]);
+					funcStack = funcStack[0 .. $ - 1];
+					break;
+				}
+				case NodeType.Addr: {
+					auto node = cast(AddrNode) inode;
+
+					usedFunctions ~= node.func;
+
+					if (node.func !in functions) {
+						continue;
+					}
+
+					if (funcStack.canFind(node.func)) {
+						continue;
+					}
+
+					funcStack ~= node.func;
+					FindFunctions(functions[node.func]);
+					funcStack = funcStack[0 .. $ - 1];
 					break;
 				}
 				case NodeType.If: {
@@ -60,6 +88,12 @@ class Optimiser {
 					FindFunctions(blocks);
 					break;
 				}
+				case NodeType.Implement: {
+					auto node = cast(ImplementNode) inode;
+
+					FindFunctions(node.nodes);
+					break;
+				}
 				default: break;
 			}
 		}
@@ -68,21 +102,8 @@ class Optimiser {
 	void Run(Node[] nodes) {
 		// create function defs first
 		foreach (ref inode ; nodes) {
-			if ((inode.type == NodeType.FuncDef) || (inode.type == NodeType.Implements)) {
-				FuncDefNode node;
-				
-				if (inode.type == NodeType.Implements) {
-					auto node2 = (cast(ImplementsNode) inode).node;
-
-					if (node2.type != NodeType.FuncDef) {
-						continue;
-					}
-
-					node = cast(FuncDefNode) node2;
-				}
-				else {
-					node = cast(FuncDefNode) inode;
-				}
+			if (inode.type == NodeType.FuncDef) {
+				FuncDefNode node = cast(FuncDefNode) inode;
 
 				if (node.name in functions) {
 					Error(
@@ -106,7 +127,6 @@ class Optimiser {
 					continue;
 				}
 			}
-
 			res ~= inode;
 		}
 	}

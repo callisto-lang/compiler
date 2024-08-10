@@ -1,5 +1,8 @@
 module callisto.util;
 
+import std.file;
+import std.array;
+import std.format;
 import std.algorithm;
 
 public import core.stdc.stdlib : exit;
@@ -20,7 +23,7 @@ string Sanitise(string str) {
 			case '(':  ret ~= "__lparen__"; break;
 			case ')':  ret ~= "__rparen__"; break;
 			case '-':  ret ~= "__dash__"; break;
-			case '_':  ret ~= "__underscore__"; break;
+			//case '_':  ret ~= "__underscore__"; break;
 			case '+':  ret ~= "__plus__"; break;
 			case '=':  ret ~= "__equal__"; break;
 			case '[':  ret ~= "__lsquare__"; break;
@@ -49,3 +52,12 @@ string Sanitise(string str) {
 }
 
 bool OnlyContains(string str, string chars) => str.any!(ch => !chars.canFind(ch));
+
+string GetFileLine(string fileName, size_t line) {
+	try {
+		return readText(fileName).split("\n")[line];
+	}
+	catch (FileException e) {
+		return format("Failed to read: %s", e.msg);
+	}
+}

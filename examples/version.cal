@@ -3,10 +3,20 @@ include "std/io.cal"
 
 # will execute on RM86 backend
 version RM86
-	"Hello, RM86!" printlstr
+	"Hello, RM86!\n" printstr
+end
+
+# will execute on Linux86 backend
+version Linux86
+	"Hello, Linux86!\n" printstr
 end
 
 # won't execute unless you set the Foo version
 version Foo
-	"Hello, Foo!" printlstr
+	"Hello, Foo!\n" printstr
+end
+
+# will execute because Foo isn't set
+version not Foo
+	"Hello, not Foo!\n" printstr
 end

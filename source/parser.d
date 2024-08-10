@@ -1,6 +1,7 @@
 module callisto.parser;
 
 import std.conv;
+import std.range;
 import std.stdio;
 import std.format;
 import std.algorithm;
@@ -17,14 +18,21 @@ enum NodeType {
 	If,
 	While,
 	Let,
-	Implements,
-	Feature,
+	Enable,
 	Requires,
 	Version,
 	Array,
 	String,
 	Struct,
-	Const
+	Const,
+	Enum,
+	Restrict,
+	Union,
+	Alias,
+	Extern,
+	Addr,
+	Implement,
+	Set
 }
 
 class Node {
@@ -62,6 +70,7 @@ class IntegerNode : Node {
 	}
 
 	this(ErrorInfo perror, long pvalue) {
+		error = perror;
 		type  = NodeType.Integer;
 		value = pvalue;
 	}
@@ -73,6 +82,7 @@ class FuncDefNode : Node {
 	string name;
 	Node[] nodes;
 	bool   inline;
+	bool   raw;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.FuncDef;
@@ -98,7 +108,7 @@ class IncludeNode : Node {
 		error = perror;
 	}
 
-	override string toString() => format("include \"path\"", path);
+	override string toString() => format("include \"%s\"", path);
 }
 
 class AsmNode : Node {
@@ -196,43 +206,52 @@ class LetNode : Node {
 		type  = NodeType.Let;
 		error = perror;
 	}
+
+	override string toString() => array?
+		format("let array %d %s %s", arraySize, varType, name) :
+		format("let %s %s", varType, name);
 }
 
-class ImplementsNode : Node {
-	string feature;
-	Node   node;
+class EnableNode : Node {
+	string ver;
 
 	this(ErrorInfo perror) {
-		type  = NodeType.Implements;
+		type  = NodeType.Enable;
 		error = perror;
 	}
-}
 
-class FeatureNode : Node {
-	string feature;
-
-	this(ErrorInfo perror) {
-		type  = NodeType.Feature;
-		error = perror;
-	}
+	override string toString() => format("enable %s", ver);
 }
 
 class RequiresNode : Node {
-	string feature;
+	string ver;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Requires;
 		error = perror;
 	}
+
+	override string toString() => format("requires %s", ver);
 }
 
 class VersionNode : Node {
 	string ver;
+	bool   not;
 	Node[] block;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Version;
 		error = perror;
+	}
+
+	override string toString() {
+		string ret = format("version %s\n", ver);
+
+		foreach (ref node ; block) {
+			ret ~= format("    %s\n", node);
+		}
+
+		return ret ~ "end";
 	}
 }
 
@@ -245,6 +264,16 @@ class ArrayNode : Node {
 		type  = NodeType.Array;
 		error = perror;
 	}
+
+	override string toString() {
+		string ret = constant? "c[" : "[";
+
+		foreach (ref node ; elements) {
+			ret ~= node.toString() ~ ' ';
+		}
+
+		return ret ~ ']';
+	}
 }
 
 class StringNode : Node {
@@ -255,16 +284,44 @@ class StringNode : Node {
 		type  = NodeType.String;
 		error = perror;
 	}
+
+	override string toString() => format("%s\"%s\"", constant? "c" : "", value);
+}
+
+struct StructMember {
+	string type;
+	string name;
+	bool   array;
+	size_t size;
+
+	string toString() {
+		return array?
+			format("array %d %s %s", size, type, name) :
+			format("%s %s", type, name);
+	}
 }
 
 class StructNode : Node {
-	string   name;
-	string[] types;
-	string[] names;
+	string         name;
+	StructMember[] members;
+	bool           inherits;
+	string         inheritsFrom;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Struct;
 		error = perror;
+	}
+
+	override string toString() {
+		string ret = inherits?
+			format("struct %s : %s\n", name, inheritsFrom) :
+			format("struct %s\n", name);
+
+		foreach (ref member ; members) {
+			ret ~= "    " ~ member.toString() ~ '\n';
+		}
+
+		return ret ~ "end";
 	}
 }
 
@@ -276,6 +333,153 @@ class ConstNode : Node {
 		type  = NodeType.Const;
 		error = perror;
 	}
+
+	override string toString() => format("const %s %d", name, value);
+}
+
+class EnumNode : Node {
+	string   name;
+	string   enumType;
+	string[] names;
+	long[]   values;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Enum;
+		error = perror;
+	}
+
+	override string toString() {
+		string ret = format("enum %s : %s\n", name, enumType);
+
+		foreach (i, ref name ; names) {
+			ret ~= format("    %s = %d\n", name, values[i]);
+		}
+
+		return ret ~ "end\n";
+	}
+}
+
+class RestrictNode : Node {
+	string ver;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Restrict;
+		error = perror;
+	}
+
+	override string toString() => format("restrict %s", ver);
+}
+
+class UnionNode : Node {
+	string   name;
+	string[] types;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Union;
+		error = perror;
+	}
+
+	override string toString() {
+		auto ret = format("union %s\n", name);
+
+		foreach (ref type ; types) {
+			ret ~= format("    %s\n", type);
+		}
+
+		return ret ~ "end";
+	}
+}
+
+class AliasNode : Node {
+	string to;
+	string from;
+	bool   overwrite;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Alias;
+		error = perror;
+	}
+
+	override string toString() => format("alias %s %s", to, from);
+}
+
+enum ExternType {
+	Callisto,
+	Raw,
+	C
+}
+
+class ExternNode : Node {
+	string     func;
+	ExternType externType;
+
+	// for C extern
+	string[] types;
+	string   retType;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Extern;
+		error = perror;
+	}
+
+	override string toString() {
+		final switch (externType) {
+			case ExternType.Callisto: return format("extern %s", func);
+			case ExternType.Raw:      return format("extern raw %s", func);
+			case ExternType.C: {
+				string ret = format("extern C %s %s", retType, func);
+
+				foreach (i, ref type ; types) {
+					ret ~= format(" %s", type);
+				}
+
+				return ret ~ " end";
+			}
+		}
+	}
+}
+
+class AddrNode : Node {
+	string func;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Addr;
+		error = perror;
+	}
+
+	override string toString() => format("&%s", func);
+}
+
+class ImplementNode : Node {
+	string structure;
+	string method;
+	Node[] nodes;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Implement;
+		error = perror;
+	}
+
+	override string toString() {
+		string ret = format("implement %s %s\n", structure, method);
+
+		foreach (ref node ; nodes) {
+			ret ~= format("    %s\n", node.toString());
+		}
+
+		return ret ~ "end";
+	}
+}
+
+class SetNode : Node {
+	string var;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Set;
+		error = perror;
+	}
+
+	override string toString() => format("-> %s", var);
 }
 
 class ParserError : Exception {
@@ -295,12 +499,15 @@ class Parser {
 	}
 
 	ErrorInfo GetError() {
-		return ErrorInfo(tokens[i].file, tokens[i].line, tokens[i].col);
+		return ErrorInfo(
+			tokens[i].file, tokens[i].line, tokens[i].col, tokens[i].contents.length
+		);
 	}
 
 	void Error(Char, A...)(in Char[] fmt, A args) {
 		ErrorBegin(GetError());
 		stderr.writeln(format(fmt, args));
+		PrintErrorLine(GetError());
 		throw new ParserError();
 	}
 
@@ -326,6 +533,13 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "raw") {
+			ret.raw = true;
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
 		ret.name = tokens[i].contents;
 
 		Next();
@@ -527,27 +741,13 @@ class Parser {
 		return ret;
 	}
 
-	Node ParseImplements() {
-		auto ret = new ImplementsNode(GetError());
-		parsing  = NodeType.Implements;
+	Node ParseEnable() {
+		auto ret = new EnableNode(GetError());
+		parsing  = NodeType.Enable;
 
 		Next();
 		Expect(TokenType.Identifier);
-		ret.feature = tokens[i].contents;
-
-		Next();
-		ret.node = ParseStatement();
-
-		return ret;
-	}
-
-	Node ParseFeature() {
-		auto ret = new FeatureNode(GetError());
-		parsing  = NodeType.Feature;
-
-		Next();
-		Expect(TokenType.Identifier);
-		ret.feature = tokens[i].contents;
+		ret.ver = tokens[i].contents;
 
 		return ret;
 	}
@@ -558,7 +758,7 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
-		ret.feature = tokens[i].contents;
+		ret.ver = tokens[i].contents;
 
 		return ret;
 	}
@@ -624,6 +824,15 @@ class Parser {
 		ret.name = tokens[i].contents;
 		Next();
 
+		if ((tokens[i].type == TokenType.Identifier) && (tokens[i].contents == ":")) {
+			Next();
+			Expect(TokenType.Identifier);
+
+			ret.inherits     = true;
+			ret.inheritsFrom = tokens[i].contents;
+			Next();
+		}
+
 		while (true) {
 			if (
 				(tokens[i].type == TokenType.Identifier) &&
@@ -632,12 +841,35 @@ class Parser {
 				break;
 			}
 
-			Expect(TokenType.Identifier);
+			/*Expect(TokenType.Identifier);
 			ret.types ~= tokens[i].contents;
 			Next();
 			Expect(TokenType.Identifier);
 			ret.names ~= tokens[i].contents;
+			Next();*/
+
+			StructMember member;
+			Expect(TokenType.Identifier);
+
+			if (tokens[i].contents == "array") {
+				Next();
+				Expect(TokenType.Integer);
+				member.array = true;
+				member.size  = parse!size_t(tokens[i].contents);
+
+				Next();
+				Expect(TokenType.Identifier);
+			}
+			
+			member.type = tokens[i].contents;
 			Next();
+			Expect(TokenType.Identifier);
+			member.name = tokens[i].contents;
+
+			ret.members ~= member;
+
+			Next();
+			Expect(TokenType.Identifier);
 		}
 
 		return ret;
@@ -649,6 +881,13 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "not") {
+			ret.not = true;
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
 		ret.ver = tokens[i].contents;
 		Next();
 
@@ -682,6 +921,205 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseEnum() {
+		auto ret = new EnumNode(GetError());
+		parsing  = NodeType.Enum;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.name = tokens[i].contents;
+		ret.enumType = "cell";
+
+		Next();
+		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == ":") {
+			Next();
+			Expect(TokenType.Identifier);
+			ret.enumType = tokens[i].contents;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
+		while (true) {
+			if (tokens[i].contents == "end") break;
+
+			ret.names ~= tokens[i].contents;
+			Next();
+			Expect(TokenType.Identifier);
+
+			if (tokens[i].contents == "=") {
+				Next();
+				Expect(TokenType.Integer);
+
+				ret.values ~= parse!long(tokens[i].contents);
+				Next();
+				Expect(TokenType.Identifier);
+			}
+			else {
+				ret.values ~= ret.values.empty()? 0 : ret.values[$ - 1] + 1;
+			}
+		}
+
+		return ret;
+	}
+
+	Node ParseRestrict() {
+		auto ret = new RestrictNode(GetError());
+		parsing  = NodeType.Restrict;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.ver = tokens[i].contents;
+
+		return ret;
+	}
+
+	Node ParseUnion() {
+		auto ret = new UnionNode(GetError());
+		parsing  = NodeType.Union;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.name = tokens[i].contents;
+		Next();
+		Expect(TokenType.Identifier);
+
+		while (true) {
+			if ((tokens[i].type == TokenType.Identifier) && (tokens[i].contents == "end")) {
+				break;
+			}
+
+			ret.types ~= tokens[i].contents;
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
+		return ret;
+	}
+
+	Node ParseAlias() {
+		auto ret = new AliasNode(GetError());
+		parsing  = NodeType.Alias;
+
+		Next();
+		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "overwrite") {
+			ret.overwrite = true;
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
+		ret.to = tokens[i].contents;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.from = tokens[i].contents;
+
+		return ret;
+	}
+
+	Node ParseExtern() {
+		auto ret = new ExternNode(GetError());
+		parsing  = NodeType.Extern;
+
+		Next();
+		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "raw") {
+			ret.externType = ExternType.Raw;
+
+			Next();
+			Expect(TokenType.Identifier);
+			ret.func = tokens[i].contents;
+		}
+		else if (tokens[i].contents == "C") {
+			ret.externType = ExternType.C;
+
+			Next();
+			Expect(TokenType.Identifier);
+			ret.retType = tokens[i].contents;
+
+			Next();
+			Expect(TokenType.Identifier);
+			ret.func = tokens[i].contents;
+
+			while (true) {
+				Next();
+				Expect(TokenType.Identifier);
+
+				if (tokens[i].contents == "end") {
+					break;
+				}
+
+				ret.types ~= tokens[i].contents;
+			}
+		}
+		else {
+			ret.externType = ExternType.Callisto;
+			ret.func       = tokens[i].contents;
+		}
+
+		return ret;
+	}
+
+	Node ParseAddr() {
+		auto ret = new AddrNode(GetError());
+		parsing  = NodeType.Addr;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.func = tokens[i].contents;
+
+		return ret;
+	}
+
+	Node ParseImplement() {
+		auto ret = new ImplementNode(GetError());
+		parsing  = NodeType.Implement;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.structure = tokens[i].contents;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.method = tokens[i].contents;
+
+		Next();
+		while (true) {
+			if (
+				(tokens[i].type == TokenType.Identifier) &&
+				(tokens[i].contents == "end")
+			) {
+				break;
+			}
+
+			ret.nodes ~= ParseStatement();
+
+			if (ret.nodes[$ - 1].type == NodeType.FuncDef) {
+				Error("Function definitions can't be nested");
+			}
+
+			Next();
+		}
+
+		return ret;
+	}
+
+	Node ParseSet() {
+		auto ret = new SetNode(GetError());
+		parsing  = NodeType.Set;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.var = tokens[i].contents;
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -696,17 +1134,24 @@ class Parser {
 					case "if":         return ParseIf();
 					case "while":      return ParseWhile();
 					case "let":        return ParseLet();
-					case "implements": return ParseImplements();
-					case "feature":    return ParseFeature();
+					case "enable":     return ParseEnable();
 					case "requires":   return ParseRequires();
 					case "struct":     return ParseStruct();
 					case "version":    return ParseVersion();
 					case "const":      return ParseConst();
+					case "enum":       return ParseEnum();
+					case "restrict":   return ParseRestrict();
+					case "union":      return ParseUnion();
+					case "alias":      return ParseAlias();
+					case "extern":     return ParseExtern();
+					case "implement":  return ParseImplement();
+					case "->":         return ParseSet();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}
-			case TokenType.LSquare: return ParseArray();
-			case TokenType.String:  return ParseString();
+			case TokenType.LSquare:   return ParseArray();
+			case TokenType.String:    return ParseString();
+			case TokenType.Ampersand: return ParseAddr();
 			default: {
 				Error("Unexpected %s", tokens[i].type);
 			}

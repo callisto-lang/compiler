@@ -21,3 +21,5 @@ test.cal
 out.c
 out
 out.o
+out.exe
+out*

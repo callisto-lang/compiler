@@ -1,0 +1,8 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+func sayHello begin
+	"Hello!\n" printstr
+end
+
+&sayHello call
