@@ -456,7 +456,7 @@ class BackendLua : CompilerBackend {
 			global.arraySize  = node.arraySize;
 			global.addr       = globalStack;
 			globals          ~= global;
-			
+
 			globalStack += global.Size();
 		}
 	}
@@ -542,7 +542,7 @@ class BackendLua : CompilerBackend {
 			output ~= "vsp = vsp - 3\n";
 			output ~= format("mem[vsp] = %d\n", array.values.length);
 			output ~= format("mem[vsp + 1] = %d\n", array.type.size);
-			output ~= "mem[vsp + 3] = regA\n";
+			output ~= "mem[vsp + 2] = regA\n";
 
 			// push metadata address
 			output ~= "mem[dsp] = vsp\n";
