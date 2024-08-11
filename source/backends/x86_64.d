@@ -208,9 +208,12 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	override string[] FinalCommands() {
-		string objFormat = "elf64";
-		if (os == "osx") {
-			objFormat = "macho64";
+		string objFormat;
+
+		switch (os) {
+			case "osx":     objFormat = "macho64"; break;
+			case "windows": objFormat = "win32"; break;
+			default:        objFormat = "elf64";
 		}
 
 		string[] ret = [
@@ -220,10 +223,19 @@ class BackendX86_64 : CompilerBackend {
 					"nasm -f %s %s.asm -o %s.o -F dwarf -g", objFormat, compiler.outFile,
 					compiler.outFile
 				) :
-				format("nasm -f elf64 %s.asm -o %s.o", compiler.outFile, compiler.outFile)
+				format("nasm -f %s %s.asm -o %s.o", objFormat, compiler.outFile, compiler.outFile)
 		];
 
-		string linkCommand = format("ld %s.o -o %s", compiler.outFile, compiler.outFile);
+		string linker;
+
+		switch (os) {
+			case "windows": linker = "x86_64-w64-mingw32-ld"; break;
+			default:        linker = "ld";
+		}
+
+		string linkCommand = format(
+			"%s %s.o -o %s", linker, compiler.outFile, compiler.outFile
+		);
 
 		if (os == "osx") {
 			linkCommand ~= " -ld_classic";
