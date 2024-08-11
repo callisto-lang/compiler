@@ -852,7 +852,8 @@ class BackendX86_64 : CompilerBackend {
 		arrays       ~= array;
 
 		if (!inScope || node.constant) {
-			output ~= format("mov qword [r15], __array_%d_meta\n", arrays.length - 1);
+			output ~= format("mov rax, __array_%d_meta\n", arrays.length - 1);
+			output ~= "mov qword [r15], rax\n";
 			output ~= "add r15, 8\n";
 		}
 		else {

@@ -12,38 +12,38 @@ string Sanitise(string str) {
 
 	foreach (ref ch ; str) {
 		switch (ch) {
-			case '!':  ret ~= "__exclaim__"; break;
-			case '"':  ret ~= "__double_quote__"; break;
-			case '£':  ret ~= "__pound__"; break;
-			case '$':  ret ~= "__dollar__"; break;
-			case '%':  ret ~= "__percent__"; break;
-			case '^':  ret ~= "__up_arrow__"; break;
-			case '&':  ret ~= "__ampersand__"; break;
+			case '!':  ret ~= "__exc__"; break;
+			case '"':  ret ~= "__dq__"; break;
+			case '£':  ret ~= "__pnd__"; break;
+			case '$':  ret ~= "__dlr__"; break;
+			case '%':  ret ~= "__pcnt__"; break;
+			case '^':  ret ~= "__up__"; break;
+			case '&':  ret ~= "__amp__"; break;
 			case '*':  ret ~= "__star__"; break;
-			case '(':  ret ~= "__lparen__"; break;
-			case ')':  ret ~= "__rparen__"; break;
+			case '(':  ret ~= "__lp__"; break;
+			case ')':  ret ~= "__r__"; break;
 			case '-':  ret ~= "__dash__"; break;
-			//case '_':  ret ~= "__underscore__"; break;
+			case '_':  ret ~= "__us__"; break;
 			case '+':  ret ~= "__plus__"; break;
-			case '=':  ret ~= "__equal__"; break;
-			case '[':  ret ~= "__lsquare__"; break;
-			case '{':  ret ~= "__lcurly__"; break;
-			case ']':  ret ~= "__rsquare__"; break;
-			case '}':  ret ~= "__rcurly__"; break;
-			case ';':  ret ~= "__semicolon__"; break;
-			case ':':  ret ~= "__colon__"; break;
-			case '\'': ret ~= "__single_quote__"; break;
+			case '=':  ret ~= "__equ__"; break;
+			case '[':  ret ~= "__ls__"; break;
+			case '{':  ret ~= "__lc__"; break;
+			case ']':  ret ~= "__rs__"; break;
+			case '}':  ret ~= "__rc__"; break;
+			case ';':  ret ~= "__scn__"; break;
+			case ':':  ret ~= "__cn__"; break;
+			case '\'': ret ~= "__sq__"; break;
 			case '@':  ret ~= "__at__"; break;
-			case '#':  ret ~= "__hashtag__"; break;
-			case '~':  ret ~= "__tilde__"; break;
-			case '\\': ret ~= "__backslash__"; break;
+			case '#':  ret ~= "__hg__"; break;
+			case '~':  ret ~= "__tld__"; break;
+			case '\\': ret ~= "__bs__"; break;
 			case '|':  ret ~= "__pipe__"; break;
 			case ',':  ret ~= "__comma__"; break;
 			case '<':  ret ~= "__left__"; break;
 			case '.':  ret ~= "__dot__"; break;
 			case '>':  ret ~= "__right__"; break;
 			case '/':  ret ~= "__slash__"; break;
-			case '?':  ret ~= "__question__"; break;
+			case '?':  ret ~= "__qstn__"; break;
 			default:   ret ~= ch; break;
 		}
 	}
