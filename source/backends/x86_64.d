@@ -198,7 +198,7 @@ class BackendX86_64 : CompilerBackend {
 				break;
 			}
 			case "osx": {
-				ret ~= ["OSX"];
+				ret ~= ["OSX", "IO", "Exit"];
 				break;
 			}
 			default: break;
