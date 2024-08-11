@@ -206,6 +206,13 @@ class BackendLua : CompilerBackend {
 	}
 
 	override void End() {
+		// call destructors
+		foreach (name, global ; globals) {
+			output ~= format("mem[dsp] = %d\n", global.addr);
+			output ~= "dsp = dsp + 1\n";
+			output ~= format("type_deinit_%s()\n", global.type.name.Sanitise());
+		}
+
 		output ~= "end\n";
 
 		// create arrays
@@ -326,6 +333,12 @@ class BackendLua : CompilerBackend {
 			size_t scopeSize;
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
+
+				if (var.type.hasDeinit) {
+					output ~= format("mem[dsp] = vsp + %d\n", var.offset);
+					output ~= "dsp = dsp + 1\n";
+					output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+				}
 			}
 			output ~= format("vsp = vsp + %d\n", scopeSize);
 			output ~= "end\n";
@@ -358,6 +371,14 @@ class BackendLua : CompilerBackend {
 			}
 
 			// remove scope
+			foreach (ref var ; variables) {
+				if (oldVars.canFind(var)) continue;
+				if (!var.type.hasDeinit)  continue;
+
+				output ~= format("mem[dsp] = vsp + %d\n", var.offset);
+				output ~= "dsp = dsp + 1\n";
+				output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format("vsp = vsp + %d\n", GetStackSize() - oldSize);
 			}
@@ -370,9 +391,27 @@ class BackendLua : CompilerBackend {
 		}
 
 		if (node.hasElse) {
+			// create scope
+			auto oldVars = variables.dup;
+			auto oldSize = GetStackSize();
+
 			foreach (ref inode ; node.doElse) {
 				compiler.CompileNode(inode);
 			}
+
+			// remove scope
+			foreach (ref var ; variables) {
+				if (oldVars.canFind(var)) continue;
+				if (!var.type.hasDeinit)  continue;
+
+				output ~= format("mem[dsp] = vsp + %d\n", var.offset);
+				output ~= "dsp = dsp + 1\n";
+				output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+			}
+			if (GetStackSize() - oldSize > 0) {
+				output ~= format("vsp = vsp + %d\n", GetStackSize() - oldSize);
+			}
+			variables = oldVars;
 		}
 
 		output ~= format("::if_%d_end::\n", blockNum);
@@ -399,6 +438,14 @@ class BackendLua : CompilerBackend {
 
 		// restore scope
 		output ~= format("::while_%d_next::\n", blockNum);
+		foreach (ref var ; variables) {
+			if (oldVars.canFind(var)) continue;
+			if (!var.type.hasDeinit)  continue;
+
+			output ~= format("mem[dsp] = vsp + %d\n", var.offset);
+			output ~= "dsp = dsp + 1\n";
+			output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+		}
 		if (GetStackSize() - oldSize > 0) {
 			output ~= format("vsp = vsp + %d\n", GetStackSize() - oldSize);
 		}
@@ -447,6 +494,12 @@ class BackendLua : CompilerBackend {
 			if (var.Size() == 1) {
 				output ~= "mem[vsp] = 0\n";
 			}
+
+			if (var.type.hasInit) { // call constructor
+				output ~= "mem[dsp] = vsp\n";
+				output ~= "dsp = dsp + 1\n";
+				output ~= format("type_init_%s()\n", var.type.name.Sanitise());
+			}
 		}
 		else {
 			Global global;
@@ -458,6 +511,12 @@ class BackendLua : CompilerBackend {
 			globals          ~= global;
 
 			globalStack += global.Size();
+
+			if (global.type.hasInit) { // call constructor
+				output ~= format("mem[dsp] = %d\n", global.addr);
+				output ~= "dsp = dsp + 1\n";
+				output ~= format("type_init_%s()\n", global.type.name.Sanitise());
+			}
 		}
 	}
 
@@ -622,6 +681,12 @@ class BackendLua : CompilerBackend {
 		size_t scopeSize;
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
+
+			if (var.type.hasDeinit) {
+				output ~= format("mem[dsp] = vsp + %d\n", var.offset);
+				output ~= "dsp = dsp + 1\n";
+				output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+			}
 		}
 		output ~= format("vsp = vsp + %d\n", scopeSize);
 
@@ -754,7 +819,64 @@ class BackendLua : CompilerBackend {
 		output ~= "dsp = dsp + 1\n";
 	}
 
-	override void CompileImplement(ImplementNode node) {}
+	override void CompileImplement(ImplementNode node) {
+		if (!TypeExists(node.structure)) {
+			Error(node.error, "Type '%s' doesn't exist", node.structure);
+		}
+		auto type = GetType(node.structure);
+
+		string labelName;
+
+		switch (node.method) {
+			case "init": {
+				if (GetType(node.structure).hasInit) {
+					Error(node.error, "Already implemented in type");
+				}
+
+				type.hasInit = true;
+				labelName = format("type_init_%s", Sanitise(node.structure));
+				break;
+			}
+			case "deinit": {
+				if (GetType(node.structure).hasDeinit) {
+					Error(node.error, "Already implemented in type");
+				}
+
+				type.hasDeinit = true;
+				labelName = format("type_deinit_%s", Sanitise(node.structure));
+				break;
+			}
+			default: Error(node.error, "Unknown method '%s'", node.method);
+		}
+
+		SetType(type.name, type);
+
+		assert(!inScope);
+		inScope = true;
+
+		output ~= format("function %s()\n", labelName);
+
+		foreach (ref inode ; node.nodes) {
+			compiler.CompileNode(inode);
+		}
+
+		size_t scopeSize;
+		foreach (ref var ; variables) {
+			scopeSize += var.Size();
+
+			if (var.type.hasDeinit) {
+				output ~= format("lea rax, [rsp + %d\n]", var.offset);
+				output ~= "mov [r15], rax\n";
+				output ~= "add r15, 8\n";
+				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+			}
+		}
+		output ~= format("vsp = vsp + %d\n", scopeSize);
+		output ~= "end\n";
+
+		inScope    = false;
+		variables  = [];
+	}
 
 	override void CompileSet(SetNode node) {
 		if (VariableExists(node.var)) {

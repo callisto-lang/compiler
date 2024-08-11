@@ -282,6 +282,17 @@ class BackendX86_64 : CompilerBackend {
 
 	override void BeginMain() {
 		output ~= "__calmain:\n";
+
+		// call constructors
+		foreach (name, global ; globals) {
+			if (global.type.hasInit) {
+				output ~= format(
+					"mov qword [r15], qword __global_%s\n", name.Sanitise()
+				);
+				output ~= "add r15, 8\n";
+				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
+			}
+		}
 	}
 
 	void CallFunction(string name) {
@@ -676,7 +687,7 @@ class BackendX86_64 : CompilerBackend {
 			// create scope
 			auto oldVars = variables.dup;
 			auto oldSize = GetStackSize();
-			
+
 			foreach (ref inode ; node.doElse) {
 				compiler.CompileNode(inode);
 			}
@@ -800,14 +811,6 @@ class BackendX86_64 : CompilerBackend {
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
 			globals[node.name] = global;
-
-			if (global.type.hasInit) { // call constructor
-				output ~= format(
-					"mov qword [r15], qword __global_%s\n", node.name.Sanitise()
-				);
-				output ~= "add r15, 8\n";
-				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
-			}
 		}
 	}
 	

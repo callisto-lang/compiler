@@ -194,6 +194,17 @@ class BackendRM86 : CompilerBackend {
 
 	override void BeginMain() {
 		output ~= "__calmain:\n";
+
+		// call globals
+		foreach (name, global ; globals) {
+			if (global.type.hasInit) {
+				output ~= format(
+					"mov word [si], word __global_%s\n", name.Sanitise()
+				);
+				output ~= "add si, 2\n";
+				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
+			}
+		}
 	}
 
 	void CallFunction(string name) {
@@ -598,14 +609,6 @@ class BackendRM86 : CompilerBackend {
 			if (!orgSet) {
 				Warn(node.error, "Declaring global variables without a set org value");
 			}
-
-			if (global.type.hasInit) {
-				output ~= format(
-					"mov word [si], word __global_%s\n", node.name.Sanitise()
-				);
-				output ~= "add si, 2\n";
-				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
-			}
 		}
 	} 
 
@@ -989,7 +992,9 @@ class BackendRM86 : CompilerBackend {
 				Error(node.error, "Can't set struct value");
 			}
 
-			string addr = var.offset == 0? "sp" : format("sp + %d", var.offset);
+			output ~= "mov bx, sp\n";
+
+			string addr = var.offset == 0? "bx" : format("bx + %d", var.offset);
 
 			switch (var.type.size) {
 				case 1: output ~= format("mov [%s], al\n", addr); break;

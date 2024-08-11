@@ -15,4 +15,4 @@ implement meow deinit
 end
 
 let meow myMeow
-myMeow @ printdec new_line
+&myMeow @ printdec new_line
