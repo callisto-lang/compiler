@@ -86,7 +86,7 @@ class BackendLua : CompilerBackend {
 	Variable[]       variables;
 	Global[]         globals;
 	bool             useLibc;
-	ulong            globalStack;
+	ulong            globalStack = 524288;
 	Array[]          arrays;
 	ulong            arrayStack = 524287;
 
