@@ -40,6 +40,7 @@ Flags:
 	-ka        - Keep assembly
 	-al        - Print assembly line numbers for callisto nodes
 	-os OS     - Set operating system for backend - see below
+	--help     - Shows this text
 
 Backends and their operating systems:
 	rm86   - Real mode x86, for bare-metal, dos
@@ -263,6 +264,10 @@ int main(string[] args) {
 
 					os = args[i];
 					break;
+				}
+				case "--help": {
+					writeln(usage.strip());
+					return 0;
 				}
 				default: {
 					stderr.writefln("Unknown flag '%s'", args[i]);
