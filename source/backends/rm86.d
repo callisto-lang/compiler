@@ -989,9 +989,11 @@ class BackendRM86 : CompilerBackend {
 				Error(node.error, "Can't set struct value");
 			}
 
+			string addr = var.offset == 0? "sp" : format("sp + %d", var.offset);
+
 			switch (var.type.size) {
-				case 1: output ~= format("mov [sp + %d], al\n", var.offset); break;
-				case 2: output ~= format("mov [sp + %d], ax\n", var.offset); break;
+				case 1: output ~= format("mov [%s], al\n", addr); break;
+				case 2: output ~= format("mov [%s], ax\n", addr); break;
 				default: Error(node.error, "Bad variable type size");
 			}
 		}

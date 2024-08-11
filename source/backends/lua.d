@@ -565,27 +565,194 @@ class BackendLua : CompilerBackend {
 		CompileArray(arrayNode);
 	}
 
-	override void CompileStruct(StructNode node) {}
+	override void CompileStruct(StructNode node) {
+		size_t offset;
 
-	override void CompileReturn(WordNode node) {}
+		if (TypeExists(node.name)) {
+			Error(node.error, "Type '%s' defined multiple times", node.name);
+		}
 
-	override void CompileConst(ConstNode node) {}
+		StructEntry[] entries;
+		string[]      members;
 
-	override void CompileEnum(EnumNode node) {}
+		if (node.inherits) {
+			if (!TypeExists(node.inheritsFrom)) {
+				Error(node.error, "Type '%s' doesn't exist", node.inheritsFrom);
+			}
 
-	override void CompileBreak(WordNode node) {}
+			if (!GetType(node.inheritsFrom).isStruct) {
+				Error(node.error, "Type '%s' is not a structure", node.inheritsFrom);
+			}
 
-	override void CompileContinue(WordNode node) {}
+			entries = GetType(node.inheritsFrom).structure;
 
-	override void CompileUnion(UnionNode node) {}
+			foreach (ref member ; GetType(node.inheritsFrom).structure) {
+				members ~= member.name;
+			}
+		}
 
-	override void CompileAlias(AliasNode node) {}
+		foreach (ref member ; node.members) {
+			if (!TypeExists(member.type)) {
+				Error(node.error, "Type '%s' doesn't exist", member.type);
+			}
+			if (members.canFind(member.name)) {
+				Error(node.error, "Duplicate member '%s'", member.name);
+			}
 
-	override void CompileExtern(ExternNode node) {}
+			entries ~= StructEntry(
+				GetType(member.type), member.name, member.array, member.size
+			);
+			members ~= member.name;
+		}
 
-	override void CompileCall(WordNode node) {}
+		foreach (ref member ; entries) {
+			NewConst(format("%s.%s", node.name, member.name), offset);
+			offset += member.array? member.type.size * member.size : member.type.size;
+		}
 
-	override void CompileAddr(AddrNode node) {}
+		NewConst(format("%s.sizeof", node.name), offset);
+		types ~= Type(node.name, offset, true, entries);
+	}
+
+	override void CompileReturn(WordNode node) {
+		if (!inScope) {
+			Error(node.error, "Return used outside of function");
+		}
+
+		size_t scopeSize;
+		foreach (ref var ; variables) {
+			scopeSize += var.Size();
+		}
+		output ~= format("vsp = vsp + %d\n", scopeSize);
+
+		output ~= "do return end\n";
+	}
+
+	override void CompileConst(ConstNode node) {
+		if (node.name in consts) {
+			Error(node.error, "Constant '%s' already defined", node.name);
+		}
+		
+		NewConst(node.name, node.value);
+	}
+
+	override void CompileEnum(EnumNode node) {
+		if (!TypeExists(node.enumType)) {
+			Error(node.error, "Enum base type '%s' doesn't exist", node.enumType);
+		}
+		if (TypeExists(node.name)) {
+			Error(node.error, "Enum name is already used by type '%s'", node.enumType);
+		}
+
+		auto baseType  = GetType(node.enumType);
+		baseType.name  = node.name;
+		types         ~= baseType;
+
+		foreach (i, ref name ; node.names) {
+			NewConst(format("%s.%s", node.name, name), node.values[i]);
+		}
+
+		NewConst(format("%s.min", node.name), node.values.minElement());
+		NewConst(format("%s.max", node.name), node.values.maxElement());
+		NewConst(format("%s.sizeof", node.name), GetType(node.name).size);
+	}
+
+	override void CompileBreak(WordNode node) {
+		if (!inWhile) {
+			Error(node.error, "Not in while loop");
+		}
+
+		output ~= format("goto ::while_%d_end::\n", currentLoop);
+	}
+
+	override void CompileContinue(WordNode node) {
+		if (!inWhile) {
+			Error(node.error, "Not in while loop");
+		}
+
+		output ~= format("goto ::while_%d_next::\n", currentLoop);
+	}
+
+	override void CompileUnion(UnionNode node) {
+		size_t maxSize = 0;
+
+		if (TypeExists(node.name)) {
+			Error(node.error, "Type '%s' already exists", node.name);
+		}
+
+		string[] unionTypes;
+
+		foreach (ref type ; node.types) {
+			if (unionTypes.canFind(type)) {
+				Error(node.error, "Union type '%s' defined twice", type);
+			}
+			unionTypes ~= type;
+
+			if (!TypeExists(type)) {
+				Error(node.error, "Type '%s' doesn't exist", type);
+			}
+
+			if (GetType(type).size > maxSize) {
+				maxSize = GetType(type).size;
+			}
+		}
+
+		types ~= Type(node.name, maxSize);
+		NewConst(format("%s.sizeof", node.name), cast(long) maxSize);
+	}
+
+	override void CompileAlias(AliasNode node) {
+		if (!TypeExists(node.from)) {
+			Error(node.error, "Type '%s' doesn't exist", node.from);
+		}
+		if ((TypeExists(node.to)) && !node.overwrite) {
+			Error(node.error, "Type '%s' already defined", node.to);
+		}
+
+		auto baseType  = GetType(node.from);
+		baseType.name  = node.to;
+		types         ~= baseType;
+
+		NewConst(format("%s.sizeof", node.to), cast(long) GetType(node.to).size);
+	}
+
+	override void CompileExtern(ExternNode node) {
+		Word word;
+
+		switch (node.externType) {
+			case ExternType.Callisto: word.type = WordType.Callisto; break;
+			default: {
+				Error(node.error, "Can't use extern type %s", node.externType);
+			}
+		}
+
+		words[node.func] = word;
+	}
+
+	override void CompileCall(WordNode node) {
+		Error(node.error, "Call can't be used in CallistoScript");
+	}
+
+	override void CompileAddr(AddrNode node) {
+		if (node.func in words) {
+			Error(node.error, "Can't get addresses of functions in CallistoScript");
+		}
+		else if (GlobalExists(node.func)) {
+			auto var = GetGlobal(node.func);
+
+			output ~= format("mem[dsp] = %d\n", var.addr);
+		}
+		else if (VariableExists(node.func)) {
+			auto var = GetVariable(node.func);
+
+			output ~= format("mem[dsp] = vsp + %d\n", var.offset);
+		}
+		else {
+			Error(node.error, "Undefined identifier '%s'", node.func);
+		}
+
+		output ~= "dsp = dsp + 1\n";
+	}
 
 	override void CompileImplement(ImplementNode node) {}
 
