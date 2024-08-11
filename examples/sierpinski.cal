@@ -20,7 +20,7 @@ func sierpinski begin
 
 		0 -> x
 
-		while x n < do
+		while x n 2 / < do
 			if x n y 1 + - and then
 				' ' printch
 			else
