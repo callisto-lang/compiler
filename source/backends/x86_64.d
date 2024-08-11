@@ -225,6 +225,10 @@ class BackendX86_64 : CompilerBackend {
 
 		string linkCommand = format("ld %s.o -o %s", compiler.outFile, compiler.outFile);
 
+		if (os == "osx") {
+			linkCommand ~= " -ld_classic";
+		}
+
 		foreach (ref lib ; link) {
 			linkCommand ~= format(" -l%s", lib);
 		}
