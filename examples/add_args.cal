@@ -1,0 +1,15 @@
+include "cores/select.cal"
+include "std/args.cal"
+include "std/conv.cal"
+include "std/io.cal"
+
+if get_args_length 3 < then
+	"Required parameters: a b\n" printstr
+	1 exit
+end
+
+let Array arg
+1 &arg get_arg &arg parse_int
+2 &arg get_arg &arg parse_int
++ printdec new_line
+

@@ -198,7 +198,7 @@ class BackendX86_64 : CompilerBackend {
 				break;
 			}
 			case "osx": {
-				ret ~= ["OSX", "IO", "Exit"];
+				ret ~= ["OSX", "IO", "Args", "Exit"];
 				break;
 			}
 			default: break;
@@ -337,7 +337,7 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		if (useLibc)          output ~= "global main\n";
-		else if (os == "osx") output ~= "global _main\n";
+		else if (os == "osx") output ~= "default rel\nglobal _main\n";
 		else                  output ~= "global _start\n";
 		
 		output ~= "section .text\n";
@@ -406,7 +406,6 @@ class BackendX86_64 : CompilerBackend {
 
 		// run init function
 		output ~= "__init:\n";
-		output ~= "mov rsi, rsp\n";
 		if ("__x86_64_program_init" in words) {
 			CallFunction("__x86_64_program_init");
 		}
@@ -1137,8 +1136,9 @@ class BackendX86_64 : CompilerBackend {
 			auto var = globals[node.func];
 
 			output ~= format(
-				"mov qword [r15], qword __global_%s\n", node.func.Sanitise()
+				"lea rax, qword [__global_%s]\n", node.func.Sanitise()
 			);
+			output ~= "mov [r15], rax\n";
 			output ~= "add r15, 8\n";
 		}
 		else if (VariableExists(node.func)) {
