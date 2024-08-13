@@ -30,3 +30,6 @@ cac examples/exampleNameHere.cal -i std -o out
 ```
 
 To learn more about Callisto, read the [docs](https://callisto.mesyeti.uk/docs)
+
+## Support/talk
+`#callisto-lang` on irc.libera.chat
