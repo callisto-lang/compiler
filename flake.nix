@@ -20,7 +20,7 @@
                 name = pname;
 
                 src = ./.;
-                dubLock = ./dub-lock.json;
+                dubLock.dependencies = {};
 
                 nativeBuildInputs = [ pkgs.makeWrapper ];
 
