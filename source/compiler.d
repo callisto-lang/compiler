@@ -191,7 +191,7 @@ class Compiler {
 		}
 
 		if (assemblyLines) {
-			backend.output ~= "; " ~ inode.toString().replace("\n", "\n; ") ~ '\n';
+			//backend.output ~= "; " ~ inode.toString().replace("\n", "\n; ") ~ '\n';
 			size_t line = backend.output.count!((ch) => ch == '\n');
 			writefln(
 				"%s:%d:%d - line %d, node %s", inode.error.file, inode.error.line + 1,
