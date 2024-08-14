@@ -219,6 +219,12 @@ class Lexer {
 						reading = format("%d", ch);
 						break;
 					}
+					case '(': {
+						while (code[i] != ')') {
+							Next();
+						}
+						break;
+					}
 					default: {
 						reading ~= code[i];
 					}

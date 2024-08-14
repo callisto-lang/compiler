@@ -35,3 +35,9 @@ rules:
         end: "$"
         rules:
             - todo: "(TODO|XXX|FIXME):?"
+
+    - comment:
+        start: "\\("
+        end: "\\)"
+        rules:
+            - todo: "(TODO|XXX|FIXME):?"

@@ -1,0 +1,10 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+# This is a single line comment
+"hi\n" printstr
+
+(
+	This is a multi line comment
+)
+"hello\n" printstr
