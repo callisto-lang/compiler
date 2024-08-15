@@ -534,6 +534,44 @@ class BackendARM64 : CompilerBackend {
 			output ~= format("%s:\n", symbol);
 			output ~= "str lr, [x20, #-8]!\n";
 
+			// allocate parameters
+			size_t paramSize;
+			foreach (ref type ; node.paramTypes) {
+				if (!TypeExists(type)) {
+					Error(node.error, "Type '%s' doesn't exist", type);
+				}
+
+				paramSize += GetType(type).size;
+			}
+			if (paramSize > 0) {
+				output ~= format("sub x20, x20, #%d\n", paramSize);
+				foreach (ref var ; variables) {
+					var.offset += paramSize;
+				}
+
+				size_t offset;
+				foreach (i, ref type ; node.paramTypes) {
+					auto     param = node.params[i];
+					Variable var;
+
+					var.name      = param;
+					var.type      = GetType(type);
+					var.offset    = cast(uint) offset;
+					offset       += var.Size();
+					variables    ~= var;
+				}
+
+				// copy data to parameters
+				output ~= format("sub x9, x19, #%d\n", paramSize);
+				output ~= "mov x10, x20\n";
+				output ~= format("mov x11, #%d\n", paramSize);
+				output ~= "1:\n";
+				output ~= "ldrb w12, [x9], #1\n";
+				output ~= "strb w12, [x10], #1\n";
+				output ~= "subs x11, x11, #1\n";
+				output ~= "bne 1b\n";
+			}
+
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
 			}
