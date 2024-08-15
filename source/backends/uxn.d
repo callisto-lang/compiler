@@ -351,6 +351,41 @@ class BackendUXN : CompilerBackend {
 
 			output ~= format("@%s\n", symbol);
 
+			// allocate parameters
+			size_t paramSize;
+			foreach (ref type ; node.paramTypes) {
+				if (!TypeExists(type)) {
+					Error(node.error, "Type '%s' doesn't exist", type);
+				}
+
+				paramSize += GetType(type).size;
+			}
+			if (paramSize > 0) {
+				output ~= format(".vsp LDZ2 #%.4x SUB2 .vsp STZ2\n", paramSize);
+				foreach (ref var ; variables) {
+					var.offset += paramSize;
+				}
+
+				size_t offset;
+				foreach (i, ref type ; node.paramTypes) {
+					auto     param = node.params[i];
+					Variable var;
+
+					var.name      = param;
+					var.type      = GetType(type);
+					var.offset    = cast(uint) offset;
+					offset       += var.Size();
+					variables    ~= var;
+				}
+
+				// copy all parameters
+				foreach_reverse (ref param ; node.params) {
+					auto setNode = new SetNode(node.error);
+					setNode.var  = param;
+					CompileSet(setNode);
+				}
+			}
+
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
 			}
