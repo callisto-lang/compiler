@@ -409,6 +409,42 @@ class BackendRM86 : CompilerBackend {
 
 			output ~= format("%s:\n", symbol);
 
+			// allocate parameters
+			size_t paramSize;
+			foreach (ref type ; node.paramTypes) {
+				if (!TypeExists(type)) {
+					Error(node.error, "Type '%s' doesn't exist", type);
+				}
+
+				paramSize += GetType(type).size;
+			}
+			if (paramSize > 0) {
+				output ~= format("sub sp, %d\n", paramSize);
+				foreach (ref var ; variables) {
+					var.offset += paramSize;
+				}
+
+				size_t offset;
+				foreach (i, ref type ; node.paramTypes) {
+					auto     param = node.params[i];
+					Variable var;
+
+					var.name      = param;
+					var.type      = GetType(type);
+					var.offset    = cast(uint) offset;
+					offset       += var.Size();
+					variables    ~= var;
+				}
+
+				// copy data to parameters
+				output ~= "mov ax, si\n";
+				output ~= format("sub si, %d\n", paramSize);
+				output ~= "mov di, sp\n";
+				output ~= format("mov cx, %d\n", paramSize);
+				output ~= "rep movsb\n";
+				output ~= "mov si, ax\n";
+			}
+
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
 			}
