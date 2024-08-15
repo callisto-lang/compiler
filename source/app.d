@@ -13,6 +13,7 @@ import callisto.preprocessor;
 import callisto.backends.lua;
 import callisto.backends.uxn;
 import callisto.backends.rm86;
+import callisto.backends.arm64;
 import callisto.backends.x86_64;
 
 const static string usage = "
@@ -45,6 +46,7 @@ Flags:
 Backends and their operating systems:
 	rm86   - Real mode x86, for bare-metal, dos
 	x86_64 - 64-bit x86, for bare-metal, linux
+	arm64  - 64-bit ARM, for linux
 	uxn    - Varvara/Uxn
 	lua    - Lua, uses subset CallistoScript
 
@@ -160,6 +162,10 @@ int main(string[] args) {
 						}
 						case "x86_64": {
 							backend = new BackendX86_64();
+							break;
+						}
+						case "arm64": {
+							backend = new BackendARM64();
 							break;
 						}
 						case "uxn": {

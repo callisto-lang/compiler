@@ -1,4 +1,4 @@
-module callisto.backends.x86_64;
+module callisto.backends.arm64;
 
 import std.conv;
 import std.file;
@@ -6,6 +6,7 @@ import std.path;
 import std.stdio;
 import std.range;
 import std.format;
+import std.process;
 import std.algorithm;
 import callisto.util;
 import callisto.error;
@@ -76,7 +77,7 @@ private struct Array {
 	size_t Size() => type.size * values.length;
 }
 
-class BackendX86_64 : CompilerBackend {
+class BackendARM64 : CompilerBackend {
 	Word[string]     words;
 	Type[]           types;
 	string           thisFunc;
@@ -93,9 +94,6 @@ class BackendX86_64 : CompilerBackend {
 	this() {
 		version (linux) {
 			defaultOS = "linux";
-		}
-		else version (OSX) {
-			defaultOS = "osx";
 		}
 		else {
 			defaultOS = "bare-metal";
@@ -172,9 +170,6 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	size_t GetStackSize() {
-		// old
-		//return variables.empty()? 0 : variables[0].offset + variables[0].type.size;
-
 		size_t size;
 		foreach (ref var ; variables) {
 			size += var.Size();
@@ -183,22 +178,14 @@ class BackendX86_64 : CompilerBackend {
 		return size;
 	}
 
-	//override string[] GetVersions() => [
-	//	"x86_64", "LittleEndian", "16Bit", "32Bit", "64Bit"
-	//] ~ (os == "linux"? ["Linux", "IO", "Exit", "Time", "File", "Args", "Heap"] :
-	//	 os == "osx"? ["OSX"]);
 	override string[] GetVersions() {
 		// CPU features
-		string[] ret = ["x86_64", "LittleEndian", "16Bit", "32Bit", "64Bit"];
+		string[] ret = ["arm64", "LittleEndian", "16Bit", "32Bit", "64Bit"];
 
 		// OS features
 		switch (os) {
 			case "linux": {
-				ret ~= ["Linux", "IO", "Exit", "Time", "File", "Args", "Heap"];
-				break;
-			}
-			case "osx": {
-				ret ~= ["OSX", "IO", "Args", "Exit"];
+				ret ~= ["Linux", "IO", "File", "Args", "Time", "Heap", "Exit"];
 				break;
 			}
 			default: break;
@@ -208,61 +195,48 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	override string[] FinalCommands() {
-		string objFormat;
-
-		switch (os) {
-			case "osx":     objFormat = "macho64"; break;
-			case "windows": objFormat = "win32"; break;
-			default:        objFormat = "elf64";
-		}
+		// TODO: allow user to specify commands manually?
+		bool isCross = executeShell("which aarch64-linux-gnu-as").status == 0;
+		string assembler = isCross ? "aarch64-linux-gnu-as" : "as";
+		string linker = isCross ? "aarch64-linux-gnu-ld" : "ld";
 
 		string[] ret = [
 			format("mv %s %s.asm", compiler.outFile, compiler.outFile),
-			useDebug?
-				format(
-					"nasm -f %s %s.asm -o %s.o -F dwarf -g", objFormat, compiler.outFile,
-					compiler.outFile
-				) :
-				format("nasm -f %s %s.asm -o %s.o", objFormat, compiler.outFile, compiler.outFile)
 		];
 
-		string linker;
+		string assembleCommand =  format(
+			"%s %s.asm -o %s.o", assembler, compiler.outFile, compiler.outFile,
+		);
 
-		switch (os) {
-			case "windows": linker = "x86_64-w64-mingw32-ld"; break;
-			default:        linker = "ld";
+		if (useDebug) {
+			assembleCommand ~= " -g";
 		}
+
+		ret ~= assembleCommand;
 
 		string linkCommand = format(
 			"%s %s.o -o %s", linker, compiler.outFile, compiler.outFile
 		);
 
-		if (os == "osx") {
-			linkCommand ~= " -ld_classic";
-		}
-
 		foreach (ref lib ; link) {
 			linkCommand ~= format(" -l%s", lib);
 		}
 
-		if (!link.empty()) {
-			// idk if this is correct on all linux systems but whatever
-			linkCommand ~= " -dynamic-linker /lib64/ld-linux-x86-64.so.2";
-		}
-
 		if (useLibc) {
 			string[] possiblePaths = [
+				"/usr/aarch64-linux-gnu/lib/crt1.o",
 				"/usr/lib/crt1.o",
-				"/usr/lib/x86_64-linux-gnu/crt1.o"
+				"/usr/lib64/crt1.o",
 			];
 			bool crt1;
 
 			foreach (ref path ; possiblePaths) {
-				if (exists(path)) {
+				if (path.exists) {
 					crt1 = true;
 					linkCommand ~= format(" %s", path);
-					linkCommand ~= format(" %s/crti.o", path.dirName());
-					linkCommand ~= format(" %s/crtn.o", path.dirName());
+					linkCommand ~= format(" %s/crti.o", path.dirName);
+					linkCommand ~= format(" %s/crtn.o", path.dirName);
+					break;
 				}
 			}
 
@@ -302,11 +276,9 @@ class BackendX86_64 : CompilerBackend {
 		// call constructors
 		foreach (name, global ; globals) {
 			if (global.type.hasInit) {
-				output ~= format(
-					"mov qword [r15], qword __global_%s\n", name.Sanitise()
-				);
-				output ~= "add r15, 8\n";
-				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
+				output ~= format("ldr x9, =__global_%s\n", name.Sanitise());
+				output ~= "str x9, [x19], #8\n";
+				output ~= format("bl __type_init_%s\n", global.type.name.Sanitise());
 			}
 		}
 	}
@@ -320,94 +292,79 @@ class BackendX86_64 : CompilerBackend {
 			}
 		}
 		else if (word.type == WordType.Raw) {
-			output ~= format("call %s\n", name);
+			output ~= format("bl %s\n", name);
 		}
 		else if (word.type == WordType.C) {
 			assert(0); // TODO: error
 		}
 		else {
-			output ~= format("call __func__%s\n", name.Sanitise());
+			output ~= format("bl __func__%s\n", name.Sanitise());
 		}
 	}
 
 	override void Init() {
-		string[] oses = ["linux", "bare-metal", "osx"];
+		string[] oses = ["linux", "bare-metal"];
 		if (!oses.canFind(os)) {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
 		}
 
-		if (useLibc)          output ~= "global main\n";
-		else if (os == "osx") output ~= "default rel\nglobal _main\n";
-		else                  output ~= "global _start\n";
-		
-		output ~= "section .text\n";
-		
-		if (useLibc)          output ~= "main:\n";
-		else if (os == "osx") output ~= "_main:\n";
-		else                  output ~= "_start:\n";
+		output ~= ".text\n";
+		if (useLibc) {
+			output ~= ".global main\n";
+			output ~= "main:\n";
+		} else {
+			output ~= ".global _start\n";
+			output ~= "_start:\n";
+		}
 
-		output ~= "call __init\n";
+		output ~= "bl __init\n";
 
 		// allocate data stack
-		output ~= "sub rsp, 4096\n"; // 512 cells
-		output ~= "mov r15, rsp\n";
-
-		// copy static array constants
-		output ~= "call __copy_arrays\n";
+		output ~= "sub x20, sp, #4096\n"; // 512 cells
+		output ~= "mov x19, x20\n";
 
 		// create functions for interop
 		if (exportSymbols) {
 			output ~= "
-				global cal_push
+				.global cal_push
 				cal_push:
-					mov [r15], rdi
-					add r15, 8
+					str x0, [x19], #8
 					ret
+				.global cal_pop
 				cal_pop:
-					sub r15, 8
-					mov rax, [r15]
+					ldr x0, [x19, #-8]!
 					ret
 			";
 		}
 
 		// jump to main
-		output ~= "jmp __calmain\n";
+		output ~= "b __calmain\n";
 	}
 	
 	override void End() {
 		// call destructors
 		foreach (name, global ; globals) {
 			if (global.type.hasDeinit) {
-				output ~= format("mov qword [r15], qword __global_%s\n", Sanitise(name));
-				output ~= "add r15, 8\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(global.type.name));
+				output ~= format("ldr x9, =__global_%s\n", name.Sanitise());
+				output ~= "str x9, [x19], #8\n";
+				output ~= format("bl __type_deinit_%s\n", global.type.name.Sanitise());
 			}
 		}
 
 		// exit program
-		if ("__x86_64_program_exit" in words) {
-			CallFunction("__x86_64_program_exit");
+		if ("__arm64_program_exit" in words) {
+			CallFunction("__arm64_program_exit");
 		}
 		else {
 			WarnNoInfo("No exit function available, expect bugs");
-		}
-
-		// create copy arrays function
-		output ~= "__copy_arrays:\n";
-
-		foreach (i, ref array ; arrays) {
-			output ~= format("mov rsi, __array_src_%d\n", i);
-			output ~= format("mov rdi, __array_%d\n", i);
-			output ~= format("mov rcx, %d\n", array.Size());
-			output ~= "rep movsb\n";
 		}
 
 		output ~= "ret\n";
 
 		// run init function
 		output ~= "__init:\n";
-		if ("__x86_64_program_init" in words) {
-			CallFunction("__x86_64_program_init");
+		if ("__arm64_program_init" in words) {
+			CallFunction("__arm64_program_init");
 		}
 		else {
 			WarnNoInfo("No program init function available");
@@ -415,34 +372,30 @@ class BackendX86_64 : CompilerBackend {
 		output ~= "ret\n";
 
 		// create global variables
-		output ~= "section .bss\n";
+		output ~= ".bss\n";
 
 		foreach (name, var ; globals) {
-			output ~= format("__global_%s: resb %d\n", name.Sanitise(), var.Size());
+			output ~= format(".lcomm __global_%s, %d\n", name.Sanitise(), var.Size());
 
 			if (exportSymbols) {
-				output ~= format("global __global_%s\n", name.Sanitise());
+				output ~= format(".global __global_%s\n", name.Sanitise());
 			}
 		}
 
+		// create arrays
+		output ~= ".data\n";
 		foreach (i, ref array ; arrays) {
-			output ~= format("__array_%d: resb %d\n", i, array.Size());
-
 			if (exportSymbols) {
-				output ~= format("global __array_%d\n", i);
+				output ~= format(".global __array_%d\n", i);
 			}
-		}
 
-		// create array source
-		output ~= "section .text\n";
-		foreach (i, ref array ; arrays) {
-			output ~= format("__array_src_%d: ", i);
+			output ~= format("__array_%d: ", i);
 
 			switch (array.type.size) {
-				case 1:  output ~= "db "; break;
-				case 2:  output ~= "dw "; break;
-				case 4:  output ~= "dd "; break;
-				case 8:  output ~= "dq "; break;
+				case 1:  output ~= ".byte "; break;
+				case 2:  output ~= ".2byte "; break;
+				case 4:  output ~= ".4byte "; break;
+				case 8:  output ~= ".8byte "; break;
 				default: assert(0);
 			}
 
@@ -454,7 +407,7 @@ class BackendX86_64 : CompilerBackend {
 
 			if (array.global) {
 				output ~= format(
-					"__array_%d_meta: dq %d, %d, __array_%d\n", i,
+					"__array_%d_meta: .8byte %d, %d, __array_%d\n", i,
 					array.values.length,
 					array.type.size,
 					i
@@ -474,105 +427,67 @@ class BackendX86_64 : CompilerBackend {
 			}
 			else {
 				if (word.type == WordType.Raw) {
-					output ~= format("call %s\n", node.name);
+					output ~= format("bl %s\n", node.name);
 				}
 				else if (word.type == WordType.C) {
-					if (word.params.length >= 1) {
-						output ~= format(
-							"mov rdi, [r15 - %d]\n", word.params.length * 8
-						);
-					}
-					if (word.params.length >= 2) {
-						output ~= format(
-							"mov rsi, [r15 - %d]\n", (word.params.length - 1) * 8
-						);
-					}
-					if (word.params.length >= 3) {
-						output ~= format(
-							"mov rdx, [r15 - %d]\n", (word.params.length - 2) * 8
-						);
-					}
-					if (word.params.length >= 4) {
-						output ~= format(
-							"mov rcx, [r15 - %d]\n", (word.params.length - 3) * 8
-						);
-					}
-					if (word.params.length >= 5) {
-						output ~= format(
-							"mov r8, [r15 - %d]\n", (word.params.length - 4) * 8
-						);
-					}
-					if (word.params.length >= 6) {
-						output ~= format(
-							"mov r9, [r15 - %d]\n", (word.params.length - 5) * 8
-						);
-					}
-					output ~= format("sub r15, %d\n", word.params.length * 8);
+					// TODO: support more of the calling convention (especially structs)
 
-					// TODO: support more than 6 parameters
+					if (word.params.length > 8) {
+						Error(node.error, "C call has too many parameters");
+					}
+
+					for (auto i = 0; i < word.params.length; i++) {
+						auto reg = word.params.length - i - 1;
+						output ~= format("ldr x%d, [x19, #-8]!\n", reg);
+					}
 				
-					output ~= format("call %s\n", node.name);
+					output ~= format("bl %s\n", node.name);
 
 					if (!word.isVoid) {
-						output ~= "mov [r15], rax\n";
-						output ~= "add r15, 8\n";
+						output ~= "str x0, [x19], #8\n";
 					}
 				}
 				else {
-					output ~= format("call __func__%s\n", node.name.Sanitise());
+					output ~= format("bl __func__%s\n", node.name.Sanitise());
 				}
 			}
 		}
 		else if (VariableExists(node.name)) {
 			auto var = GetVariable(node.name);
 
-			output ~= "mov rdi, rsp\n";
-			if (var.offset > 0) {
-				output ~= format("add rdi, %d\n", var.offset);
-			}
-
 			if (var.type.isStruct) {
 				Error(node.error, "Can't push value of struct");
 			}
 
-			if (var.type.size != 8) {
-				output ~= "xor rax, rax\n";
-			}
-
 			switch (var.type.size) {
-				case 1: output ~= format("mov al, [rdi]\n"); break;
-				case 2: output ~= format("mov ax, [rdi]\n"); break;
-				case 4: output ~= format("mov eax, [rdi]\n"); break;
-				case 8: output ~= format("mov rax, [rdi]\n"); break;
+				case 1: output ~= format("ldrb w9, [x20, #%d]\n", var.offset); break;
+				case 2: output ~= format("ldrh w9, [x20, #%d]\n", var.offset); break;
+				case 4: output ~= format("ldr w9, [x20, #%d]\n", var.offset); break;
+				case 8: output ~= format("ldr x9, [x20, #%d]\n", var.offset); break;
 				default: Error(node.error, "Bad variable type size");
 			}
 
-			output ~= "mov [r15], rax\n";
-			output ~= "add r15, 8\n";
+			output ~= "str x9, [x19], #8\n";
 		}
 		else if (node.name in globals) {
 			auto var = globals[node.name];
-
-			if (var.type.size != 8) {
-				output ~= "xor rax, rax\n";
-			}
 
 			if (var.type.isStruct) {
 				Error(node.error, "Can't push value of struct");
 			}
 
 			string symbol = format("__global_%s", node.name.Sanitise());
+			output ~= format("ldr x9, =%s\n", symbol);
 
 			switch (var.type.size) {
-				case 1: output ~= format("mov al, [%s]\n", symbol); break;
-				case 2: output ~= format("mov ax, [%s]\n", symbol); break;
-				case 4: output ~= format("mov eax, [%s]\n", symbol); break;
-				case 8: output ~= format("mov rax, [%s]\n", symbol); break;
+				case 1: output ~= "ldrb w9, [x9]\n"; break;
+				case 2: output ~= "ldrh w9, [x9]\n"; break;
+				case 4: output ~= "ldr w9, [x9]\n"; break;
+				case 8: output ~= "ldr x9, [x9]\n"; break;
 				default: Error(node.error, "Bad variable type size");
 			}
 
-			output ~= "mov [r15], rax\n";
-			output ~= "add r15, 8\n";
+			output ~= "str x9, [x19], #8\n";
 		}
 		else if (node.name in consts) {
 			auto value  = consts[node.name].value;
@@ -586,14 +501,8 @@ class BackendX86_64 : CompilerBackend {
 	}
 	
 	override void CompileInteger(IntegerNode node) {
-		if (node.value > 0xFFFF) {
-			output ~= format("mov r14, %d\n", node.value);
-			output ~= "mov [r15], r14\n";
-		}
-		else {
-			output ~= format("mov qword [r15], %d\n", node.value);
-		}
-		output ~= "add r15, 8\n";
+		output ~= format("ldr x9, =%d\n", node.value);
+		output ~= "str x9, [x19], #8\n";
 	}
 	
 	override void CompileFuncDef(FuncDefNode node) {
@@ -619,37 +528,32 @@ class BackendX86_64 : CompilerBackend {
 				node.raw? node.name : format("__func__%s", node.name.Sanitise());
 
 			if (exportSymbols) {
-				output ~= format("global %s\n", symbol);
+				output ~= format(".global %s\n", symbol);
 			}
 
 			output ~= format("%s:\n", symbol);
+			output ~= "str lr, [x20, #-8]!\n";
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
 			}
-
-			//output ~= format("__func_return__%s:\n", node.name.Sanitise());
 
 			size_t scopeSize;
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
 
 				if (var.type.hasDeinit) {
-					output ~= format("lea rax, [rsp + %d\n]", var.offset);
-					output ~= "mov [r15], rax\n";
-					output ~= "add r15, 8\n";
-					output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+					output ~= format("add x9, x20, #%d\n", var.offset);
+					output ~= "str x9, [x19], #8\n";
+					output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
 				}
 			}
-			if (scopeSize == 1) {
-				output ~= "inc rsp\n";
-			}
-			else if (scopeSize > 0) {
-				output ~= format("add rsp, %d\n", scopeSize);
+			if (scopeSize > 0) {
+				OffsetLocalsStack(scopeSize, false);
 			}
 
+			output    ~= "ldr lr, [x20], #8\n";
 			output    ~= "ret\n";
-			//output    ~= format("__func_end__%s:\n", node.name.Sanitise());
 			inScope    = false;
 			variables  = [];
 		}
@@ -664,10 +568,9 @@ class BackendX86_64 : CompilerBackend {
 			foreach (ref inode ; condition) {
 				compiler.CompileNode(inode);
 			}
-			output ~= "sub r15, 8\n";
-			output ~= "mov rax, [r15]\n";
-			output ~= "cmp rax, 0\n";
-			output ~= format("je __if_%d_%d\n", blockNum, condCounter + 1);
+			output ~= "ldr x9, [x19, #-8]!\n";
+			output ~= "cmp x9, #0\n";
+			output ~= format("beq __if_%d_%d\n", blockNum, condCounter + 1);
 
 			// create scope
 			auto oldVars = variables.dup;
@@ -682,17 +585,16 @@ class BackendX86_64 : CompilerBackend {
 				if (oldVars.canFind(var)) continue;
 				if (!var.type.hasDeinit)  continue;
 
-				output ~= format("lea rax, [rsp + %d\n]", var.offset);
-				output ~= "mov [r15], rax\n";
-				output ~= "add r15, 8\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format("add x9, x20, #%d\n", var.offset);
+				output ~= "str x9, [x19], #8\n";
+				output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
 			}
 			if (GetStackSize() - oldSize > 0) {
-				output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
+				OffsetLocalsStack(GetStackSize() - oldSize, false);
 			}
 			variables = oldVars;
 
-			output ~= format("jmp __if_%d_end\n", blockNum);
+			output ~= format("b __if_%d_end\n", blockNum);
 
 			++ condCounter;
 			output ~= format("__if_%d_%d:\n", blockNum, condCounter);
@@ -712,13 +614,12 @@ class BackendX86_64 : CompilerBackend {
 				if (oldVars.canFind(var)) continue;
 				if (!var.type.hasDeinit)  continue;
 
-				output ~= format("lea rax, [rsp + %d\n]", var.offset);
-				output ~= "mov [r15], rax\n";
-				output ~= "add r15, 8\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format("add x9, x20, #%d\n", var.offset);
+				output ~= "str x9, [x19], #8\n";
+				output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
 			}
 			if (GetStackSize() - oldSize > 0) {
-				output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
+				OffsetLocalsStack(GetStackSize() - oldSize, false);
 			}
 			variables = oldVars;
 		}
@@ -731,7 +632,7 @@ class BackendX86_64 : CompilerBackend {
 		uint blockNum = blockCounter;
 		currentLoop   = blockNum;
 
-		output ~= format("jmp __while_%d_condition\n", blockNum);
+		output ~= format("b __while_%d_condition\n", blockNum);
 		output ~= format("__while_%d:\n", blockNum);
 
 		// make scope
@@ -751,13 +652,12 @@ class BackendX86_64 : CompilerBackend {
 			if (oldVars.canFind(var)) continue;
 			if (!var.type.hasDeinit)  continue;
 
-			output ~= format("lea rax, [rsp + %d\n]", var.offset);
-			output ~= "mov [r15], rax\n";
-			output ~= "add r15, 8\n";
-			output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+			output ~= format("add x9, x20, #%d\n", var.offset);
+			output ~= "str x9, [x19], #8\n";
+			output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
 		}
 		if (GetStackSize() - oldSize > 0) {
-			output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
+			OffsetLocalsStack(GetStackSize() - oldSize, false);
 		}
 		variables = oldVars;
 
@@ -769,10 +669,9 @@ class BackendX86_64 : CompilerBackend {
 			compiler.CompileNode(inode);
 		}
 
-		output ~= "sub r15, 8\n";
-		output ~= "mov rax, [r15]\n";
-		output ~= "cmp rax, 0\n";
-		output ~= format("jne __while_%d\n", blockNum);
+		output ~= "ldr x9, [x19, #-8]!\n";
+		output ~= "cmp x9, #0\n";
+		output ~= format("bne __while_%d\n", blockNum);
 		output ~= format("__while_%d_end:\n", blockNum);
 	}
 	
@@ -801,17 +700,17 @@ class BackendX86_64 : CompilerBackend {
 
 			variables ~= var;
 
-			if (var.Size() == 8) {
-				output ~= "push 0\n";
-			}
-			else {
-				output ~= format("sub rsp, %d\n", var.Size());
+			switch (var.Size()) {
+				case 1: output ~= "strb wzr, [x20, #-1]!\n"; break;
+				case 2: output ~= "strh wzr, [x20, #-2]!\n"; break;
+				case 4: output ~= "str wzr, [x20, #-4]!\n"; break;
+				case 8: output ~= "str xzr, [x20, #-8]!\n"; break;
+				default: OffsetLocalsStack(var.Size(), true);
 			}
 
 			if (var.type.hasInit) { // call constructor
-				output ~= "mov [r15], rsp\n";
-				output ~= "add r15, 8\n";
-				output ~= format("call __type_init_%s\n", Sanitise(var.type.name));
+				output ~= "str x20, [x19], #8\n";
+				output ~= format("bl __type_init_%s\n", var.type.name.Sanitise());
 			}
 		}
 		else {
@@ -848,18 +747,20 @@ class BackendX86_64 : CompilerBackend {
 		arrays       ~= array;
 
 		if (!inScope || node.constant) {
-			output ~= format("mov rax, __array_%d_meta\n", arrays.length - 1);
-			output ~= "mov qword [r15], rax\n";
-			output ~= "add r15, 8\n";
+			output ~= format("ldr x9, =__array_%d_meta\n", arrays.length - 1);
+			output ~= "str x9, [x19], #8\n";
 		}
 		else {
 			// allocate a copy of this array
-			output ~= format("sub rsp, %d\n", array.Size());
-			output ~= "mov rax, rsp\n";
-			output ~= format("mov rsi, __array_%d\n", arrays.length - 1);
-			output ~= "mov rdi, rax\n";
-			output ~= format("mov rcx, %d\n", array.Size());
-			output ~= format("rep movsb\n");
+			OffsetLocalsStack(array.Size(), true);
+			output ~= "mov x9, x20\n";
+			output ~= format("ldr x10, =__array_%d\n", arrays.length - 1);
+			output ~= format("ldr x11, =%d\n", array.Size());
+			output ~= "1:\n";
+			output ~= "ldrb w12, [x10], #1\n";
+			output ~= "strb w12, [x9], #1\n";
+			output ~= "subs x11, x11, #1\n";
+			output ~= "bne 1b\n";
 
 			Variable var;
 			var.type      = array.type;
@@ -884,15 +785,17 @@ class BackendX86_64 : CompilerBackend {
 
 			variables ~= var;
 
-			output ~= "mov rax, rsp\n";
-			output ~= format("sub rsp, %d\n", 8 * 3); // size of Array structure
-			output ~= format("mov qword [rsp], %d\n", array.values.length); // length
-			output ~= format("mov qword [rsp + 8], %d\n", array.type.size); // member size
-			output ~= "mov [rsp + 16], rax\n"; // elements
+			output ~= "mov x9, x20\n";
+			output ~= format("sub x20, x20, #%d\n", var.type.size); // size of Array structure
+			output ~= format("ldr x10, =%d\n", array.values.length);
+			output ~= "str x10, [x20]\n"; // length
+			output ~= format("ldr x10, =%d\n", array.type.size);
+			output ~= "str x10, [x20, #8]\n"; // member size
+			output ~= "str x9, [x20, #16]\n"; // elements
 
 			// push metadata address
-			output ~= "mov [r15], rsp\n";
-			output ~= "add r15, 8\n";
+			output ~= "mov x9, x20\n";
+			output ~= "str x9, [x19], #8\n";
 		}
 	}
 	
@@ -968,19 +871,16 @@ class BackendX86_64 : CompilerBackend {
 			scopeSize += var.Size();
 
 			if (var.type.hasDeinit) {
-				output ~= format("lea rax, [rsp + %d\n]", var.offset);
-				output ~= "mov [r15], rax\n";
-				output ~= "add r15, 8\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format("add x9, x20, #%d\n", var.offset);
+				output ~= "str x9, [x19], #8\n";
+				output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
 			}
 		}
-		if (scopeSize == 1) {
-			output ~= "inc rsp\n";
-		}
-		else if (scopeSize > 0) {
-			output ~= format("add rsp, %d\n", scopeSize);
+		if (scopeSize > 0) {
+			OffsetLocalsStack(scopeSize, false);
 		}
 
+		output ~= "ldr lr, [x20], #8\n";
 		output ~= "ret\n";
 	}
 
@@ -1018,7 +918,7 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format("jmp __while_%d_end\n", currentLoop);
+		output ~= format("b __while_%d_end\n", currentLoop);
 	}
 
 	override void CompileContinue(WordNode node) {
@@ -1026,7 +926,7 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format("jmp __while_%d_next\n", currentLoop);
+		output ~= format("b __while_%d_next\n", currentLoop);
 	}
 
 	override void CompileUnion(UnionNode node) {
@@ -1104,16 +1004,15 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		if (word.type != WordType.Callisto) {
-			output ~= format("extern %s\n", node.func);
+			output ~= format(".extern %s\n", node.func);
 		}
 
 		words[node.func] = word;
 	}
 
 	override void CompileCall(WordNode node) {
-		output ~= "sub r15, 8\n";
-		output ~= "mov rax, [r15]\n";
-		output ~= "call rax\n";
+		output ~= "ldr x9, [x19, #-8]!\n";
+		output ~= "blr x9\n";
 	}
 
 	override void CompileAddr(AddrNode node) {
@@ -1122,28 +1021,20 @@ class BackendX86_64 : CompilerBackend {
 			string symbol = word.type == WordType.Callisto?
 				format("__func__%s", node.func.Sanitise()) : node.func;
 
-			output ~= format("mov rax, %s\n", symbol);
-			output ~= "mov [r15], rax\n";
-			output ~= "add r15, 8\n";
+			output ~= format("ldr x9, =%s\n", symbol);
+			output ~= "str x9, [x19], #8\n";
 		}
 		else if (node.func in globals) {
 			auto var = globals[node.func];
 
-			output ~= format(
-				"lea rax, qword [__global_%s]\n", node.func.Sanitise()
-			);
-			output ~= "mov [r15], rax\n";
-			output ~= "add r15, 8\n";
+			output ~= format("ldr x9, =__global_%s\n", node.func.Sanitise());
+			output ~= "str x9, [x19], #8\n";
 		}
 		else if (VariableExists(node.func)) {
 			auto var = GetVariable(node.func);
 
-			output ~= "mov rdi, rsp\n";
-			if (var.offset > 0) {
-				output ~= format("add rdi, %d\n", var.offset);
-			}
-			output ~= "mov [r15], rdi\n";
-			output ~= "add r15, 8\n";
+			output ~= format("add x9, x20, #%d\n", var.offset);
+			output ~= "str x9, [x19], #8\n";
 		}
 		else {
 			Error(node.error, "Undefined identifier '%s'", node.func);
@@ -1186,6 +1077,7 @@ class BackendX86_64 : CompilerBackend {
 		inScope = true;
 
 		output ~= format("%s:\n", labelName);
+		output ~= "str lr, [x20, #-8]!\n";
 
 		foreach (ref inode ; node.nodes) {
 			compiler.CompileNode(inode);
@@ -1196,27 +1088,23 @@ class BackendX86_64 : CompilerBackend {
 			scopeSize += var.Size();
 
 			if (var.type.hasDeinit) {
-				output ~= format("lea rax, [rsp + %d\n]", var.offset);
-				output ~= "mov [r15], rax\n";
-				output ~= "add r15, 8\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format("add x9, x20, #%d\n", var.offset);
+				output ~= "str x9, [x19], #8\n";
+				output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
 			}
 		}
-		if (scopeSize == 1) {
-			output ~= "inc rsp\n";
-		}
-		else if (scopeSize > 0) {
-			output ~= format("add rsp, %d\n", scopeSize);
+		if (scopeSize > 0) {
+			OffsetLocalsStack(scopeSize, false);
 		}
 
+		output    ~= "ldr lr, [x20], #8\n";
 		output    ~= "ret\n";
 		inScope    = false;
 		variables  = [];
 	}
 
 	override void CompileSet(SetNode node) {
-		output ~= "sub r15, 8\n";
-		output ~= "mov rax, [r15]\n";
+		output ~= "ldr x9, [x19, #-8]!\n";
 
 		if (VariableExists(node.var)) {
 			auto var = GetVariable(node.var);
@@ -1226,10 +1114,10 @@ class BackendX86_64 : CompilerBackend {
 			}
 
 			switch (var.type.size) {
-				case 1: output ~= format("mov [rsp + %d], al\n", var.offset); break;
-				case 2: output ~= format("mov [rsp + %d], ax\n", var.offset); break;
-				case 4: output ~= format("mov [rsp + %d], eax\n", var.offset); break;
-				case 8: output ~= format("mov [rsp + %d], rax\n", var.offset); break;
+				case 1: output ~= format("strb w9, [x20, #%d]\n", var.offset); break;
+				case 2: output ~= format("strh w9, [x20, #%d]\n", var.offset); break;
+				case 4: output ~= format("str w9, [x20, #%d]\n", var.offset); break;
+				case 8: output ~= format("str x9, [x20, #%d]\n", var.offset); break;
 				default: Error(node.error, "Bad variable type size");
 			}
 		}
@@ -1241,22 +1129,27 @@ class BackendX86_64 : CompilerBackend {
 			}
 
 			string symbol = format("__global_%s", node.var.Sanitise());
-
-			if (global.type.size != 8) {
-				output ~= "xor rbx, rbx\n";
-				output ~= format("mov [%s], rbx\n", symbol);
-			}
+			output ~= format("ldr x10, =%s\n", symbol);
 
 			switch (global.type.size) {
-				case 1: output ~= format("mov [%s], al\n", symbol); break;
-				case 2: output ~= format("mov [%s], ax\n", symbol); break;
-				case 4: output ~= format("mov [%s], eax\n", symbol); break;
-				case 8: output ~= format("mov [%s], rax\n", symbol); break;
+				case 1: output ~= "strb w9, [x10]\n"; break;
+				case 2: output ~= "strh w9, [x10]\n"; break;
+				case 4: output ~= "str w9, [x10]\n"; break;
+				case 8: output ~= "str x9, [x10]\n"; break;
 				default: Error(node.error, "Bad variable type size");
 			}
 		}
 		else {
 			Error(node.error, "Variable '%s' doesn't exist", node.var);
+		}
+	}
+
+	void OffsetLocalsStack(size_t offset, bool sub) {
+		if (offset >= 4096) {
+			output ~= format("mov x9, #%d\n", offset);
+			output ~= format("%s x20, x20, x9\n", sub ? "sub" : "add");
+		} else {
+			output ~= format("%s x20, x20, #%d\n", sub ? "sub" : "add", offset);
 		}
 	}
 }

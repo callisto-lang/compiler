@@ -5,7 +5,7 @@ let cell myGlobal
 func myFunc begin
 	let cell myVar
 	'A' -> myVar
-	myVa printch
+	myVar printch
 end
 
 myFunc

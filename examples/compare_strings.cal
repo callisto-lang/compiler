@@ -10,10 +10,10 @@ let Array str2
 
 &str1 &str2 a= printdec new_line
 
-"Hi" str2 a<
+"Hi" &str2 a<
 &str1 &str2 a= printdec new_line
 
-"Greetings" str1 a<
+"Greetings" &str1 a<
 &str1 &str2 a= printdec new_line
 
 &str1 "Greetings" a= printdec new_line
