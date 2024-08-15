@@ -6,8 +6,9 @@ It also has a subset called CallistoScript made for scripting languages like Lua
 it's still sort of low level
 
 ## Supported targets
-- x86 real mode (complete)
-- x86_64 Linux (complete)
+- x86 real mode, MS-DOS (complete)
+- x86_64 Linux, macOS (complete)
+- ARM64 Linux (complete)
 - Uxn (complete, `implement` broken, see #6)
 - Lua (complete, subset CallistoScript)
 
