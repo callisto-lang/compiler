@@ -1,22 +1,30 @@
 include "cores/select.cal"
 include "std/io.cal"
 
-# will execute on RM86 backend
+# Print a different message for each core
+
 version RM86
 	"Hello, RM86!\n" printstr
 end
 
-# will execute on Linux86 backend
-version Linux86
-	"Hello, Linux86!\n" printstr
+version x86_64
+	"Hello, x86_64!\n" printstr
 end
 
-# won't execute unless you set the Foo version
+version arm64
+	"Hello, arm64!\n" printstr
+end
+
+version UXN
+	"Hello, Uxn!\n" printstr
+end
+
+# Specify arbitrary versions to use them as compile-time flags
 version Foo
-	"Hello, Foo!\n" printstr
+	"Foo is enabled :D\n" printstr
 end
 
-# will execute because Foo isn't set
+# This one will run by default unless you set Foo
 version not Foo
-	"Hello, not Foo!\n" printstr
+	"Foo is not enabled :(\n" printstr
 end
