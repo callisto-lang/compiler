@@ -6,6 +6,7 @@ import std.stdio;
 import std.string;
 import std.process;
 import std.algorithm;
+import callisto.error;
 import callisto.compiler;
 import callisto.language;
 import callisto.codeRemover;
@@ -75,7 +76,7 @@ int main(string[] args) {
 	bool            optimise;
 	string[]        versions;
 	bool            runFinal = true;
-	CompilerBackend backend = new BackendX86_64();
+	CompilerBackend backend;
 	bool            doDebug;
 	bool            debugParser;
 	bool            exportSymbols;
@@ -86,6 +87,17 @@ int main(string[] args) {
 	bool            keepAssembly;
 	bool            assemblyLines;
 	string          os = "DEFAULT";
+
+	// choose default backend
+	version (X86_64) {
+		backend = new BackendX86_64();
+	}
+	else version (AArch64) {
+		backend = new BackendARM64();
+	}
+	else {
+		WarnNoInfo("No default backend for your system");
+	}
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -289,6 +301,10 @@ int main(string[] args) {
 
 			file = args[i];
 		}
+	}
+
+	if (backend is null) {
+		ErrorNoInfo("No backend selected");
 	}
 
 	if (os == "DEFAULT") {
