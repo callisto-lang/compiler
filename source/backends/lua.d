@@ -326,6 +326,42 @@ class BackendLua : CompilerBackend {
 			words[node.name] = Word(WordType.Callisto, false);
 
 			output ~= format("function func__%s()\n", node.name.Sanitise());
+
+			// allocate parameters
+			size_t paramSize;
+			foreach (ref type ; node.paramTypes) {
+				if (!TypeExists(type)) {
+					Error(node.error, "Type '%s' doesn't exist", type);
+				}
+
+				paramSize += GetType(type).size;
+			}
+			if (paramSize > 0) {
+				output ~= format("vsp = vsp - %d\n", paramSize);
+				foreach (ref var ; variables) {
+					var.offset += paramSize;
+				}
+
+				size_t offset;
+				foreach (i, ref type ; node.paramTypes) {
+					auto     param = node.params[i];
+					Variable var;
+
+					var.name      = param;
+					var.type      = GetType(type);
+					var.offset    = cast(uint) offset;
+					offset       += var.Size();
+					variables    ~= var;
+				}
+
+				// copy data to parameters
+				output ~= format("
+					for i = 1, %d do
+						mem[vsp + (i - 1)] = mem[(dsp - %d) + (i - 1)]
+					end
+				", paramSize, paramSize);
+			}
+
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
 			}
