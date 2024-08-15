@@ -1,0 +1,17 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+let addr meow
+8 malloc -> meow
+
+"Address: " printstr
+meow printdec new_line
+
+64 meow !
+meow @ printdec new_line
+
+"New address: " printstr
+meow 16 realloc printdec new_line
+
+128 meow 8 + !
+meow 8 + @ printdec new_line
