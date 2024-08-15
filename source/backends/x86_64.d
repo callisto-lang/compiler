@@ -801,14 +801,8 @@ class BackendX86_64 : CompilerBackend {
 
 			variables ~= var;
 
-			if (var.Size() == 2) {
-				output ~= "push word 0\n";
-			}
-			else if (var.Size() == 4) {
-				output ~= "push dword 0\n";
-			}
-			else if (var.Size() == 8) {
-				output ~= "push qword 0\n";
+			if (var.Size() == 8) {
+				output ~= "push 0\n";
 			}
 			else {
 				output ~= format("sub rsp, %d\n", var.Size());
