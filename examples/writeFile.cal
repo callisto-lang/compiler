@@ -10,7 +10,7 @@ if &file @ -2 = then
 end
 
 let Array str
-"meow\n" str a<
+"meow\n" &str a<
 
 &file
 &str Array.elements + @
