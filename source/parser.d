@@ -79,10 +79,12 @@ class IntegerNode : Node {
 }
 
 class FuncDefNode : Node {
-	string name;
-	Node[] nodes;
-	bool   inline;
-	bool   raw;
+	string   name;
+	Node[]   nodes;
+	bool     inline;
+	bool     raw;
+	string[] paramTypes;
+	string[] params;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.FuncDef;
@@ -90,7 +92,12 @@ class FuncDefNode : Node {
 	}
 
 	override string toString() {
-		string ret = format("func %s\n", name);
+		string ret = format("func %s", name);
+
+		foreach (i, ref param ; params) {
+			ret ~= format(" %s %s", paramTypes[i], param);
+		}
+		ret ~= " begin\n";
 
 		foreach (ref node ; nodes) {
 			ret ~= "    " ~ node.toString() ~ '\n';
@@ -526,6 +533,12 @@ class Parser {
 		}
 	}
 
+	bool IsIdentifier(string identifier) {
+		return
+			(tokens[i].type == TokenType.Identifier) &&
+			(tokens[i].contents == identifier);
+	}
+
 	Node ParseFuncDef(bool inline) {
 		auto ret   = new FuncDefNode(GetError());
 		ret.inline = inline;
@@ -543,10 +556,16 @@ class Parser {
 		ret.name = tokens[i].contents;
 
 		Next();
-		Expect(TokenType.Identifier);
-		if (tokens[i].contents != "begin") {
-			Error("Expected begin keyword"); // TODO: add parameters
+
+		while (!IsIdentifier("begin")) {
+			Expect(TokenType.Identifier);
+			ret.paramTypes ~= tokens[i].contents;
+			Next();
+			Expect(TokenType.Identifier);
+			ret.params ~= tokens[i].contents;
+			Next();
 		}
+
 		Next();
 
 		while (true) {
