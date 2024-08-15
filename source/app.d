@@ -6,6 +6,7 @@ import std.stdio;
 import std.string;
 import std.process;
 import std.algorithm;
+import callisto.error;
 import callisto.compiler;
 import callisto.language;
 import callisto.codeRemover;
@@ -13,6 +14,7 @@ import callisto.preprocessor;
 import callisto.backends.lua;
 import callisto.backends.uxn;
 import callisto.backends.rm86;
+import callisto.backends.arm64;
 import callisto.backends.x86_64;
 
 const static string usage = "
@@ -45,6 +47,7 @@ Flags:
 Backends and their operating systems:
 	rm86   - Real mode x86, for bare-metal, dos
 	x86_64 - 64-bit x86, for bare-metal, linux
+	arm64  - 64-bit ARM, for linux
 	uxn    - Varvara/Uxn
 	lua    - Lua, uses subset CallistoScript
 
@@ -73,7 +76,7 @@ int main(string[] args) {
 	bool            optimise;
 	string[]        versions;
 	bool            runFinal = true;
-	CompilerBackend backend = new BackendX86_64();
+	CompilerBackend backend;
 	bool            doDebug;
 	bool            debugParser;
 	bool            exportSymbols;
@@ -84,6 +87,17 @@ int main(string[] args) {
 	bool            keepAssembly;
 	bool            assemblyLines;
 	string          os = "DEFAULT";
+
+	// choose default backend
+	version (X86_64) {
+		backend = new BackendX86_64();
+	}
+	else version (AArch64) {
+		backend = new BackendARM64();
+	}
+	else {
+		WarnNoInfo("No default backend for your system");
+	}
 
 	for (size_t i = 1; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -160,6 +174,10 @@ int main(string[] args) {
 						}
 						case "x86_64": {
 							backend = new BackendX86_64();
+							break;
+						}
+						case "arm64": {
+							backend = new BackendARM64();
 							break;
 						}
 						case "uxn": {
@@ -283,6 +301,10 @@ int main(string[] args) {
 
 			file = args[i];
 		}
+	}
+
+	if (backend is null) {
+		ErrorNoInfo("No backend selected");
 	}
 
 	if (os == "DEFAULT") {
