@@ -3,10 +3,10 @@ include "std/io.cal"
 include "std/array.cal"
 
 let Array myArray
-[u16 1 2 3 4 5] myArray a<
+[u16 1 2 3 4 5] &myArray a<
 
-0 myArray a@ printdec 10 printch
-1 myArray a@ printdec 10 printch
+0 &myArray a@ printdec 10 printch
+1 &myArray a@ printdec 10 printch
 
-100 2 myArray a!
-2 myArray a@ printdec 10 printch
+100 2 &myArray a!
+2 &myArray a@ printdec 10 printch
