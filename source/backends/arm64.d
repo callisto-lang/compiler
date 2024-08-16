@@ -202,7 +202,7 @@ class BackendARM64 : CompilerBackend {
 				break;
 			}
 			case "osx": {
-				ret ~= ["OSX", "IO", "Args", "Exit"];
+				ret ~= ["OSX", "IO", "File", "Args", "Exit"];
 				break;
 			}
 			default: break;
