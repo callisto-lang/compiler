@@ -313,8 +313,9 @@ class BackendX86_64 : CompilerBackend {
 		foreach (name, global ; globals) {
 			if (global.type.hasInit) {
 				output ~= format(
-					"mov qword [r15], qword __global_%s\n", name.Sanitise()
+					"lea rax, qword [__global_%s]\n", name.Sanitise()
 				);
+				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
 			}
@@ -388,7 +389,8 @@ class BackendX86_64 : CompilerBackend {
 		// call destructors
 		foreach (name, global ; globals) {
 			if (global.type.hasDeinit) {
-				output ~= format("mov qword [r15], qword __global_%s\n", Sanitise(name));
+				output ~= format("lea rax, qword [__global_%s]\n", Sanitise(name));
+				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 				output ~= format("call __type_deinit_%s\n", Sanitise(global.type.name));
 			}
