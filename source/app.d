@@ -32,7 +32,7 @@ Flags:
 	-na        - Disables the -a flag
 	--version  - Shows the callisto version
 	-dp        - Prints parser output
-	-es        - Export all Callisto symbols (and add util functions for interacting
+	-es        - Export all Callisto symbols (and add util function	s for interacting
 	             with the Callisto stack)
 	-d         - Enables debug symbols (if available)
 	-l LIB     - Links LIB with the linker (if available)
@@ -197,7 +197,7 @@ int main(string[] args) {
 					break;
 				}
 				case "--version": {
-					writeln("Callisto compiler beta 0.7.0");
+					writeln("Callisto compiler beta 0.8.0");
 					return 0;
 				}
 				case "-a": {
@@ -284,7 +284,7 @@ int main(string[] args) {
 					break;
 				}
 				case "--help": {
-					writefln(usage.strip(), args[0]);
+					writeln(usage.strip());
 					return 0;
 				}
 				default: {
