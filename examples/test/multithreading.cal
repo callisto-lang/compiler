@@ -1,0 +1,64 @@
+# doesn't even work, just trying it out
+
+include "cores/select.cal"
+include "std/io.cal"
+
+const __linux_MAP_GROWSDOWN 256
+const __linux_CLONE_VM 256
+const __linux_CLONE_FS 512
+const __linux_CLONE_FILES 1024
+const __linux_CLONE_SIGHAND 2048
+const __linux_CLONE_PARENT 32768
+const __linux_CLONE_THREAD 65536
+const __linux_CLONE_IO 2147483648
+
+func __linux_clone begin
+	__x86_64_pop_rsi
+	__x86_64_pop_rdi
+
+	asm
+		"mov rax, 56"
+		"syscall"
+	end
+
+	__x86_64_push_rax
+end
+
+const STACK_SIZE 4194304
+
+func new_thread addr function begin
+	# create stack
+	let addr stack
+	STACK_SIZE malloc -> stack
+	stack printdec new_line
+	stack STACK_SIZE + -> stack
+
+	# flags
+	__linux_CLONE_VM
+	__linux_CLONE_FS or
+	__linux_CLONE_FILES or
+	__linux_CLONE_SIGHAND or
+	__linux_CLONE_PARENT or
+	__linux_CLONE_THREAD or
+	__linux_CLONE_IO or
+	stack __linux_clone
+
+	dup printdec new_line
+
+	if 0 = then
+		# stinky winky callisto runtime just to get stuff working
+		asm
+			"sub rsp, 4096"
+			"mov r15, rsp"
+		end
+		function call
+		0 exit
+	end
+end
+
+func my_thread begin
+	65 printdec new_line
+end
+
+"hi from parent\n" printstr
+&my_thread new_thread
