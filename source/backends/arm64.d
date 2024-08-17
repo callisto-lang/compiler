@@ -202,7 +202,8 @@ class BackendARM64 : CompilerBackend {
 				break;
 			}
 			case "osx": {
-				ret ~= ["OSX", "IO", "File", "Args", "Exit"];
+				ret ~= ["OSX", "IO", "File", "Args", "Time", "Exit"];
+				if (useLibc) ret ~= "Heap";
 				break;
 			}
 			default: break;
@@ -240,25 +241,31 @@ class BackendARM64 : CompilerBackend {
 		}
 
 		if (useLibc) {
-			string[] possiblePaths = [
-				"/usr/aarch64-linux-gnu/lib/crt1.o",
-				"/usr/lib/crt1.o",
-				"/usr/lib64/crt1.o",
-			];
-			bool crt1;
+			if (os == "linux") {
+				string[] possiblePaths = [
+					"/usr/aarch64-linux-gnu/lib/crt1.o",
+					"/usr/lib/crt1.o",
+					"/usr/lib64/crt1.o",
+				];
+				bool crt1;
 
-			foreach (ref path ; possiblePaths) {
-				if (path.exists) {
-					crt1 = true;
-					linkCommand ~= format(" %s", path);
-					linkCommand ~= format(" %s/crti.o", path.dirName);
-					linkCommand ~= format(" %s/crtn.o", path.dirName);
-					break;
+				foreach (ref path ; possiblePaths) {
+					if (path.exists) {
+						crt1 = true;
+						linkCommand ~= format(" %s", path);
+						linkCommand ~= format(" %s/crti.o", path.dirName);
+						linkCommand ~= format(" %s/crtn.o", path.dirName);
+						break;
+					}
 				}
-			}
 
-			if (!crt1) {
-				stderr.writeln("WARNING: Failed to find crt1.o, program may behave incorrectly");
+				if (!crt1) {
+					stderr.writeln("WARNING: Failed to find crt1.o, program may behave incorrectly");
+				}
+			} else if (os == "osx") {
+				linkCommand ~= " -lSystem -syslibroot `xcrun --sdk macosx --show-sdk-path`";
+			} else {
+				WarnNoInfo("Cannot use libc on operating system '%s'", os);
 			}
 		}
 
@@ -309,7 +316,7 @@ class BackendARM64 : CompilerBackend {
 			}
 		}
 		else if (word.type == WordType.Raw) {
-			output ~= format("bl %s\n", name);
+			output ~= format("bl %s\n", ExternSymbol(name));
 		}
 		else if (word.type == WordType.C) {
 			assert(0); // TODO: error
@@ -326,12 +333,12 @@ class BackendARM64 : CompilerBackend {
 		}
 
 		output ~= ".text\n";
-		if (useLibc) {
-			output ~= ".global main\n";
-			output ~= "main:\n";
-		} else if (os == "osx") {
+		if (os == "osx") {
 			output ~= ".global _main\n";
 			output ~= "_main:\n";
+		} else if (useLibc) {
+			output ~= ".global main\n";
+			output ~= "main:\n";
 		} else {
 			output ~= ".global _start\n";
 			output ~= "_start:\n";
@@ -449,7 +456,7 @@ class BackendARM64 : CompilerBackend {
 			}
 			else {
 				if (word.type == WordType.Raw) {
-					output ~= format("bl %s\n", node.name);
+					output ~= format("bl %s\n", ExternSymbol(node.name));
 				}
 				else if (word.type == WordType.C) {
 					// TODO: support more of the calling convention (especially structs)
@@ -463,7 +470,7 @@ class BackendARM64 : CompilerBackend {
 						output ~= format("ldr x%d, [x19, #-8]!\n", reg);
 					}
 				
-					output ~= format("bl %s\n", word.symbolName);
+					output ~= format("bl %s\n", ExternSymbol(word.symbolName));
 
 					if (!word.isVoid) {
 						output ~= "str x0, [x19], #8\n";
@@ -1071,7 +1078,7 @@ class BackendARM64 : CompilerBackend {
 		}
 
 		if (word.type != WordType.Callisto) {
-			output ~= format(".extern %s\n", node.func);
+			output ~= format(".extern %s\n", ExternSymbol(node.func));
 		}
 
 		words[funcName] = word;
@@ -1086,7 +1093,7 @@ class BackendARM64 : CompilerBackend {
 		if (node.func in words) {
 			auto   word   = words[node.func];
 			string symbol = word.type == WordType.Callisto?
-				format("__func__%s", node.func.Sanitise()) : node.func;
+				format("__func__%s", node.func.Sanitise()) : ExternSymbol(node.func);
 
 			LoadAddress("x9", symbol);
 			output ~= "str x9, [x19], #8\n";
@@ -1225,6 +1232,14 @@ class BackendARM64 : CompilerBackend {
 			output ~= format("add %s, %s, %s@PAGEOFF\n", reg, reg, symbol);
 		} else {
 			output ~= format("ldr %s, =%s\n", reg, symbol);
+		}
+	}
+
+	private string ExternSymbol(string name) {
+		if (os == "osx") {
+			return "_" ~ name;
+		} else {
+			return name;
 		}
 	}
 }
