@@ -563,7 +563,9 @@ class BackendARM64 : CompilerBackend {
 				}
 
 				// copy data to parameters
-				output ~= format("sub x9, x19, #%d\n", paramSize);
+				output ~= format("sub x19, x19, #%d\n", paramSize);
+				//output ~= format("sub x9, x19, #%d\n", paramSize);
+				output ~= "mov x9, x19\n";
 				output ~= "mov x10, x20\n";
 				output ~= format("mov x11, #%d\n", paramSize);
 				output ~= "1:\n";
