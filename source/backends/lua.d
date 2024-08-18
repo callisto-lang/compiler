@@ -333,7 +333,7 @@ class BackendLua : CompilerBackend {
 				if (!TypeExists(type)) {
 					Error(node.error, "Type '%s' doesn't exist", type);
 				}
-				if (type.isStruct) {
+				if (GetType(type).isStruct) {
 					Error(node.error, "Structures cannot be used in function parameters");
 				}
 			}

@@ -352,13 +352,14 @@ class BackendUXN : CompilerBackend {
 			output ~= format("@%s\n", symbol);
 
 			// allocate parameters
-			size_t paramSize;
+			size_t paramSize = node.params.length * 2;
 			foreach (ref type ; node.paramTypes) {
 				if (!TypeExists(type)) {
 					Error(node.error, "Type '%s' doesn't exist", type);
 				}
-
-				paramSize += GetType(type).size;
+				if (GetType(type).isStruct) {
+					Error(node.error, "Structures cannot be used in function parameters");
+				}
 			}
 			if (paramSize > 0) {
 				output ~= format(".vsp LDZ2 #%.4x SUB2 .vsp STZ2\n", paramSize);
