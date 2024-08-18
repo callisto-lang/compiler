@@ -535,13 +535,14 @@ class BackendARM64 : CompilerBackend {
 			output ~= "str lr, [x20, #-8]!\n";
 
 			// allocate parameters
-			size_t paramSize;
+			size_t paramSize = node.params.length * 8;
 			foreach (ref type ; node.paramTypes) {
 				if (!TypeExists(type)) {
 					Error(node.error, "Type '%s' doesn't exist", type);
 				}
-
-				paramSize += GetType(type).size;
+				if (type.isStruct) {
+					Error(node.error, "Structures cannot be used in function parameters");
+				}
 			}
 			if (paramSize > 0) {
 				output ~= format("sub x20, x20, #%d\n", paramSize);

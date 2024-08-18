@@ -705,7 +705,6 @@ class Parser {
 		Next();
 
 		while (true) {
-			parsing = NodeType.While;
 			if (
 				(tokens[i].type == TokenType.Identifier) &&
 				(tokens[i].contents == "do")
@@ -715,6 +714,7 @@ class Parser {
 
 			ret.condition ~= ParseStatement();
 			Next();
+			parsing = NodeType.While;
 		}
 
 		Next();
@@ -730,6 +730,7 @@ class Parser {
 
 			ret.doWhile ~= ParseStatement();
 			Next();
+			parsing  = NodeType.While;
 		}
 
 		return ret;

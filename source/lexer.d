@@ -25,6 +25,10 @@ struct Token {
 	string    file;
 	size_t    line;
 	size_t    col;
+
+	ErrorInfo GetError() {
+		return ErrorInfo(file, line, col);
+	}
 }
 
 class Lexer {

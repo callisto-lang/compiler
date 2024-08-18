@@ -410,13 +410,14 @@ class BackendRM86 : CompilerBackend {
 			output ~= format("%s:\n", symbol);
 
 			// allocate parameters
-			size_t paramSize;
+			size_t paramSize = node.params.length * 2;
 			foreach (ref type ; node.paramTypes) {
 				if (!TypeExists(type)) {
 					Error(node.error, "Type '%s' doesn't exist", type);
 				}
-
-				paramSize += GetType(type).size;
+				if (type.isStruct) {
+					Error(node.error, "Structures cannot be used in function parameters");
+				}
 			}
 			if (paramSize > 0) {
 				output ~= format("sub sp, %d\n", paramSize);
@@ -437,8 +438,8 @@ class BackendRM86 : CompilerBackend {
 				}
 
 				// copy data to parameters
-				output ~= "mov ax, si\n";
 				output ~= format("sub si, %d\n", paramSize);
+				output ~= "mov ax, si\n";
 				output ~= "mov di, sp\n";
 				output ~= format("mov cx, %d\n", paramSize);
 				output ~= "rep movsb\n";

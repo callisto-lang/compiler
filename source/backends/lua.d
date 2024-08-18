@@ -328,13 +328,14 @@ class BackendLua : CompilerBackend {
 			output ~= format("function func__%s()\n", node.name.Sanitise());
 
 			// allocate parameters
-			size_t paramSize;
+			size_t paramSize = node.params.length;
 			foreach (ref type ; node.paramTypes) {
 				if (!TypeExists(type)) {
 					Error(node.error, "Type '%s' doesn't exist", type);
 				}
-
-				paramSize += GetType(type).size;
+				if (type.isStruct) {
+					Error(node.error, "Structures cannot be used in function parameters");
+				}
 			}
 			if (paramSize > 0) {
 				output ~= format("vsp = vsp - %d\n", paramSize);
@@ -355,11 +356,12 @@ class BackendLua : CompilerBackend {
 				}
 
 				// copy data to parameters
+				output ~= format("dsp = dsp - %d\n", paramSize);
 				output ~= format("
 					for i = 1, %d do
-						mem[vsp + (i - 1)] = mem[(dsp - %d) + (i - 1)]
+						mem[vsp + (i - 1)] = mem[dsp + (i - 1)]
 					end
-				", paramSize, paramSize);
+				", paramSize);
 			}
 
 			foreach (ref inode ; node.nodes) {
