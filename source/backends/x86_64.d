@@ -28,6 +28,7 @@ private struct Word {
 	Type[] params;
 	Type   ret;
 	bool   isVoid;
+	string symbolName;
 }
 
 private struct StructEntry {
@@ -511,7 +512,7 @@ class BackendX86_64 : CompilerBackend {
 
 					// TODO: support more than 6 parameters
 				
-					output ~= format("call %s\n", node.name);
+					output ~= format("call %s\n", word.symbolName);
 
 					if (!word.isVoid) {
 						output ~= "mov [r15], rax\n";
@@ -1111,6 +1112,8 @@ class BackendX86_64 : CompilerBackend {
 	override void CompileExtern(ExternNode node) {
 		Word word;
 
+		string funcName = node.func;
+
 		final switch (node.externType) {
 			case ExternType.Callisto: word.type = WordType.Callisto; break;
 			case ExternType.Raw:      word.type = WordType.Raw;      break;
@@ -1135,6 +1138,9 @@ class BackendX86_64 : CompilerBackend {
 
 					word.ret = GetType(node.retType);
 				}
+
+				word.symbolName = node.func;
+				funcName        = node.asName;
 				break;
 			}
 		}
@@ -1143,7 +1149,7 @@ class BackendX86_64 : CompilerBackend {
 			output ~= format("extern %s\n", node.func);
 		}
 
-		words[node.func] = word;
+		words[funcName] = word;
 	}
 
 	override void CompileCall(WordNode node) {

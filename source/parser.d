@@ -419,6 +419,7 @@ enum ExternType {
 class ExternNode : Node {
 	string     func;
 	ExternType externType;
+	string     asName;
 
 	// for C extern
 	string[] types;
@@ -1071,6 +1072,13 @@ class Parser {
 				Expect(TokenType.Identifier);
 
 				if (tokens[i].contents == "end") {
+					break;
+				}
+				else if (tokens[i].contents == "as") {
+					Next();
+					Expect(TokenType.Identifier);
+
+					ret.asName = tokens[i].contents;
 					break;
 				}
 

@@ -2,6 +2,6 @@ include "cores/select.cal"
 include "std/io.cal"
 include "std/nullterm.cal"
 
-extern C i32 puts addr end
+extern C i32 puts addr as c_puts
 
-"Hello!\0" Array.elements + @ puts drop
+"Hello!\0" Array.elements + @ c_puts drop

@@ -29,6 +29,7 @@ private struct Word {
 	Type[] params;
 	Type   ret;
 	bool   isVoid;
+	string symbolName;
 }
 
 private struct StructEntry {
@@ -441,7 +442,7 @@ class BackendARM64 : CompilerBackend {
 						output ~= format("ldr x%d, [x19, #-8]!\n", reg);
 					}
 				
-					output ~= format("bl %s\n", node.name);
+					output ~= format("bl %s\n", word.symbolName);
 
 					if (!word.isVoid) {
 						output ~= "str x0, [x19], #8\n";
@@ -1016,6 +1017,8 @@ class BackendARM64 : CompilerBackend {
 	override void CompileExtern(ExternNode node) {
 		Word word;
 
+		string funcName = node.func;
+
 		final switch (node.externType) {
 			case ExternType.Callisto: word.type = WordType.Callisto; break;
 			case ExternType.Raw:      word.type = WordType.Raw;      break;
@@ -1040,6 +1043,9 @@ class BackendARM64 : CompilerBackend {
 
 					word.ret = GetType(node.retType);
 				}
+
+				word.symbolName = node.func;
+				funcName        = node.asName;
 				break;
 			}
 		}
@@ -1048,7 +1054,7 @@ class BackendARM64 : CompilerBackend {
 			output ~= format(".extern %s\n", node.func);
 		}
 
-		words[node.func] = word;
+		words[funcName] = word;
 	}
 
 	override void CompileCall(WordNode node) {
