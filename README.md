@@ -1,6 +1,8 @@
 # Callisto
 
-Callisto is a reverse Polish notation programming language, inspired by YSL-C3 and Forth. It also includes a subset called CallistoScript, designed for scripting languages like Lua, while still maintaining a relatively low-level approach.
+Callisto is a reverse Polish notation programming language, inspired by YSL-C3 and
+Forth. It also includes a subset called CallistoScript, designed for compiling to
+scripting languages like Lua, while still maintaining a relatively low-level approach.
 
 ## Supported Targets 
 
@@ -12,7 +14,9 @@ Callisto is a reverse Polish notation programming language, inspired by YSL-C3 a
 
 ## Build Instructions
 
-To build the Callisto compiler, you will need a [D compiler](https://dlang.org/download.html). Once installed, build the project using the following command:
+To build the Callisto compiler, you will need a
+[D compiler](https://dlang.org/download.html). Once installed, build the project using
+the following command:
 
 ```
 dub build
@@ -22,21 +26,26 @@ dub build
 
 ### Running Example Programs
 
-Before running example programs, ensure that the `std` submodule is included in your repository. You can achieve this by cloning the repository recursively or running the following command:
+Before running example programs, ensure that the `std` submodule is included in your
+repository. You can achieve this by cloning the repository recursively or running the
+following command:
 
 ```
 git submodule update --init --remote --recursive
 ```
 
-Example programs are located in the `examples` directory. To compile and run an example, use:
+Example programs are located in the `examples` directory. To compile and run an example,
+use:
 
 ```
 cac examples/<exampleName>.cal -i std -o out
 ./out
 ```
 
-For more detailed information about Callisto, please refer to the [official documentation](https://callisto.mesyeti.uk/docs).
+For more detailed information about Callisto, please refer to the
+[official documentation](https://callisto.mesyeti.uk/docs).
 
 ## Community and Support
 
-For support or discussions, join the `#callisto-lang` channel on [irc.libera.chat](https://libera.chat).
+For support or discussions, join the `#callisto-lang` channel on
+[irc.libera.chat](https://libera.chat).
