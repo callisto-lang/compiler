@@ -18,44 +18,45 @@ import callisto.backends.arm64;
 import callisto.backends.x86_64;
 
 const static string usage = "
+Callisto Compiler 🚀
+====================
+
 Usage: %s FILE [FLAGS]
 
 Flags:
-	-o FILE    - Sets the output assembly file to FILE (out.asm by default)
-	--org ADDR - Sets ORG value for compiler backend's assembly, ADDR is hex
-	-i PATH    - Adds PATH to the list of include directories
-	-O         - Enables optimisation (only works properly with programs without errors)
-	-v VER     - Enables VER as a version
-	-b BACKEND - Uses the given backend (backends listed below), default is linux86
-	-a         - Automatically runs commands to turn the output assembly into an
-	             executable file (set by default)
-	-na        - Disables the -a flag
-	--version  - Shows the callisto version
-	-dp        - Prints parser output
-	-es        - Export all Callisto symbols (and add util function	s for interacting
-	             with the Callisto stack)
-	-d         - Enables debug symbols (if available)
-	-l LIB     - Links LIB with the linker (if available)
-	-dv VER    - Disables VER
-	-h FILE    - Puts the contents of FILE at the top of the assembly output
-	-bo OPT    - Backend option, see below
-	-ka        - Keep assembly
-	-al        - Print assembly line numbers for callisto nodes
-	-os OS     - Set operating system for backend - see below
-	--help     - Shows this text
+  -o FILE     📂  - Sets the output assembly file to FILE (default: out.asm)
+  --org ADDR  🛠️  - Sets ORG value for compiler backend's assembly, ADDR is hex
+  -i PATH     📁  - Adds PATH to the list of include directories
+  -O          🚀  - Enables optimization (only works properly with error-free programs)
+  -v VER      🔧  - Enables VER as a version
+  -b BACKEND  🖥️  - Uses the specified backend (default is linux86)
+  -a          ▶️  - Automatically runs commands to create an executable file (enabled by default)
+  -na         ⏸️  - Disables the -a flag
+  --version   ℹ️  - Shows the Callisto version
+  -dp         🖨️  - Prints parser output
+  -es         📜  - Exports all Callisto symbols and adds utility functions for interacting with the Callisto stack
+  -d          🐞  - Enables debug symbols (if available)
+  -l LIB      🔗  - Links LIB with the linker (if available)
+  -dv VER     🚫  - Disables VER
+  -h FILE     📝  - Puts the contents of FILE at the top of the assembly output
+  -bo OPT     ⚙️  - Backend option, see below
+  -ka         💾  - Keeps the generated assembly
+  -al         🔍  - Prints assembly line numbers for Callisto nodes
+  -os OS      🖥️  - Sets the operating system for the backend (see below)
+  --help      ❓  - Shows this help text
 
 Backends and their operating systems:
-	rm86   - Real mode x86, for bare-metal, dos
-	x86_64 - 64-bit x86, for bare-metal, linux
-	arm64  - 64-bit ARM, for linux
-	uxn    - Varvara/Uxn
-	lua    - Lua, uses subset CallistoScript
+  rm86   - Real mode x86, for bare-metal, DOS
+  x86_64 - 64-bit x86, for bare-metal, Linux
+  arm64  - 64-bit ARM, for Linux
+  uxn    - Varvara/Uxn
+  lua    - Lua, uses subset CallistoScript
 
 Backend options:
-	rm86:
-		no-dos - Disables DOS-specific features
-	linux86:
-		use-libc - Makes Callisto use the C runtime and links libc
+  rm86:
+    no-dos - Disables DOS-specific features
+  linux86:
+    use-libc - Makes Callisto use the C runtime and links libc
 ";
 
 int main(string[] args) {
