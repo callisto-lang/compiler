@@ -96,6 +96,7 @@ class BackendLua : CompilerBackend {
 		types ~= Type("size",  1);
 		types ~= Type("usize", 1);
 		types ~= Type("cell",  1);
+		types ~= Type("bool",  1);
 
 		// built in structs
 		types ~= Type("Array", 3, true, [
@@ -108,8 +109,16 @@ class BackendLua : CompilerBackend {
 		NewConst("Array.elements",   2);
 		NewConst("Array.sizeof",     3);
 
-		foreach (name, ref type ; types) {
-			NewConst(format("%s.sizeof", name), cast(long) type.size);
+		types ~= Type("Exception", 3 + 1, true, [
+			StructEntry(GetType("bool"),  "error"),
+			StructEntry(GetType("Array"), "msg")
+		]);
+		NewConst("Exception.bool",   0);
+		NewConst("Exception.msg",    1);
+		NewConst("Exception.sizeof", 3 + 1);
+
+		foreach (ref type ; types) {
+			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
 		}
 	}
 

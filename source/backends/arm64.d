@@ -114,6 +114,7 @@ class BackendARM64 : CompilerBackend {
 		types ~= Type("size",  8);
 		types ~= Type("usize", 8);
 		types ~= Type("cell",  8);
+		types ~= Type("bool",  8);
 
 		// built in structs
 		types ~= Type("Array", 24, true, [
@@ -126,8 +127,16 @@ class BackendARM64 : CompilerBackend {
 		NewConst("Array.elements",   16);
 		NewConst("Array.sizeof",     8 * 3);
 
-		foreach (name, ref type ; types) {
-			NewConst(format("%s.sizeof", name), cast(long) type.size);
+		types ~= Type("Exception", 24 + 8, true, [
+			StructEntry(GetType("bool"),  "error"),
+			StructEntry(GetType("Array"), "msg")
+		]);
+		NewConst("Exception.bool",   0);
+		NewConst("Exception.msg",    8);
+		NewConst("Exception.sizeof", 24 + 8);
+
+		foreach (ref type ; types) {
+			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
 		}
 	}
 

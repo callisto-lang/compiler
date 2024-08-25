@@ -84,14 +84,15 @@ class BackendRM86 : CompilerBackend {
 	this() {
 		defaultOS = "dos";
 
-		types ~= Type("u8", 1);
-		types ~= Type("i8", 1);
-		types ~= Type("u16", 2);
-		types ~= Type("i16", 2);
-		types ~= Type("addr", 2);
-		types ~= Type("size", 2);
+		types ~= Type("u8",    1);
+		types ~= Type("i8",    1);
+		types ~= Type("u16",   2);
+		types ~= Type("i16",   2);
+		types ~= Type("addr",  2);
+		types ~= Type("size",  2);
 		types ~= Type("usize", 2);
-		types ~= Type("cell", 2);
+		types ~= Type("cell",  2);
+		types ~= Type("bool",  2);
 
 		// built in structs
 		types ~= Type("Array", 6, true, [
@@ -104,11 +105,19 @@ class BackendRM86 : CompilerBackend {
 		NewConst("Array.elements",   4);
 		NewConst("Array.sizeof",     2 * 3);
 
+		types ~= Type("Exception", 6 + 2, true, [
+			StructEntry(GetType("bool"),  "error"),
+			StructEntry(GetType("Array"), "msg")
+		]);
+		NewConst("Exception.bool",   0);
+		NewConst("Exception.msg",    2);
+		NewConst("Exception.sizeof", 6 + 2);
+
 		foreach (ref type ; types) {
 			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
 		}
 
-		if (!opts.noDos) {
+		if (!opts.noDos) { // TODO: remove this
 			globals["__rm86_argv"] = Global(GetType("addr"), false, 0);
 			globals["__rm86_arglen"] = Global(GetType("cell"), false, 0);
 		}

@@ -47,8 +47,8 @@ Flags:
 
 Backends and their operating systems:
   rm86   - Real mode x86, for bare-metal, DOS
-  x86_64 - 64-bit x86, for bare-metal, Linux
-  arm64  - 64-bit ARM, for Linux
+  x86_64 - 64-bit x86, for bare-metal, linux, osx
+  arm64  - 64-bit ARM, for linux
   uxn    - Varvara/Uxn
   lua    - Lua, uses subset CallistoScript
 

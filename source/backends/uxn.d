@@ -97,8 +97,16 @@ class BackendUXN : CompilerBackend {
 		NewConst("Array.elements",   4);
 		NewConst("Array.sizeof",     2 * 3);
 
-		foreach (name, ref type ; types) {
-			NewConst(format("%s.sizeof", name), cast(long) type.size);
+		types ~= Type("Exception", 6 + 2, true, [
+			StructEntry(GetType("bool"),  "error"),
+			StructEntry(GetType("Array"), "msg")
+		]);
+		NewConst("Exception.bool",   0);
+		NewConst("Exception.msg",    2);
+		NewConst("Exception.sizeof", 6 + 2);
+
+		foreach (ref type ; types) {
+			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
 		}
 	}
 
