@@ -1,0 +1,22 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+func __x86_64_exception begin
+	&_cal_exception Exception.msg + "Unhandled exception: %s" printf new_line
+	1 exit
+end
+
+func exception_msg begin
+	&_cal_exception Exception.msg +
+end
+
+func error foo begin
+	c"hi im an exception" throw
+end
+
+try foo
+catch
+	exception_msg printstr new_line
+end
+
+foo

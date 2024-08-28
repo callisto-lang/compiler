@@ -1208,4 +1208,8 @@ class BackendARM64 : CompilerBackend {
 			output ~= format("%s x20, x20, #%d\n", sub ? "sub" : "add", offset);
 		}
 	}
+
+
+	override void CompileTryCatch(TryCatchNode node) {}
+	override void CompileThrow(WordNode node) {}
 }

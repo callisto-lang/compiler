@@ -55,6 +55,8 @@ class CompilerBackend {
 	abstract void CompileAddr(AddrNode node);
 	abstract void CompileImplement(ImplementNode node);
 	abstract void CompileSet(SetNode node);
+	abstract void CompileTryCatch(TryCatchNode node);
+	abstract void CompileThrow(WordNode node);
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);
@@ -99,6 +101,7 @@ class Compiler {
 					case "continue": backend.CompileContinue(node); break;
 					case "break":    backend.CompileBreak(node);    break;
 					case "call":     backend.CompileCall(node);     break;
+					case "throw":    backend.CompileThrow(node);    break;
 					case "error":    backend.Error(node.error, "Error thrown by code"); break;
 					default:         backend.CompileWord(node);
 				}
@@ -182,9 +185,10 @@ class Compiler {
 			case NodeType.Union:     backend.CompileUnion(cast(UnionNode) inode); break;
 			case NodeType.Alias:     backend.CompileAlias(cast(AliasNode) inode); break;
 			case NodeType.Extern:    backend.CompileExtern(cast(ExternNode) inode); break;
-			case NodeType.Addr:  backend.CompileAddr(cast(AddrNode) inode); break;
+			case NodeType.Addr:      backend.CompileAddr(cast(AddrNode) inode); break;
 			case NodeType.Implement: backend.CompileImplement(cast(ImplementNode) inode); break;
 			case NodeType.Set:       backend.CompileSet(cast(SetNode) inode); break;
+			case NodeType.TryCatch:  backend.CompileTryCatch(cast(TryCatchNode) inode); break;
 			default: {
 				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}

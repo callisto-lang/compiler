@@ -1,14 +1,7 @@
 include "cores/select.cal"
 include "std/io.cal"
 
-func tak begin
-	let cell x
-	let cell y
-	let cell z
-	-> z
-	-> y
-	-> x
-
+func tak cell x cell y cell z begin
 	if y x < then
 		x 1 - y z tak
 		y 1 - z x tak

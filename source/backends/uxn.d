@@ -1000,4 +1000,7 @@ class BackendUXN : CompilerBackend {
 			Error(node.error, "Variable '%s' doesn't exist", node.var);
 		}
 	}
+
+	override void CompileTryCatch(TryCatchNode node) {}
+	override void CompileThrow(WordNode node) {}
 }

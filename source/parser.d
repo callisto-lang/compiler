@@ -32,7 +32,8 @@ enum NodeType {
 	Extern,
 	Addr,
 	Implement,
-	Set
+	Set,
+	TryCatch
 }
 
 class Node {
@@ -85,6 +86,7 @@ class FuncDefNode : Node {
 	bool     raw;
 	string[] paramTypes;
 	string[] params;
+	bool     errors;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.FuncDef;
@@ -92,7 +94,7 @@ class FuncDefNode : Node {
 	}
 
 	override string toString() {
-		string ret = format("func %s", name);
+		string ret = format("func %s%s", errors? "error " : "", name);
 
 		foreach (i, ref param ; params) {
 			ret ~= format(" %s %s", paramTypes[i], param);
@@ -490,6 +492,26 @@ class SetNode : Node {
 	override string toString() => format("-> %s", var);
 }
 
+class TryCatchNode : Node {
+	string func;
+	Node[] catchBlock;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.TryCatch;
+		error = perror;
+	}
+
+	override string toString() {
+		string ret = format("try %s catch\n", func);
+
+		foreach (ref node ; catchBlock) {
+			ret ~= node.toString() ~ '\n';
+		}
+
+		return ret;
+	}
+}
+
 class ParserError : Exception {
 	this() {
 		super("", "", 0);
@@ -534,6 +556,12 @@ class Parser {
 		}
 	}
 
+	void ExpectWord(string word) {
+		if ((tokens[i].type != TokenType.Identifier) || (tokens[i].contents != word)) {
+			Error("Expected '%s' while parsing %s", word, parsing);
+		}
+	}
+
 	bool IsIdentifier(string identifier) {
 		return
 			(tokens[i].type == TokenType.Identifier) &&
@@ -547,6 +575,12 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "error") {
+			ret.errors = true;
+			Next();
+			Expect(TokenType.Identifier);
+		}
 
 		if (tokens[i].contents == "raw") {
 			ret.raw = true;
@@ -1148,6 +1182,27 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseTryCatch() {
+		auto ret = new TryCatchNode(GetError());
+		parsing  = NodeType.TryCatch;
+
+		Next();
+		Expect(TokenType.Identifier);
+		ret.func = tokens[i].contents;
+
+		Next();
+		ExpectWord("catch");
+
+		Next();
+
+		while (!IsIdentifier("end")) {
+			ret.catchBlock ~= ParseStatement();
+			Next();
+		}
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -1173,6 +1228,7 @@ class Parser {
 					case "alias":      return ParseAlias();
 					case "extern":     return ParseExtern();
 					case "implement":  return ParseImplement();
+					case "try":        return ParseTryCatch();
 					case "->":         return ParseSet();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
