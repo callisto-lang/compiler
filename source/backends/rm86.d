@@ -15,6 +15,7 @@ private struct Word {
 	bool   raw;
 	bool   inline;
 	Node[] inlineNodes;
+	bool   error;
 }
 
 private struct StructEntry {
@@ -121,6 +122,8 @@ class BackendRM86 : CompilerBackend {
 			globals["__rm86_argv"] = Global(GetType("addr"), false, 0);
 			globals["__rm86_arglen"] = Global(GetType("cell"), false, 0);
 		}
+
+		globals["_cal_exception"] = Global(GetType("Exception"), false, 0);
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
@@ -179,7 +182,7 @@ class BackendRM86 : CompilerBackend {
 		"RM86", "LittleEndian", "16Bit",
 		// features
 		"IO"
-	] ~ (os == "dos"? ["DOS", "Args"] : os == "bare-metal"? ["BareMetal"] : []);
+	] ~ (os == "dos"? ["DOS", "Args", "Exit"] : os == "bare-metal"? ["BareMetal"] : []);
 
 	override string[] FinalCommands() => [
 		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
@@ -330,6 +333,32 @@ class BackendRM86 : CompilerBackend {
 					output ~= format("call __func__%s\n", node.name.Sanitise());
 				}
 			}
+
+			if (word.error) {
+				if ("__rm86_exception" in words) {
+					bool crash;
+
+					if (inScope) {
+						crash = !words[thisFunc].error;
+					}
+					else {
+						crash = true;
+					}
+
+					if (crash) {
+						output ~= format("mov bx, __global_%s\n", Sanitise("_cal_exception"));
+						output ~= "mov ax, [bx]\n";
+						output ~= "cmp ax, 0\n";
+						output ~= format("jne __func__%s\n", Sanitise("__rm86_exception"));
+					}
+					else {
+						CompileReturn(node);
+					}
+				}
+				else {
+					Warn(node.error, "No exception handler");
+				}
+			}
 		}
 		else if (VariableExists(node.name)) {
 			auto var = GetVariable(node.name);
@@ -405,18 +434,26 @@ class BackendRM86 : CompilerBackend {
 		thisFunc = node.name;
 
 		if (node.inline) {
-			words[node.name] = Word(false, true, node.nodes);
+			if (node.errors) {
+				output ~= format("mov word [__global_%s], 0\n", Sanitise("_cal_exception"));
+			}
+
+			words[node.name] = Word(false, true, node.nodes, node.errors);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(node.raw, false, []);
+			words[node.name] = Word(node.raw, false, [], node.errors);
 
 			string symbol =
 				node.raw? node.name : format("__func__%s", node.name.Sanitise());
 
 			output ~= format("%s:\n", symbol);
+
+			if (node.errors) {
+				output ~= format("mov word [__global_%s], 0\n", Sanitise("_cal_exception"));
+			}
 
 			// allocate parameters
 			size_t paramSize = node.params.length * 2;
@@ -1073,6 +1110,78 @@ class BackendRM86 : CompilerBackend {
 		}
 	}
 
-	override void CompileTryCatch(TryCatchNode node) {}
-	override void CompileThrow(WordNode node) {}
+	override void CompileTryCatch(TryCatchNode node) {
+		if (node.func !in words) {
+			Error(node.error, "Function '%s' doesn't exist", node.func);
+		}
+
+		auto word = words[node.func];
+
+		if (!word.error) {
+			Error(node.error, "Function '%s' doesn't throw", node.func);
+		}
+		if (word.raw) {
+			Error(node.error, "Non-callisto functions can't throw");
+		}
+
+		if (word.inline) {
+			foreach (inode ; word.inlineNodes) {
+				compiler.CompileNode(inode);
+			}
+		}
+		else {
+			output ~= format("call __func__%s\n", node.func.Sanitise());
+		}
+
+		++ blockCounter;
+
+		output ~= format("mov ax, [__global_%s]\n", Sanitise("_cal_exception"));
+		output ~= "cmp ax, 0\n";
+		output ~= format("je __catch_%d_end\n", blockCounter);
+
+		// create scope
+		auto oldVars = variables.dup;
+		auto oldSize = GetStackSize();
+
+		foreach (inode ; node.catchBlock) {
+			compiler.CompileNode(inode);
+		}
+
+		// remove scope
+		foreach (ref var ; variables) {
+			if (oldVars.canFind(var)) continue;
+			if (!var.type.hasDeinit)  continue;
+
+			output ~= format("lea ax, [sp + %d\n]", var.offset);
+			output ~= "mov [si], ax\n";
+			output ~= "add si, 2\n";
+			output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+		}
+		if (GetStackSize() - oldSize > 0) {
+			output ~= format("add sp, %d\n", GetStackSize() - oldSize);
+		}
+		variables = oldVars;
+
+		output ~= format("__catch_%d_end:\n", blockCounter);
+	}
+
+	override void CompileThrow(WordNode node) {
+		if (!inScope || (!words[thisFunc].error)) {
+			Error(node.error, "Not in a function that can throw");
+		}
+
+		// set exception error
+		output ~= format("mov word [__global_%s], 0xFFFF\n", Sanitise("_cal_exception"));
+
+		// copy exception message
+		output ~= "sub si, 2\n";
+		output ~= "mov bx, si\n";
+		output ~= "mov si, [bx]\n";
+		output ~= format("lea di, [__global_%s + 2]\n", Sanitise("_cal_exception"));
+		output ~= "mov cx, 3\n";
+		output ~= "rep movsw\n";
+		output ~= "mov si, bx\n";
+
+		CompileReturn(node);
+	}
 }
