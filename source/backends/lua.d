@@ -912,10 +912,9 @@ class BackendLua : CompilerBackend {
 			scopeSize += var.Size();
 
 			if (var.type.hasDeinit) {
-				output ~= format("lea rax, [rsp + %d\n]", var.offset);
-				output ~= "mov [r15], rax\n";
-				output ~= "add r15, 8\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format("mem[dsp] = vsp + %d\n", var.offset);
+				output ~= "dsp = dsp + 1\n";
+				output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
 			}
 		}
 		output ~= format("vsp = vsp + %d\n", scopeSize);
