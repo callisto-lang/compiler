@@ -19,8 +19,15 @@ class CodeRemover {
 			"__x86_64_program_exit",
 			"__rm86_program_init",
 			"__rm86_program_exit",
+			"__arm64_program_init",
+			"__arm64_program_exit",
 			"uxn_program_init",
-			"uxn_program_end"
+			"uxn_program_end",
+			"__x86_64_exception",
+			"__rm86_exception",
+			"__uxn_exception",
+			"__arm64_exception",
+			"__lua_exception",
 		];
 	}
 

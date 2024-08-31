@@ -15,6 +15,7 @@ private struct Word {
 	bool   raw;
 	bool   inline;
 	Node[] inlineNodes;
+	bool   error;
 }
 
 private struct StructEntry {
@@ -85,6 +86,7 @@ class BackendUXN : CompilerBackend {
 		types ~= Type("size",  2);
 		types ~= Type("usize", 2);
 		types ~= Type("cell",  2);
+		types ~= Type("bool",  2);
 
 		// built in structs
 		types ~= Type("Array", 6, true, [
@@ -108,13 +110,15 @@ class BackendUXN : CompilerBackend {
 		foreach (ref type ; types) {
 			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
 		}
+
+		globals["_cal_exception"] = Global(GetType("Exception"), false, 0);
 	}
 
 	override string[] GetVersions() => [
 		// platform
 		"UXN", "BigEndian", "16Bit",
 		// features
-		"IO"
+		"IO", "Exit"
 	];
 
 	override string[] FinalCommands() => [
@@ -281,6 +285,31 @@ class BackendUXN : CompilerBackend {
 					output ~= format("func__%s\n", node.name.Sanitise());
 				}
 			}
+
+			if (word.error) {
+				if ("__uxn_exception" in words) {
+					bool crash;
+
+					if (inScope) {
+						crash = !words[thisFunc].error;
+					}
+					else {
+						crash = true;
+					}
+
+					if (crash) {
+						output ~= format(";global_%s LDA2\n", Sanitise("_cal_exception"));
+						output ~= "#0000 NEQ2\n";
+						output ~= format(";func__%s JCN\n", Sanitise("__uxn_exception"));
+					}
+					else {
+						CompileReturn(node);
+					}
+				}
+				else {
+					Warn(node.error, "No exception handler");
+				}
+			}
 		}
 		else if (VariableExists(node.name)) {
 			auto var = GetVariable(node.name);
@@ -346,18 +375,26 @@ class BackendUXN : CompilerBackend {
 		thisFunc = node.name;
 
 		if (node.inline) {
-			words[node.name] = Word(false, true, node.nodes);
+			if (node.errors) {
+				output ~= format("#0000 ;global_%s STA2\n", Sanitise("_cal_exception"));
+			}
+
+			words[node.name] = Word(false, true, node.nodes, node.errors);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(node.raw, false, []);
+			words[node.name] = Word(node.raw, false, [], node.errors);
 
 			string symbol =
 				node.raw? node.name : format("func__%s", node.name.Sanitise());
 
 			output ~= format("@%s\n", symbol);
+
+			if (node.errors) {
+				output ~= format("#0000 ;global_%s STA2\n", Sanitise("_cal_exception"));
+			}
 
 			// allocate parameters
 			size_t paramSize = node.params.length * 2;
@@ -1001,6 +1038,82 @@ class BackendUXN : CompilerBackend {
 		}
 	}
 
-	override void CompileTryCatch(TryCatchNode node) {}
-	override void CompileThrow(WordNode node) {}
+	override void CompileTryCatch(TryCatchNode node) {
+		if (node.func !in words) {
+			Error(node.error, "Function '%s' doesn't exist", node.func);
+		}
+
+		auto word = words[node.func];
+
+		if (!word.error) {
+			Error(node.error, "Function '%s' doesn't throw", node.func);
+		}
+		if (word.raw) {
+			Error(node.error, "Non-callisto functions can't throw");
+		}
+
+		if (word.inline) {
+			foreach (inode ; word.inlineNodes) {
+				compiler.CompileNode(inode);
+			}
+		}
+		else {
+			output ~= format("func__%s\n", node.func.Sanitise());
+		}
+
+		++ blockCounter;
+
+		output ~= format(";global_%s LDA2 #0000 EQU\n", Sanitise("_cal_exception"));
+		output ~= format(";catch_%d_end JCN\n", blockCounter);
+
+		// create scope
+		auto oldVars = variables.dup;
+		auto oldSize = GetStackSize();
+
+		foreach (inode ; node.catchBlock) {
+			compiler.CompileNode(inode);
+		}
+
+		// remove scope
+		foreach (ref var ; variables) {
+			if (oldVars.canFind(var)) continue;
+			if (!var.type.hasDeinit)  continue;
+
+			output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
+			output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
+		}
+		if (GetStackSize() - oldSize > 0) {
+			output ~= format(
+				".vsp LDZ2 #%.4x ADD .vsp STZ2\n", GetStackSize() - oldSize
+			);
+		}
+		variables = oldVars;
+
+		output ~= format("@catch_%d_end\n", blockCounter);
+	}
+
+	override void CompileThrow(WordNode node) {
+		if (!inScope || (!words[thisFunc].error)) {
+			Error(node.error, "Not in a function that can throw");
+		}
+		if (words[thisFunc].inline) {
+			Error(node.error, "Can't use throw in an inline function");
+		}
+
+		// set exception error
+		output ~= format("#ffff ;global_%s STA2\n", Sanitise("_cal_exception"));
+
+		// copy exception message
+		// TODO: make this less bloat
+		foreach (i ; 0 .. 3) {
+			output ~= "DUP2 LDA2\n";
+			output ~= format(
+				";global_%s #%.2x ADD2 STA2\n", Sanitise("_cal_exception"), i + 1
+			);
+			output ~= "#0002 ADD2\n";
+		}
+		output ~= "POP2\n";
+
+		CompileReturn(node);
+	}
 }
