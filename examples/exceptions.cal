@@ -1,7 +1,7 @@
 include "cores/select.cal"
 include "std/io.cal"
 
-func __rm86_exception begin
+func __lua_exception begin
 	&_cal_exception Exception.msg + "Unhandled exception: %s" printf new_line
 	1 exit
 end

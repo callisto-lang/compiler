@@ -1410,6 +1410,9 @@ class BackendX86_64 : CompilerBackend {
 		if (!inScope || (!words[thisFunc].error)) {
 			Error(node.error, "Not in a function that can throw");
 		}
+		if (words[thisFunc].inline) {
+			Error(node.error, "Can't use throw in an inline function");
+		}
 
 		// set exception error
 		output ~= format("mov rbx, __global_%s\n", Sanitise("_cal_exception"));

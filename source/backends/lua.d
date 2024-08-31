@@ -22,6 +22,7 @@ private struct Word {
 	WordType type;
 	bool     inline;
 	Node[]   inlineNodes;
+	bool     error;
 }
 
 private struct StructEntry {
@@ -120,6 +121,11 @@ class BackendLua : CompilerBackend {
 		foreach (ref type ; types) {
 			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
 		}
+
+		globals ~= Global(
+			"_cal_exception", GetType("Exception"), globalStack, false, 0
+		);
+		globalStack += globals[$ - 1].Size();
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
@@ -217,6 +223,8 @@ class BackendLua : CompilerBackend {
 	override void End() {
 		// call destructors
 		foreach (name, global ; globals) {
+			if (!global.type.hasDeinit) continue;
+
 			output ~= format("mem[dsp] = %d\n", global.addr);
 			output ~= "dsp = dsp + 1\n";
 			output ~= format("type_deinit_%s()\n", global.type.name.Sanitise());
@@ -269,6 +277,19 @@ class BackendLua : CompilerBackend {
 			}
 			else {
 				output ~= format("func__%s();\n", node.name.Sanitise());
+			}
+
+			if (word.error) {
+				if ("__lua_exception" in words) {
+					auto exception = GetGlobal("_cal_exception");
+
+					output ~= format("if mem[%d] ~= 0 then\n", exception.addr);
+					output ~= format("func__%s()\n", Sanitise("__lua_exception"));
+					output ~= "end\n";
+				}
+				else {
+					Warn(node.error, "No exception handler");
+				}
 			}
 		}
 		else if (VariableExists(node.name)) {
@@ -326,15 +347,19 @@ class BackendLua : CompilerBackend {
 		thisFunc = node.name;
 
 		if (node.inline) {
-			words[node.name] = Word(WordType.Callisto, true, node.nodes);
+			output ~= format("mem[%d] = 0\n", GetGlobal("_cal_exception").addr);
+
+			words[node.name] = Word(WordType.Callisto, true, node.nodes, node.errors);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(WordType.Callisto, false);
+			words[node.name] = Word(WordType.Callisto, false, [], node.errors);
 
 			output ~= format("function func__%s()\n", node.name.Sanitise());
+
+			output ~= format("mem[%d] = 0\n", GetGlobal("_cal_exception").addr);
 
 			// allocate parameters
 			size_t paramSize = node.params.length;
@@ -948,6 +973,79 @@ class BackendLua : CompilerBackend {
 		}
 	}
 
-	override void CompileTryCatch(TryCatchNode node) {}
-	override void CompileThrow(WordNode node) {}
+	override void CompileTryCatch(TryCatchNode node) {
+		if (node.func !in words) {
+			Error(node.error, "Function '%s' doesn't exist", node.func);
+		}
+
+		auto word = words[node.func];
+
+		if (!word.error) {
+			Error(node.error, "Function '%s' doesn't throw", node.func);
+		}
+		if (word.type != WordType.Callisto) {
+			Error(node.error, "Non-callisto functions can't throw");
+		}
+
+		if (word.inline) {
+			foreach (inode ; word.inlineNodes) {
+				compiler.CompileNode(inode);
+			}
+		}
+		else {
+			output ~= format("func__%s()\n", node.func.Sanitise());
+		}
+
+		++ blockCounter;
+
+		output ~= format("if mem[%d] == 0 then\n", GetGlobal("_cal_exception").addr);
+		output ~= format("goto catch_%d_end\n", blockCounter);
+		output ~= "end\n";
+
+		// create scope
+		auto oldVars = variables.dup;
+		auto oldSize = GetStackSize();
+
+		foreach (inode ; node.catchBlock) {
+			compiler.CompileNode(inode);
+		}
+
+		// remove scope
+		foreach (ref var ; variables) {
+			if (oldVars.canFind(var)) continue;
+			if (!var.type.hasDeinit)  continue;
+
+			output ~= format("mem[dsp] = vsp + %d\n", var.offset);
+			output ~= "dsp = dsp + 1\n";
+			output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+		}
+		if (GetStackSize() - oldSize > 0) {
+			output ~= format("vsp = vsp + %d\n", GetStackSize() - oldSize);
+		}
+		variables = oldVars;
+
+		output ~= format("::catch_%d_end::\n", blockCounter);
+	}
+
+	override void CompileThrow(WordNode node) {
+		if (!inScope || (!words[thisFunc].error)) {
+			Error(node.error, "Not in a function that can throw");
+		}
+		if (words[thisFunc].inline) {
+			Error(node.error, "Can't use throw in an inline function");
+		}
+
+		// set exception error
+		output ~= format("mem[%d] = -1\n", GetGlobal("_cal_exception").addr);
+
+		// copy exception message
+		output ~= "dsp = dsp - 1\n";
+		output ~= "for i = 1, 3 do\n";
+		output ~= format(
+			"mem[%d + i] = mem[mem[dsp] + (i - 1)]\n", GetGlobal("_cal_exception").addr
+		);
+		output ~= "end\n";
+
+		CompileReturn(node);
+	}
 }
