@@ -206,9 +206,14 @@ class BackendARM64 : CompilerBackend {
 
 	override string[] FinalCommands() {
 		// TODO: allow user to specify commands manually?
-		bool isCross = executeShell("which aarch64-linux-gnu-as").status == 0;
-		string assembler = isCross ? "aarch64-linux-gnu-as" : "as";
-		string linker = isCross ? "aarch64-linux-gnu-ld" : "ld";
+		version (AArch64) {
+			string assembler = "as";
+			string linker    = "ld";
+		}
+		else {
+			string assembler = "aarch64-linux-gnu-as";
+			string linker    = "aarch64-linux-gnu-ld";
+		}
 
 		string[] ret = [
 			format("mv %s %s.asm", compiler.outFile, compiler.outFile),

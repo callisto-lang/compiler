@@ -300,7 +300,7 @@ class BackendUXN : CompilerBackend {
 					if (crash) {
 						output ~= format(";global_%s LDA2\n", Sanitise("_cal_exception"));
 						output ~= "#0000 NEQ2\n";
-						output ~= format(";func__%s JCN\n", Sanitise("__uxn_exception"));
+						output ~= format(";func__%s JCN2\n", Sanitise("__uxn_exception"));
 					}
 					else {
 						CompileReturn(node);
@@ -1108,7 +1108,7 @@ class BackendUXN : CompilerBackend {
 		foreach (i ; 0 .. 3) {
 			output ~= "DUP2 LDA2\n";
 			output ~= format(
-				";global_%s #%.2x ADD2 STA2\n", Sanitise("_cal_exception"), i + 1
+				";global_%s #%.2x ADD2 STA2\n", Sanitise("_cal_exception"), i + 2
 			);
 			output ~= "#0002 ADD2\n";
 		}
