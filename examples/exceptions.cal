@@ -1,7 +1,7 @@
 include "cores/select.cal"
 include "std/io.cal"
 
-func __uxn_exception begin
+func __arm64_exception begin
 	&_cal_exception Exception.msg + Array.length + @ printdec new_line
 	&_cal_exception Exception.msg + Array.memberSize + @ printdec new_line
 	&_cal_exception Exception.msg + Array.elements + @ printdec new_line
@@ -16,9 +16,9 @@ func error foo begin
 	c"hi im an exception" throw
 end
 
-#try foo
-#catch
-#	exception_msg printstr new_line
-#end
+try foo
+catch
+	exception_msg printstr new_line
+end
 
 foo

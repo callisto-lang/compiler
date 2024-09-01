@@ -24,6 +24,7 @@ private struct Word {
 	WordType type;
 	bool     inline;
 	Node[]   inlineNodes;
+	bool     error;
 
 	// for C words
 	Type[] params;
@@ -134,6 +135,8 @@ class BackendARM64 : CompilerBackend {
 		NewConst("Exception.bool",   0);
 		NewConst("Exception.msg",    8);
 		NewConst("Exception.sizeof", 24 + 8);
+
+		globals["_cal_exception"] = Global(GetType("Exception"), false, 0);
 
 		foreach (ref type ; types) {
 			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
@@ -466,6 +469,32 @@ class BackendARM64 : CompilerBackend {
 					output ~= format("bl __func__%s\n", node.name.Sanitise());
 				}
 			}
+
+			if (word.error) {
+				if ("__arm64_exception" in words) {
+					bool crash;
+
+					if (inScope) {
+						crash = !words[thisFunc].error;
+					}
+					else {
+						crash = true;
+					}
+
+					if (crash) {
+						output ~= format("ldr x9, =__global_%s\n", Sanitise("_cal_exception"));
+						output ~= "ldr x9, [x9]\n";
+						output ~= "cmp x9, #0\n";
+						output ~= format("bne __func__%s\n", Sanitise("__arm64_exception"));
+					}
+					else {
+						CompileReturn(node);
+					}
+				}
+				else {
+					Warn(node.error, "No exception handler");
+				}
+			}
 		}
 		else if (VariableExists(node.name)) {
 			auto var = GetVariable(node.name);
@@ -531,13 +560,23 @@ class BackendARM64 : CompilerBackend {
 		thisFunc = node.name;
 
 		if (node.inline) {
-			words[node.name] = Word(WordType.Callisto, true, node.nodes);
+			if (node.errors) {
+				output ~= format("ldr x9, =__global_%s\n", Sanitise("_cal_exception"));
+				output ~= "ldr x10, #0\n";
+				output ~= "str x10, [x9]\n";
+			}
+
+			words[node.name] = Word(
+				WordType.Callisto, true, node.nodes
+			);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(node.raw? WordType.Raw : WordType.Callisto , false, []);
+			words[node.name] = Word(
+				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors
+			);
 
 			string symbol =
 				node.raw? node.name : format("__func__%s", node.name.Sanitise());
@@ -548,6 +587,12 @@ class BackendARM64 : CompilerBackend {
 
 			output ~= format("%s:\n", symbol);
 			output ~= "str lr, [x20, #-8]!\n";
+
+			if (node.errors) {
+				output ~= format("ldr x9, =__global_%s\n", Sanitise("_cal_exception"));
+				output ~= "ldr x10, #0\n";
+				output ~= "str x10, [x9]\n";
+			}
 
 			// allocate parameters
 			size_t paramSize = node.params.length * 8;
@@ -1215,6 +1260,88 @@ class BackendARM64 : CompilerBackend {
 	}
 
 
-	override void CompileTryCatch(TryCatchNode node) {}
-	override void CompileThrow(WordNode node) {}
+	override void CompileTryCatch(TryCatchNode node) {
+		if (node.func !in words) {
+			Error(node.error, "Function '%s' doesn't exist", node.func);
+		}
+
+		auto word = words[node.func];
+
+		if (!word.error) {
+			Error(node.error, "Function '%s' doesn't throw", node.func);
+		}
+		if (word.type != WordType.Callisto) {
+			Error(node.error, "Non-callisto functions can't throw");
+		}
+
+		if (word.inline) {
+			foreach (inode ; word.inlineNodes) {
+				compiler.CompileNode(inode);
+			}
+		}
+		else {
+			output ~= format("bl __func__%s\n", node.func.Sanitise());
+		}
+
+		++ blockCounter;
+
+		output ~= format("ldr x9, =__global_%s\n", Sanitise("_cal_exception"));
+		output ~= "ldr x9, [x9]\n";
+		output ~= "cmp x9, #0\n";
+		output ~= format("beq __catch_%d_end\n", blockCounter);
+
+		// create scope
+		auto oldVars = variables.dup;
+		auto oldSize = GetStackSize();
+
+		foreach (inode ; node.catchBlock) {
+			compiler.CompileNode(inode);
+		}
+
+		// remove scope
+		foreach (ref var ; variables) {
+			if (oldVars.canFind(var)) continue;
+			if (!var.type.hasDeinit)  continue;
+
+			output ~= format("add x9, x20, #%d\n", var.offset);
+			output ~= "str x9, [x19], #8\n";
+			output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
+		}
+		if (GetStackSize() - oldSize > 0) {
+			OffsetLocalsStack(GetStackSize() - oldSize, false);
+		}
+		variables = oldVars;
+
+		output ~= format("__catch_%d_end:\n", blockCounter);
+	}
+
+	override void CompileThrow(WordNode node) {
+		if (!inScope || (!words[thisFunc].error)) {
+			Error(node.error, "Not in a function that can throw");
+		}
+		if (words[thisFunc].inline) {
+			Error(node.error, "Can't use throw in an inline function");
+		}
+
+		// set exception error
+		output ~= format("ldr x9, =__global_%s\n", Sanitise("_cal_exception"));
+		output ~= "mov x10, 0xFFFFFFFFFFFFFFFF\n";
+		output ~= "str x10, [x9]\n";
+
+		// copy exception message
+		output ~= "sub x19, x19, #8\n";
+		output ~= "mov x10, x19\n";
+		output ~= "add x11, x9, #8\n";
+		output ~= "mov x12, #3\n";
+		// copy x10 to x11, x12 times
+		output ~= "1:\n";
+		output ~= "ldr x13, [x10]\n";
+		output ~= "str x13, [x11]\n";
+		output ~= "add x10, x10, #8\n";
+		output ~= "add x11, x11, #8\n";
+		output ~= "sub x12, x12, #1\n";
+		output ~= "bne 1b\n";
+
+		CompileReturn(node);
+	}
 }
