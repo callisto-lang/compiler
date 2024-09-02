@@ -97,7 +97,7 @@ class BackendARM64 : CompilerBackend {
 		version (linux) {
 			defaultOS = "linux";
 		}
-		version (OSX) {
+		else version (OSX) {
 			defaultOS = "osx";
 		}
 		else {
@@ -501,7 +501,7 @@ class BackendARM64 : CompilerBackend {
 					}
 
 					if (crash) {
-						output ~= format("ldr x9, =__global_%s\n", Sanitise("_cal_exception"));
+						LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
 						output ~= "ldr x9, [x9]\n";
 						output ~= "cmp x9, #0\n";
 						output ~= format("bne __func__%s\n", Sanitise("__arm64_exception"));
@@ -579,7 +579,7 @@ class BackendARM64 : CompilerBackend {
 
 		if (node.inline) {
 			if (node.errors) {
-				output ~= format("ldr x9, =__global_%s\n", Sanitise("_cal_exception"));
+				LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
 				output ~= "ldr x10, #0\n";
 				output ~= "str x10, [x9]\n";
 			}
@@ -607,7 +607,7 @@ class BackendARM64 : CompilerBackend {
 			output ~= "str lr, [x20, #-8]!\n";
 
 			if (node.errors) {
-				output ~= format("ldr x9, =__global_%s\n", Sanitise("_cal_exception"));
+				LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
 				output ~= "ldr x10, #0\n";
 				output ~= "str x10, [x9]\n";
 			}
@@ -1301,7 +1301,7 @@ class BackendARM64 : CompilerBackend {
 
 		++ blockCounter;
 
-		output ~= format("ldr x9, =__global_%s\n", Sanitise("_cal_exception"));
+		LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
 		output ~= "ldr x9, [x9]\n";
 		output ~= "cmp x9, #0\n";
 		output ~= format("beq __catch_%d_end\n", blockCounter);
@@ -1340,22 +1340,19 @@ class BackendARM64 : CompilerBackend {
 		}
 
 		// set exception error
-		output ~= format("ldr x9, =__global_%s\n", Sanitise("_cal_exception"));
-		output ~= "mov x10, 0xFFFFFFFFFFFFFFFF\n";
+		LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
+		output ~= "mov x10, #-1\n";
 		output ~= "str x10, [x9]\n";
 
 		// copy exception message
-		output ~= "sub x19, x19, #8\n";
-		output ~= "mov x10, x19\n";
+		output ~= "ldr x10, [x19, #-8]!\n";
 		output ~= "add x11, x9, #8\n";
 		output ~= "mov x12, #3\n";
 		// copy x10 to x11, x12 times
 		output ~= "1:\n";
-		output ~= "ldr x13, [x10]\n";
-		output ~= "str x13, [x11]\n";
-		output ~= "add x10, x10, #8\n";
-		output ~= "add x11, x11, #8\n";
-		output ~= "sub x12, x12, #1\n";
+		output ~= "ldr x13, [x10], #8\n";
+		output ~= "str x13, [x11], #8\n";
+		output ~= "subs x12, x12, #1\n";
 		output ~= "bne 1b\n";
 
 		CompileReturn(node);

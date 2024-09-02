@@ -2,9 +2,7 @@ include "cores/select.cal"
 include "std/io.cal"
 
 func __arm64_exception begin
-	&_cal_exception Exception.msg + Array.length + @ printdec new_line
-	&_cal_exception Exception.msg + Array.memberSize + @ printdec new_line
-	&_cal_exception Exception.msg + Array.elements + @ printdec new_line
+	&_cal_exception Exception.msg + "Unhandled exception: %s" printf new_line
 	1 exit
 end
 
