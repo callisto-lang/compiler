@@ -97,6 +97,9 @@ class BackendARM64 : CompilerBackend {
 		version (linux) {
 			defaultOS = "linux";
 		}
+		version (OSX) {
+			defaultOS = "osx";
+		}
 		else {
 			defaultOS = "bare-metal";
 			WarnNoInfo("Default operating system, defaulting to bare-metal OS");
@@ -201,6 +204,11 @@ class BackendARM64 : CompilerBackend {
 				ret ~= ["Linux", "IO", "File", "Args", "Time", "Heap", "Exit"];
 				break;
 			}
+			case "osx": {
+				ret ~= ["OSX", "IO", "File", "Args", "Time", "Exit"];
+				if (useLibc) ret ~= "Heap";
+				break;
+			}
 			default: break;
 		}
 
@@ -241,25 +249,31 @@ class BackendARM64 : CompilerBackend {
 		}
 
 		if (useLibc) {
-			string[] possiblePaths = [
-				"/usr/aarch64-linux-gnu/lib/crt1.o",
-				"/usr/lib/crt1.o",
-				"/usr/lib64/crt1.o",
-			];
-			bool crt1;
+			if (os == "linux") {
+				string[] possiblePaths = [
+					"/usr/aarch64-linux-gnu/lib/crt1.o",
+					"/usr/lib/crt1.o",
+					"/usr/lib64/crt1.o",
+				];
+				bool crt1;
 
-			foreach (ref path ; possiblePaths) {
-				if (path.exists) {
-					crt1 = true;
-					linkCommand ~= format(" %s", path);
-					linkCommand ~= format(" %s/crti.o", path.dirName);
-					linkCommand ~= format(" %s/crtn.o", path.dirName);
-					break;
+				foreach (ref path ; possiblePaths) {
+					if (path.exists) {
+						crt1 = true;
+						linkCommand ~= format(" %s", path);
+						linkCommand ~= format(" %s/crti.o", path.dirName);
+						linkCommand ~= format(" %s/crtn.o", path.dirName);
+						break;
+					}
 				}
-			}
 
-			if (!crt1) {
-				stderr.writeln("WARNING: Failed to find crt1.o, program may behave incorrectly");
+				if (!crt1) {
+					stderr.writeln("WARNING: Failed to find crt1.o, program may behave incorrectly");
+				}
+			} else if (os == "osx") {
+				linkCommand ~= " -lSystem -syslibroot `xcrun --sdk macosx --show-sdk-path`";
+			} else {
+				WarnNoInfo("Cannot use libc on operating system '%s'", os);
 			}
 		}
 
@@ -294,7 +308,7 @@ class BackendARM64 : CompilerBackend {
 		// call constructors
 		foreach (name, global ; globals) {
 			if (global.type.hasInit) {
-				output ~= format("ldr x9, =__global_%s\n", name.Sanitise());
+				LoadAddress("x9", format("__global_%s", name.Sanitise()));
 				output ~= "str x9, [x19], #8\n";
 				output ~= format("bl __type_init_%s\n", global.type.name.Sanitise());
 			}
@@ -310,7 +324,7 @@ class BackendARM64 : CompilerBackend {
 			}
 		}
 		else if (word.type == WordType.Raw) {
-			output ~= format("bl %s\n", name);
+			output ~= format("bl %s\n", ExternSymbol(name));
 		}
 		else if (word.type == WordType.C) {
 			assert(0); // TODO: error
@@ -321,13 +335,16 @@ class BackendARM64 : CompilerBackend {
 	}
 
 	override void Init() {
-		string[] oses = ["linux", "bare-metal"];
+		string[] oses = ["linux", "osx", "bare-metal"];
 		if (!oses.canFind(os)) {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
 		}
 
 		output ~= ".text\n";
-		if (useLibc) {
+		if (os == "osx") {
+			output ~= ".global _main\n";
+			output ~= "_main:\n";
+		} else if (useLibc) {
 			output ~= ".global main\n";
 			output ~= "main:\n";
 		} else {
@@ -363,7 +380,7 @@ class BackendARM64 : CompilerBackend {
 		// call destructors
 		foreach (name, global ; globals) {
 			if (global.type.hasDeinit) {
-				output ~= format("ldr x9, =__global_%s\n", name.Sanitise());
+				LoadAddress("x9", format("__global_%s", name.Sanitise()));
 				output ~= "str x9, [x19], #8\n";
 				output ~= format("bl __type_deinit_%s\n", global.type.name.Sanitise());
 			}
@@ -403,6 +420,7 @@ class BackendARM64 : CompilerBackend {
 		// create arrays
 		output ~= ".data\n";
 		foreach (i, ref array ; arrays) {
+			output ~= ".align 8\n";
 			if (exportSymbols) {
 				output ~= format(".global __array_%d\n", i);
 			}
@@ -424,6 +442,7 @@ class BackendARM64 : CompilerBackend {
 			output ~= '\n';
 
 			if (array.global) {
+				output ~= ".align 8\n";
 				output ~= format(
 					"__array_%d_meta: .8byte %d, %d, __array_%d\n", i,
 					array.values.length,
@@ -445,7 +464,7 @@ class BackendARM64 : CompilerBackend {
 			}
 			else {
 				if (word.type == WordType.Raw) {
-					output ~= format("bl %s\n", node.name);
+					output ~= format("bl %s\n", ExternSymbol(node.name));
 				}
 				else if (word.type == WordType.C) {
 					// TODO: support more of the calling convention (especially structs)
@@ -459,7 +478,7 @@ class BackendARM64 : CompilerBackend {
 						output ~= format("ldr x%d, [x19, #-8]!\n", reg);
 					}
 				
-					output ~= format("bl %s\n", word.symbolName);
+					output ~= format("bl %s\n", ExternSymbol(word.symbolName));
 
 					if (!word.isVoid) {
 						output ~= "str x0, [x19], #8\n";
@@ -520,8 +539,7 @@ class BackendARM64 : CompilerBackend {
 				Error(node.error, "Can't push value of struct");
 			}
 
-			string symbol = format("__global_%s", node.name.Sanitise());
-			output ~= format("ldr x9, =%s\n", symbol);
+			LoadAddress("x9", format("__global_%s", node.name.Sanitise()));
 
 			switch (var.type.size) {
 				case 1: output ~= "ldrb w9, [x9]\n"; break;
@@ -848,14 +866,14 @@ class BackendARM64 : CompilerBackend {
 		arrays       ~= array;
 
 		if (!inScope || node.constant) {
-			output ~= format("ldr x9, =__array_%d_meta\n", arrays.length - 1);
+			LoadAddress("x9", format("__array_%d_meta", arrays.length - 1));
 			output ~= "str x9, [x19], #8\n";
 		}
 		else {
 			// allocate a copy of this array
 			OffsetLocalsStack(array.Size(), true);
 			output ~= "mov x9, x20\n";
-			output ~= format("ldr x10, =__array_%d\n", arrays.length - 1);
+			LoadAddress("x10", format("__array_%d", arrays.length - 1));
 			output ~= format("ldr x11, =%d\n", array.Size());
 			output ~= "1:\n";
 			output ~= "ldrb w12, [x10], #1\n";
@@ -1110,7 +1128,7 @@ class BackendARM64 : CompilerBackend {
 		}
 
 		if (word.type != WordType.Callisto) {
-			output ~= format(".extern %s\n", node.func);
+			output ~= format(".extern %s\n", ExternSymbol(node.func));
 		}
 
 		words[funcName] = word;
@@ -1125,15 +1143,15 @@ class BackendARM64 : CompilerBackend {
 		if (node.func in words) {
 			auto   word   = words[node.func];
 			string symbol = word.type == WordType.Callisto?
-				format("__func__%s", node.func.Sanitise()) : node.func;
+				format("__func__%s", node.func.Sanitise()) : ExternSymbol(node.func);
 
-			output ~= format("ldr x9, =%s\n", symbol);
+			LoadAddress("x9", symbol);
 			output ~= "str x9, [x19], #8\n";
 		}
 		else if (node.func in globals) {
 			auto var = globals[node.func];
 
-			output ~= format("ldr x9, =__global_%s\n", node.func.Sanitise());
+			LoadAddress("x9", format("__global_%s", node.func.Sanitise()));
 			output ~= "str x9, [x19], #8\n";
 		}
 		else if (VariableExists(node.func)) {
@@ -1234,8 +1252,7 @@ class BackendARM64 : CompilerBackend {
 				Error(node.error, "Can't set struct value");
 			}
 
-			string symbol = format("__global_%s", node.var.Sanitise());
-			output ~= format("ldr x10, =%s\n", symbol);
+			LoadAddress("x10", format("__global_%s", node.var.Sanitise()));
 
 			switch (global.type.size) {
 				case 1: output ~= "strb w9, [x10]\n"; break;
@@ -1250,7 +1267,7 @@ class BackendARM64 : CompilerBackend {
 		}
 	}
 
-	void OffsetLocalsStack(size_t offset, bool sub) {
+	private void OffsetLocalsStack(size_t offset, bool sub) {
 		if (offset >= 4096) {
 			output ~= format("mov x9, #%d\n", offset);
 			output ~= format("%s x20, x20, x9\n", sub ? "sub" : "add");
@@ -1258,7 +1275,6 @@ class BackendARM64 : CompilerBackend {
 			output ~= format("%s x20, x20, #%d\n", sub ? "sub" : "add", offset);
 		}
 	}
-
 
 	override void CompileTryCatch(TryCatchNode node) {
 		if (node.func !in words) {
@@ -1343,5 +1359,24 @@ class BackendARM64 : CompilerBackend {
 		output ~= "bne 1b\n";
 
 		CompileReturn(node);
+	}
+
+	private void LoadAddress(string reg, string symbol) {
+		if (os == "osx") {
+			output ~= format("adrp %s, %s@PAGE\n", reg, symbol);
+			output ~= format("add %s, %s, %s@PAGEOFF\n", reg, reg, symbol);
+		}
+		else {
+			output ~= format("ldr %s, =%s\n", reg, symbol);
+		}
+	}
+
+	private string ExternSymbol(string name) {
+		if (os == "osx") {
+			return "_" ~ name;
+		}
+		else {
+			return name;
+		}
 	}
 }

@@ -211,7 +211,8 @@ class BackendX86_64 : CompilerBackend {
 				break;
 			}
 			case "osx": {
-				ret ~= ["OSX", "IO", "Args", "Exit"];
+				ret ~= ["OSX", "IO", "Exit", "Time", "File", "Args"];
+				if (useLibc) ret ~= "Heap";
 				break;
 			}
 			default: break;
@@ -258,29 +259,35 @@ class BackendX86_64 : CompilerBackend {
 			linkCommand ~= format(" -l%s", lib);
 		}
 
-		if (!link.empty()) {
+		if (!link.empty() && os == "linux") {
 			// idk if this is correct on all linux systems but whatever
 			linkCommand ~= " -dynamic-linker /lib64/ld-linux-x86-64.so.2";
 		}
 
 		if (useLibc) {
-			string[] possiblePaths = [
-				"/usr/lib/crt1.o",
-				"/usr/lib/x86_64-linux-gnu/crt1.o"
-			];
-			bool crt1;
+			if (os == "linux") {
+				string[] possiblePaths = [
+					"/usr/lib/crt1.o",
+					"/usr/lib/x86_64-linux-gnu/crt1.o"
+				];
+				bool crt1;
 
-			foreach (ref path ; possiblePaths) {
-				if (exists(path)) {
-					crt1 = true;
-					linkCommand ~= format(" %s", path);
-					linkCommand ~= format(" %s/crti.o", path.dirName());
-					linkCommand ~= format(" %s/crtn.o", path.dirName());
+				foreach (ref path ; possiblePaths) {
+					if (exists(path)) {
+						crt1 = true;
+						linkCommand ~= format(" %s", path);
+						linkCommand ~= format(" %s/crti.o", path.dirName());
+						linkCommand ~= format(" %s/crtn.o", path.dirName());
+					}
 				}
-			}
 
-			if (!crt1) {
-				stderr.writeln("WARNING: Failed to find crt1.o, program may behave incorrectly");
+				if (!crt1) {
+					stderr.writeln("WARNING: Failed to find crt1.o, program may behave incorrectly");
+				}
+			} else if (os == "osx") {
+				linkCommand ~= " -syslibroot `xcrun --sdk macosx --show-sdk-path`";
+			} else {
+				WarnNoInfo("Cannot use libc on operating system '%s'", os);
 			}
 		}
 
@@ -316,8 +323,9 @@ class BackendX86_64 : CompilerBackend {
 		foreach (name, global ; globals) {
 			if (global.type.hasInit) {
 				output ~= format(
-					"mov qword [r15], qword __global_%s\n", name.Sanitise()
+					"lea rax, qword [__global_%s]\n", name.Sanitise()
 				);
+				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
 			}
@@ -333,7 +341,7 @@ class BackendX86_64 : CompilerBackend {
 			}
 		}
 		else if (word.type == WordType.Raw) {
-			output ~= format("call %s\n", name);
+			output ~= format("call %s\n", ExternSymbol(name));
 		}
 		else if (word.type == WordType.C) {
 			assert(0); // TODO: error
@@ -349,15 +357,19 @@ class BackendX86_64 : CompilerBackend {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
 		}
 
-		if (useLibc)          output ~= "global main\n";
-		else if (os == "osx") output ~= "default rel\nglobal _main\n";
-		else                  output ~= "global _start\n";
-		
 		output ~= "section .text\n";
-		
-		if (useLibc)          output ~= "main:\n";
-		else if (os == "osx") output ~= "_main:\n";
-		else                  output ~= "_start:\n";
+
+		if (os == "osx") {
+			output ~= "default rel\n";
+			output ~= "global _main\n";
+			output ~= "_main:\n";
+		} else if (useLibc) {
+			output ~= "global main\n";
+			output ~= "main:\n";
+		} else {
+			output ~= "global _start\n";
+			output ~= "_start:\n";
+		}
 
 		output ~= "call __init\n";
 
@@ -391,7 +403,8 @@ class BackendX86_64 : CompilerBackend {
 		// call destructors
 		foreach (name, global ; globals) {
 			if (global.type.hasDeinit) {
-				output ~= format("mov qword [r15], qword __global_%s\n", Sanitise(name));
+				output ~= format("lea rax, qword [__global_%s]\n", Sanitise(name));
+				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 				output ~= format("call __type_deinit_%s\n", Sanitise(global.type.name));
 			}
@@ -487,7 +500,7 @@ class BackendX86_64 : CompilerBackend {
 			}
 			else {
 				if (word.type == WordType.Raw) {
-					output ~= format("call %s\n", node.name);
+					output ~= format("call %s\n", ExternSymbol(node.name));
 				}
 				else if (word.type == WordType.C) {
 					if (word.params.length >= 1) {
@@ -524,7 +537,7 @@ class BackendX86_64 : CompilerBackend {
 
 					// TODO: support more than 6 parameters
 				
-					output ~= format("call %s\n", word.symbolName);
+					output ~= format("call %s\n", ExternSymbol(word.symbolName));
 
 					if (!word.isVoid) {
 						output ~= "mov [r15], rax\n";
@@ -1195,7 +1208,7 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		if (word.type != WordType.Callisto) {
-			output ~= format("extern %s\n", node.func);
+			output ~= format("extern %s\n", ExternSymbol(node.func));
 		}
 
 		words[funcName] = word;
@@ -1211,7 +1224,7 @@ class BackendX86_64 : CompilerBackend {
 		if (node.func in words) {
 			auto   word   = words[node.func];
 			string symbol = word.type == WordType.Callisto?
-				format("__func__%s", node.func.Sanitise()) : node.func;
+				format("__func__%s", node.func.Sanitise()) : ExternSymbol(node.func);
 
 			output ~= format("mov rax, %s\n", symbol);
 			output ~= "mov [r15], rax\n";
@@ -1427,5 +1440,14 @@ class BackendX86_64 : CompilerBackend {
 		output ~= "rep movsq\n";
 
 		CompileReturn(node);
+	}
+
+	private string ExternSymbol(string name) {
+		if (os == "osx") {
+			return "_" ~ name;
+		}
+		else {
+			return name;
+		}
 	}
 }
