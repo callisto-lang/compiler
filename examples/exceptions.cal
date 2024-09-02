@@ -1,13 +1,13 @@
 include "cores/select.cal"
 include "std/io.cal"
 
-func __arm64_exception begin
-	&_cal_exception Exception.msg + "Unhandled exception: %s" printf new_line
-	1 exit
-end
-
 func exception_msg begin
 	&_cal_exception Exception.msg +
+end
+
+func __uxn_exception begin
+	exception_msg c"Unhandled exception: %s" printf new_line
+	1 exit
 end
 
 func error foo begin

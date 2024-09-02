@@ -130,6 +130,7 @@ class BackendUXN : CompilerBackend {
 	override long MaxInt() => 0xFFFF;
 
 	override string DefaultHeader() => "
+		|00 @System &vector $2 &expansion $2 &wst $1 &rst $1 &metadata $2 &r $2 &g $2 &b $2 &debug $1 &state $1
 		|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1
 	";
 
@@ -216,6 +217,7 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void Init() {
+		WarnNoInfo("This backend is slightly broken. Don't use implement or printf");
 		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
@@ -263,6 +265,13 @@ class BackendUXN : CompilerBackend {
 				);
 			}
 		}
+
+		output ~= "@memcpy  01\n";
+		output ~= "&length  0000\n";
+		output ~= "&srcBank 0000\n";
+		output ~= "&srcAddr 0000\n";
+		output ~= "&dstBank 0000\n";
+		output ~= "&dstAddr 0000\n";
 
 		// pad for the stack
 		output ~= "|e0000\n";
@@ -1104,15 +1113,14 @@ class BackendUXN : CompilerBackend {
 		output ~= format("#ffff ;global_%s STA2\n", Sanitise("_cal_exception"));
 
 		// copy exception message
-		// TODO: make this less bloat
-		foreach (i ; 0 .. 3) {
-			output ~= "DUP2 LDA2\n";
-			output ~= format(
-				";global_%s #%.2x ADD2 STA2\n", Sanitise("_cal_exception"), i + 2
-			);
-			output ~= "#0002 ADD2\n";
-		}
-		output ~= "POP2\n";
+		output ~= "#0006 ;memcpy/length STA2\n";
+		output ~= "#0000 ;memcpy/srcBank STA2\n";
+		output ~= ";memcpy/srcAddr STA2\n";
+		output ~= "#0000 ;memcpy/dstBank STA2\n";
+		output ~= format(
+			";global_%s INC2 INC2 ;memcpy/dstAddr STA2\n", Sanitise("_cal_exception")
+		);
+		output ~= ";memcpy .System/expansion DEO2\n";
 
 		CompileReturn(node);
 	}
