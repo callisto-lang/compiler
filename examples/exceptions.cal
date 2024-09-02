@@ -5,11 +5,6 @@ func exception_msg begin
 	&_cal_exception Exception.msg +
 end
 
-func __uxn_exception begin
-	exception_msg c"Unhandled exception: %s" printf new_line
-	1 exit
-end
-
 func error foo begin
 	c"hi im an exception" throw
 end
