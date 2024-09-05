@@ -99,6 +99,9 @@ class BackendX86_64 : CompilerBackend {
 		else version (OSX) {
 			defaultOS = "osx";
 		}
+		else version (FreeBSD) {
+			defaultOS = "freebsd";
+		}
 		else {
 			defaultOS = "bare-metal";
 			WarnNoInfo("Default operating system, defaulting to bare-metal OS");
@@ -212,6 +215,11 @@ class BackendX86_64 : CompilerBackend {
 			}
 			case "osx": {
 				ret ~= ["OSX", "IO", "Exit", "Time", "File", "Args"];
+				if (useLibc) ret ~= "Heap";
+				break;
+			}
+			case "freebsd": {
+				ret ~= ["FreeBSD", "IO", "Exit", "Time", "File", "Args"];
 				if (useLibc) ret ~= "Heap";
 				break;
 			}
@@ -352,7 +360,7 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	override void Init() {
-		string[] oses = ["linux", "bare-metal", "osx"];
+		string[] oses = ["linux", "bare-metal", "osx", "freebsd"];
 		if (!oses.canFind(os)) {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
 		}
