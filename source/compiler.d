@@ -11,17 +11,71 @@ import callisto.error;
 import callisto.parser;
 import callisto.language;
 
+struct StructEntry {
+	Type   type;
+	string name;
+	bool   array;
+	size_t size;
+	size_t offset;
+}
+
+struct Type {
+	string        name;
+	ulong         size;
+	bool          isStruct;
+	StructEntry[] structure;
+	bool          hasInit;
+	bool          hasDeinit;
+}
+
+struct Variable {
+	string name;
+	Type   type;
+	uint   offset; // SP + offset to access
+	bool   array;
+	ulong  arraySize;
+
+	size_t Size() => array? arraySize * type.size : type.size;
+}
+
+struct Global {
+	string name;
+	Type   type;
+	bool   array;
+	ulong  arraySize;
+	void*  extra;
+
+	size_t Size() => array? arraySize * type.size : type.size;
+}
+
+struct Constant {
+	Node value;
+}
+
+struct Array {
+	string[] values;
+	Type     type;
+	bool     global;
+	void*    extra;
+
+	size_t Size() => type.size * values.length;
+}
+
 class CompilerBackend {
-	string   output;
-	ulong    org;
-	bool     orgSet;
-	Compiler compiler;
-	bool     useDebug;
-	bool     exportSymbols;
-	string[] link;
-	bool     keepAssembly;
-	string   os;
-	string   defaultOS;
+	string     output;
+	ulong      org;
+	bool       orgSet;
+	Compiler   compiler;
+	bool       useDebug;
+	bool       exportSymbols;
+	string[]   link;
+	bool       keepAssembly;
+	string     os;
+	string     defaultOS;
+	Variable[] variables;
+	Global[]   globals;
+	Array[]    arrays;
+	Type[]     types;
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
@@ -69,6 +123,119 @@ class CompilerBackend {
 		WarningBegin(error);
 		stderr.writeln(format(fmt, args));
 		PrintErrorLine(error);
+	}
+
+	final bool VariableExists(string name) => variables.any!(v => v.name == name);
+
+	final Variable GetVariable(string name) {
+		foreach (ref var ; variables) {
+			if (var.name == name) {
+				return var;
+			}
+		}
+
+		assert(0);
+	}
+
+	final bool TypeExists(string name) => types.any!(v => v.name == name);
+
+	final Type GetType(string name) {
+		foreach (ref type ; types) {
+			if (type.name == name) {
+				return type;
+			}
+		}
+
+		assert(0);
+	}
+
+	final void SetType(string name, Type ptype) {
+		foreach (i, ref type ; types) {
+			if (type.name == name) {
+				types[i] = ptype;
+				return;
+			}
+		}
+
+		assert(0);
+	}
+
+	final bool GlobalExists(string name) => globals.any!(v => v.name == name);
+
+	final Global GetGlobal(string name) {
+		foreach (ref global ; globals) {
+			if (global.name == name) {
+				return global;
+			}
+		}
+
+		assert(0);
+	}
+
+	final bool IsStructMember(string identifier) {
+		string[] parts = identifier.split(".");
+
+		if (parts.length < 2) return false;
+
+		if (VariableExists(parts[0]))    return GetVariable(parts[0]).type.isStruct;
+		else if (GlobalExists(parts[0])) return GetGlobal(parts[0]).type.isStruct;
+		else                             return false;
+	}
+
+	final size_t GetStructOffset(Node node, string identifier) {
+		string[] parts = identifier.split(".");
+
+		StructEntry[] structure;
+
+		if (VariableExists(parts[0])) {
+			structure = GetVariable(parts[0]).type.structure;
+		}
+		else if (GlobalExists(parts[0])) {
+			structure = GetGlobal(parts[0]).type.structure;
+		}
+		else {
+			Error(node.error, "Structure '%s' doesn't exist");
+		}
+
+		parts = parts[1 .. $];
+
+		size_t offset;
+
+		while (parts.length > 1) {
+			ptrdiff_t index = structure.countUntil!(a => a.name == parts[0]);
+
+			if (index == -1) {
+				Error(node.error, "Member '%s' doesn't exist", parts[0]);
+			}
+			if (!structure[index].type.isStruct) {
+				Error(node.error, "Member '%s' is not a structure", parts[0]);
+			}
+
+			offset    += structure[index].offset;
+			structure  = structure[index].type.structure;
+			parts      = parts[1 .. $];
+		}
+
+		ptrdiff_t index = structure.countUntil!(a => a.name == parts[0]);
+
+		if (index == -1) {
+			Error(node.error, "Member '%s' doesn't exist", parts[0]);
+		}
+
+		offset += structure[index].offset;
+		return offset;
+	}
+
+	final size_t GetStackSize() {
+		// old
+		//return variables.empty()? 0 : variables[0].offset + variables[0].type.size;
+
+		size_t size;
+		foreach (ref var ; variables) {
+			size += var.Size();
+		}
+
+		return size;
 	}
 }
 

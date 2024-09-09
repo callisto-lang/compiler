@@ -18,61 +18,15 @@ private struct Word {
 	bool   error;
 }
 
-private struct StructEntry {
-	Type   type;
-	string name;
-	bool   array;
-	size_t size;
-}
-
-private struct Type {
-	string        name;
-	ulong         size;
-	bool          isStruct;
-	StructEntry[] structure;
-	bool          hasInit;
-	bool          hasDeinit;
-}
-
-private struct Variable {
-	string name;
-	Type   type;
-	uint   offset; // SP + offset to access
-	bool   array;
-	ulong  arraySize;
-
-	size_t Size() => array? arraySize * type.size : type.size;
-}
-
-private struct Global {
-	Type  type;
-	bool  array;
-	ulong arraySize;
-
-	size_t Size() => array? arraySize * type.size : type.size;
-}
-
 private struct Constant {
 	Node value;
-}
-
-private struct Array {
-	string[] values;
-	Type     type;
-	bool     global;
-
-	size_t Size() => type.size * values.length;
 }
 
 class BackendUXN : CompilerBackend {
 	Word[string]     words;
 	uint             blockCounter; // used for block statements
-	Type[]           types;
-	Variable[]       variables;
-	Global[string]   globals;
 	Constant[string] consts;
 	bool             inScope;
-	Array[]          arrays;
 	string           thisFunc;
 	bool             inWhile;
 	uint             currentLoop;
@@ -111,7 +65,7 @@ class BackendUXN : CompilerBackend {
 			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
 		}
 
-		globals["_cal_exception"] = Global(GetType("Exception"), false, 0);
+		globals ~= Global("_cal_exception", GetType("Exception"), false, 0);
 	}
 
 	override string[] GetVersions() => [
@@ -140,59 +94,12 @@ class BackendUXN : CompilerBackend {
 		consts[name] = Constant(new IntegerNode(error, value));
 	}
 
-	bool VariableExists(string name) => variables.any!(v => v.name == name);
-
-	Variable GetVariable(string name) {
-		foreach (ref var ; variables) {
-			if (var.name == name) {
-				return var;
-			}
-		}
-
-		assert(0);
-	}
-
-	bool TypeExists(string name) => types.any!(v => v.name == name);
-
-	Type GetType(string name) {
-		foreach (ref type ; types) {
-			if (type.name == name) {
-				return type;
-			}
-		}
-
-		assert(0);
-	}
-
-	void SetType(string name, Type ptype) {
-		foreach (i, ref type ; types) {
-			if (type.name == name) {
-				types[i] = ptype;
-				return;
-			}
-		}
-
-		assert(0);
-	}
-
-	size_t GetStackSize() {
-		// old
-		//return variables.empty()? 0 : variables[0].offset + variables[0].type.size;
-
-		size_t size;
-		foreach (ref var ; variables) {
-			size += var.Size();
-		}
-
-		return size;
-	}
-
 	override void BeginMain() {
 		output ~= "@calmain\n";
 
-		foreach (name, global ; globals) {
+		foreach (global ; globals) {
 			if (global.type.hasInit) {
-				output ~= format(";global_%s\n", name.Sanitise());
+				output ~= format(";global_%s\n", global.name.Sanitise());
 				output ~= format("type_init_%s\n", global.type.name.Sanitise());
 			}
 		}
@@ -228,17 +135,17 @@ class BackendUXN : CompilerBackend {
 
 	override void End() {
 		// call destructors
-		foreach (name, global ; globals) {
+		foreach (global ; globals) {
 			if (global.type.hasDeinit) {
-				output ~= format(";global_%s\n", name.Sanitise());
+				output ~= format(";global_%s\n", global.name.Sanitise());
 				output ~= format("type_deinit_%s\n", global.type.name.Sanitise());
 			}
 		}
 
 		output ~= "JMP2r\n";
 
-		foreach (name, var ; globals) {
-			output ~= format("@global_%s", name.Sanitise());
+		foreach (var ; globals) {
+			output ~= format("@global_%s", var.name.Sanitise());
 
 			foreach (i ; 0 .. var.Size()) {
 				output ~= " 00";
@@ -340,8 +247,8 @@ class BackendUXN : CompilerBackend {
 				default: Error(node.error, "Bad variable type size");
 			}
 		}
-		else if (node.name in globals) {
-			auto var = globals[node.name];
+		else if (GlobalExists(node.name)) {
+			auto var = GetGlobal(node.name);
 			output ~= format(";global_%s\n", node.name.Sanitise());
 
 			if (var.type.isStruct) {
@@ -633,7 +540,8 @@ class BackendUXN : CompilerBackend {
 			global.type        = GetType(node.varType);
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
-			globals[node.name] = global;
+			global.name        = node.name;
+			globals           ~= global;
 		}
 	}
 
@@ -922,7 +830,7 @@ class BackendUXN : CompilerBackend {
 				output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
 			}
 		}
-		else if (node.func in globals) {
+		else if (GlobalExists(node.func)) {
 			output ~= format(";global_%s\n", node.func.Sanitise());
 		}
 		else {
@@ -1027,8 +935,8 @@ class BackendUXN : CompilerBackend {
 				}
 			}
 		}
-		else if (node.var in globals) {
-			auto global = globals[node.var];
+		else if (GlobalExists(node.var)) {
+			auto global = GetGlobal(node.var);
 
 			if (global.type.isStruct) {
 				Error(node.error, "Can't set struct value");

@@ -33,64 +33,18 @@ private struct Word {
 	string symbolName;
 }
 
-private struct StructEntry {
-	Type   type;
-	string name;
-	bool   array;
-	size_t size;
-}
-
-private struct Type {
-	string        name;
-	ulong         size;
-	bool          isStruct;
-	StructEntry[] structure;
-	bool          hasInit;
-	bool          hasDeinit;
-}
-
-private struct Variable {
-	string name;
-	Type   type;
-	uint   offset; // SP + offset to access
-	bool   array;
-	ulong  arraySize;
-
-	size_t Size() => array? arraySize * type.size : type.size;
-}
-
-private struct Global {
-	Type  type;
-	bool  array;
-	ulong arraySize;
-
-	size_t Size() => array? arraySize * type.size : type.size;
-}
-
 private struct Constant {
 	Node value;
 }
 
-private struct Array {
-	string[] values;
-	Type     type;
-	bool     global;
-
-	size_t Size() => type.size * values.length;
-}
-
 class BackendARM64 : CompilerBackend {
 	Word[string]     words;
-	Type[]           types;
 	string           thisFunc;
 	Constant[string] consts;
 	bool             inScope;
 	uint             blockCounter;
 	bool             inWhile;
 	uint             currentLoop;
-	Variable[]       variables;
-	Global[string]   globals;
-	Array[]          arrays;
 	bool             useLibc;
 
 	this() {
@@ -139,7 +93,7 @@ class BackendARM64 : CompilerBackend {
 		NewConst("Exception.msg",    8);
 		NewConst("Exception.sizeof", 24 + 8);
 
-		globals["_cal_exception"] = Global(GetType("Exception"), false, 0);
+		globals ~= Global("_cal_exception", GetType("Exception"), false, 0);
 
 		foreach (ref type ; types) {
 			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
@@ -148,50 +102,6 @@ class BackendARM64 : CompilerBackend {
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
-	}
-
-	bool VariableExists(string name) => variables.any!(v => v.name == name);
-
-	Variable GetVariable(string name) {
-		foreach (ref var ; variables) {
-			if (var.name == name) {
-				return var;
-			}
-		}
-
-		assert(0);
-	}
-
-	bool TypeExists(string name) => types.any!(v => v.name == name);
-
-	Type GetType(string name) {
-		foreach (ref type ; types) {
-			if (type.name == name) {
-				return type;
-			}
-		}
-
-		assert(0);
-	}
-
-	void SetType(string name, Type ptype) {
-		foreach (i, ref type ; types) {
-			if (type.name == name) {
-				types[i] = ptype;
-				return;
-			}
-		}
-
-		assert(0);
-	}
-
-	size_t GetStackSize() {
-		size_t size;
-		foreach (ref var ; variables) {
-			size += var.Size();
-		}
-
-		return size;
 	}
 
 	override string[] GetVersions() {
@@ -306,9 +216,9 @@ class BackendARM64 : CompilerBackend {
 		output ~= "__calmain:\n";
 
 		// call constructors
-		foreach (name, global ; globals) {
+		foreach (global ; globals) {
 			if (global.type.hasInit) {
-				LoadAddress("x9", format("__global_%s", name.Sanitise()));
+				LoadAddress("x9", format("__global_%s", global.name.Sanitise()));
 				output ~= "str x9, [x19], #8\n";
 				output ~= format("bl __type_init_%s\n", global.type.name.Sanitise());
 			}
@@ -378,9 +288,9 @@ class BackendARM64 : CompilerBackend {
 	
 	override void End() {
 		// call destructors
-		foreach (name, global ; globals) {
+		foreach (global ; globals) {
 			if (global.type.hasDeinit) {
-				LoadAddress("x9", format("__global_%s", name.Sanitise()));
+				LoadAddress("x9", format("__global_%s", global.name.Sanitise()));
 				output ~= "str x9, [x19], #8\n";
 				output ~= format("bl __type_deinit_%s\n", global.type.name.Sanitise());
 			}
@@ -409,11 +319,11 @@ class BackendARM64 : CompilerBackend {
 		// create global variables
 		output ~= ".bss\n";
 
-		foreach (name, var ; globals) {
-			output ~= format(".lcomm __global_%s, %d\n", name.Sanitise(), var.Size());
+		foreach (var ; globals) {
+			output ~= format(".lcomm __global_%s, %d\n", var.name.Sanitise(), var.Size());
 
 			if (exportSymbols) {
-				output ~= format(".global __global_%s\n", name.Sanitise());
+				output ~= format(".global __global_%s\n", var.name.Sanitise());
 			}
 		}
 
@@ -532,8 +442,8 @@ class BackendARM64 : CompilerBackend {
 
 			output ~= "str x9, [x19], #8\n";
 		}
-		else if (node.name in globals) {
-			auto var = globals[node.name];
+		else if (GlobalExists(node.name)) {
+			auto var = GetGlobal(node.name);
 
 			if (var.type.isStruct) {
 				Error(node.error, "Can't push value of struct");
@@ -837,7 +747,8 @@ class BackendARM64 : CompilerBackend {
 			global.type        = GetType(node.varType);
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
-			globals[node.name] = global;
+			global.name        = node.name;
+			globals           ~= global;
 		}
 	}
 	
@@ -1148,8 +1059,8 @@ class BackendARM64 : CompilerBackend {
 			LoadAddress("x9", symbol);
 			output ~= "str x9, [x19], #8\n";
 		}
-		else if (node.func in globals) {
-			auto var = globals[node.func];
+		else if (GlobalExists(node.func)) {
+			auto var = GetGlobal(node.func);
 
 			LoadAddress("x9", format("__global_%s", node.func.Sanitise()));
 			output ~= "str x9, [x19], #8\n";
@@ -1245,8 +1156,8 @@ class BackendARM64 : CompilerBackend {
 				default: Error(node.error, "Bad variable type size");
 			}
 		}
-		else if (node.var in globals) {
-			auto global = globals[node.var];
+		else if (GlobalExists(node.var)) {
+			auto global = GetGlobal(node.var);
 
 			if (global.type.isStruct) {
 				Error(node.error, "Can't set struct value");

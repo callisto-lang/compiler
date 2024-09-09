@@ -13,6 +13,15 @@ import callisto.parser;
 import callisto.compiler;
 import callisto.language;
 
+private struct GlobalExtra {
+	ulong addr;
+}
+
+private struct ArrayExtra {
+	ulong metaAddr;
+	ulong elements;
+}
+
 private enum WordType {
 	Callisto,
 	Lua
@@ -25,70 +34,16 @@ private struct Word {
 	bool     error;
 }
 
-private struct StructEntry {
-	Type   type;
-	string name;
-	bool   array;
-	size_t size;
-}
-
-private struct Type {
-	string        name;
-	ulong         size;
-	bool          isStruct;
-	StructEntry[] structure;
-	bool          hasInit;
-	bool          hasDeinit;
-}
-
-private struct Variable {
-	string name;
-	Type   type;
-	uint   offset; // SP + offset to access
-	bool   array;
-	ulong  arraySize;
-
-	size_t Size() => array? arraySize * type.size : type.size;
-}
-
-private struct Global {
-	string name;
-	Type   type;
-	ulong  addr;
-	bool   array;
-	ulong  arraySize;
-
-	size_t Size() => array? arraySize * type.size : type.size;
-}
-
-private struct Constant {
-	Node value;
-}
-
-private struct Array {
-	string[] values;
-	Type     type;
-	bool     global;
-	ulong    metaAddr;
-	ulong    elements;
-
-	size_t Size() => type.size * values.length;
-}
-
 class BackendLua : CompilerBackend {
 	Word[string]     words;
-	Type[]           types;
 	string           thisFunc;
 	Constant[string] consts;
 	bool             inScope;
 	uint             blockCounter;
 	bool             inWhile;
 	uint             currentLoop;
-	Variable[]       variables;
-	Global[]         globals;
 	bool             useLibc;
 	ulong            globalStack = 524288;
-	Array[]          arrays;
 	ulong            arrayStack = 524287;
 
 	this() {
@@ -123,72 +78,13 @@ class BackendLua : CompilerBackend {
 		}
 
 		globals ~= Global(
-			"_cal_exception", GetType("Exception"), globalStack, false, 0
+			"_cal_exception", GetType("Exception"), false, 0, new GlobalExtra(globalStack)
 		);
 		globalStack += globals[$ - 1].Size();
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
-	}
-
-	bool VariableExists(string name) => variables.any!(v => v.name == name);
-
-	Variable GetVariable(string name) {
-		foreach (ref var ; variables) {
-			if (var.name == name) {
-				return var;
-			}
-		}
-
-		assert(0);
-	}
-
-	bool GlobalExists(string name) => globals.any!(v => v.name == name);
-
-	Global GetGlobal(string name) {
-		foreach (ref var ; globals) {
-			if (var.name == name) {
-				return var;
-			}
-		}
-
-		assert(0);
-	}
-
-	bool TypeExists(string name) => types.any!(v => v.name == name);
-
-	Type GetType(string name) {
-		foreach (ref type ; types) {
-			if (type.name == name) {
-				return type;
-			}
-		}
-
-		assert(0);
-	}
-
-	void SetType(string name, Type ptype) {
-		foreach (i, ref type ; types) {
-			if (type.name == name) {
-				types[i] = ptype;
-				return;
-			}
-		}
-
-		assert(0);
-	}
-
-	size_t GetStackSize() {
-		// old
-		//return variables.empty()? 0 : variables[0].offset + variables[0].type.size;
-
-		size_t size;
-		foreach (ref var ; variables) {
-			size += var.Size();
-		}
-
-		return size;
 	}
 
 	override string[] GetVersions() => ["Lua", "CallistoScript", "IO", "Time", "Exit"];
@@ -224,8 +120,9 @@ class BackendLua : CompilerBackend {
 		// call destructors
 		foreach (name, global ; globals) {
 			if (!global.type.hasDeinit) continue;
+			auto globalExtra = cast(GlobalExtra*) global.extra;
 
-			output ~= format("mem[dsp] = %d\n", global.addr);
+			output ~= format("mem[dsp] = %d\n", globalExtra.addr);
 			output ~= "dsp = dsp + 1\n";
 			output ~= format("type_deinit_%s()\n", global.type.name.Sanitise());
 		}
@@ -235,9 +132,11 @@ class BackendLua : CompilerBackend {
 		// create arrays
 		foreach (ref array ; arrays) {
 			// create metadata
-			output ~= format("mem[%d] = %d\n", array.metaAddr, array.values.length);
-			output ~= format("mem[%d + 1] = %d\n", array.metaAddr, array.type.size);
-			output ~= format("mem[%d + 2] = %d\n", array.metaAddr, array.elements);
+			auto arrayExtra = cast(ArrayExtra*) array.extra;
+
+			output ~= format("mem[%d] = %d\n", arrayExtra.metaAddr, array.values.length);
+			output ~= format("mem[%d + 1] = %d\n", arrayExtra.metaAddr, array.type.size);
+			output ~= format("mem[%d + 2] = %d\n", arrayExtra.metaAddr, arrayExtra.elements);
 
 			// create array contents
 			output ~= "regA = {";
@@ -255,7 +154,7 @@ class BackendLua : CompilerBackend {
 				for i = 1, %d do
 					mem[%d + (i - 1)] = regA[i]
 				end
-			", array.values.length, array.elements);
+			", array.values.length, arrayExtra.elements);
 		}
 
 		output ~= "regA = 0\n";
@@ -282,8 +181,9 @@ class BackendLua : CompilerBackend {
 			if (word.error) {
 				if ("__lua_exception" in words) {
 					auto exception = GetGlobal("_cal_exception");
+					auto extra     = cast(GlobalExtra*) exception.extra;
 
-					output ~= format("if mem[%d] ~= 0 then\n", exception.addr);
+					output ~= format("if mem[%d] ~= 0 then\n", extra.addr);
 					output ~= format("func__%s()\n", Sanitise("__lua_exception"));
 					output ~= "end\n";
 				}
@@ -307,7 +207,8 @@ class BackendLua : CompilerBackend {
 			output ~= "dsp = dsp + 1\n";
 		}
 		else if (GlobalExists(node.name)) {
-			auto var = GetGlobal(node.name);
+			auto var   = GetGlobal(node.name);
+			auto extra = cast(GlobalExtra*) var.extra;
 
 			if (var.type.isStruct) {
 				Error(node.error, "Can't push value of struct");
@@ -317,7 +218,7 @@ class BackendLua : CompilerBackend {
 				Error(node.error, "Bad variable type size");
 			}
 
-			output ~= format("mem[dsp] = mem[%d]\n", var.addr);
+			output ~= format("mem[dsp] = mem[%d]\n", extra.addr);
 			output ~= "dsp = dsp + 1\n";
 		}
 		else if (node.name in consts) {
@@ -347,7 +248,8 @@ class BackendLua : CompilerBackend {
 		thisFunc = node.name;
 
 		if (node.inline) {
-			output ~= format("mem[%d] = 0\n", GetGlobal("_cal_exception").addr);
+			auto globalExtra = cast(GlobalExtra*) GetGlobal("_cal_exception").extra;
+			output ~= format("mem[%d] = 0\n", globalExtra.addr);
 
 			words[node.name] = Word(WordType.Callisto, true, node.nodes, node.errors);
 		}
@@ -359,7 +261,8 @@ class BackendLua : CompilerBackend {
 
 			output ~= format("function func__%s()\n", node.name.Sanitise());
 
-			output ~= format("mem[%d] = 0\n", GetGlobal("_cal_exception").addr);
+			auto exceptionExtra = cast(GlobalExtra*) GetGlobal("_cal_exception").extra;
+			output ~= format("mem[%d] = 0\n", exceptionExtra.addr);
 
 			// allocate parameters
 			size_t paramSize = node.params.length;
@@ -574,18 +477,20 @@ class BackendLua : CompilerBackend {
 			}
 		}
 		else {
+			GlobalExtra* extra = new GlobalExtra();
+			extra.addr         = globalStack;
+
 			Global global;
 			global.name       = node.name;
 			global.type       = GetType(node.varType);
 			global.array      = node.array;
 			global.arraySize  = node.arraySize;
-			global.addr       = globalStack;
 			globals          ~= global;
 
 			globalStack += global.Size();
 
 			if (global.type.hasInit) { // call constructor
-				output ~= format("mem[dsp] = %d\n", global.addr);
+				output ~= format("mem[dsp] = %d\n", extra.addr);
 				output ~= "dsp = dsp + 1\n";
 				output ~= format("type_init_%s()\n", global.type.name.Sanitise());
 			}
@@ -593,7 +498,9 @@ class BackendLua : CompilerBackend {
 	}
 
 	override void CompileArray(ArrayNode node) {
-		Array array;
+		Array       array;
+		ArrayExtra* extra = new ArrayExtra();
+		array.extra       = extra;
 
 		foreach (ref elem ; node.elements) {
 			switch (elem.type) {
@@ -617,11 +524,11 @@ class BackendLua : CompilerBackend {
 
 		if (!inScope || node.constant) {
 			arrayStack     -= array.Size();
-			array.elements  = arrayStack;
+			extra.elements  = arrayStack;
 			arrayStack     -= 3;
-			array.metaAddr  = arrayStack;
+			extra.metaAddr  = arrayStack;
 
-			output ~= format("mem[dsp] = %d\n", array.metaAddr);
+			output ~= format("mem[dsp] = %d\n", extra.metaAddr);
 			output ~= "dsp = dsp + 1\n";
 		}
 		else {
@@ -875,9 +782,10 @@ class BackendLua : CompilerBackend {
 			Error(node.error, "Can't get addresses of functions in CallistoScript");
 		}
 		else if (GlobalExists(node.func)) {
-			auto var = GetGlobal(node.func);
+			auto var   = GetGlobal(node.func);
+			auto extra = cast(GlobalExtra*) var.extra;
 
-			output ~= format("mem[dsp] = %d\n", var.addr);
+			output ~= format("mem[dsp] = %d\n", extra.addr);
 		}
 		else if (VariableExists(node.func)) {
 			auto var = GetVariable(node.func);
@@ -961,12 +869,13 @@ class BackendLua : CompilerBackend {
 		}
 		else if (GlobalExists(node.var)) {
 			auto global = GetGlobal(node.var);
+			auto extra  = cast(GlobalExtra*) global.extra;
 
 			if (global.type.isStruct) {
 				Error(node.error, "Can't set struct value");
 			}
 
-			output ~= format("mem[%d] = cal_pop()\n", global.addr);
+			output ~= format("mem[%d] = cal_pop()\n", extra.addr);
 		}
 		else {
 			Error(node.error, "Variable '%s' doesn't exist", node.var);
@@ -998,7 +907,10 @@ class BackendLua : CompilerBackend {
 
 		++ blockCounter;
 
-		output ~= format("if mem[%d] == 0 then\n", GetGlobal("_cal_exception").addr);
+		auto global      = GetGlobal("_cal_exception");
+		auto globalExtra = cast(GlobalExtra*) global.extra;
+
+		output ~= format("if mem[%d] == 0 then\n", globalExtra.addr);
 		output ~= format("goto catch_%d_end\n", blockCounter);
 		output ~= "end\n";
 
@@ -1035,14 +947,17 @@ class BackendLua : CompilerBackend {
 			Error(node.error, "Can't use throw in an inline function");
 		}
 
+		auto global = GetGlobal("_cal_exception");
+		auto extra  = cast(GlobalExtra*) global.extra;
+
 		// set exception error
-		output ~= format("mem[%d] = -1\n", GetGlobal("_cal_exception").addr);
+		output ~= format("mem[%d] = -1\n", extra.addr);
 
 		// copy exception message
 		output ~= "dsp = dsp - 1\n";
 		output ~= "for i = 1, 3 do\n";
 		output ~= format(
-			"mem[%d + i] = mem[mem[dsp] + (i - 1)]\n", GetGlobal("_cal_exception").addr
+			"mem[%d + i] = mem[mem[dsp] + (i - 1)]\n", extra.addr
 		);
 		output ~= "end\n";
 

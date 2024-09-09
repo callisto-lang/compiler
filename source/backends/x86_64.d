@@ -32,65 +32,18 @@ private struct Word {
 	string symbolName;
 }
 
-private struct StructEntry {
-	Type   type;
-	string name;
-	bool   array;
-	size_t size;
-	size_t offset;
-}
-
-private struct Type {
-	string        name;
-	ulong         size;
-	bool          isStruct;
-	StructEntry[] structure;
-	bool          hasInit;
-	bool          hasDeinit;
-}
-
-private struct Variable {
-	string name;
-	Type   type;
-	uint   offset; // SP + offset to access
-	bool   array;
-	ulong  arraySize;
-
-	size_t Size() => array? arraySize * type.size : type.size;
-}
-
-private struct Global {
-	Type  type;
-	bool  array;
-	ulong arraySize;
-
-	size_t Size() => array? arraySize * type.size : type.size;
-}
-
 private struct Constant {
 	Node value;
 }
 
-private struct Array {
-	string[] values;
-	Type     type;
-	bool     global;
-
-	size_t Size() => type.size * values.length;
-}
-
 class BackendX86_64 : CompilerBackend {
 	Word[string]     words;
-	Type[]           types;
 	string           thisFunc;
 	Constant[string] consts;
 	bool             inScope;
 	uint             blockCounter;
 	bool             inWhile;
 	uint             currentLoop;
-	Variable[]       variables;
-	Global[string]   globals;
-	Array[]          arrays;
 	bool             useLibc;
 
 	this() {
@@ -146,113 +99,11 @@ class BackendX86_64 : CompilerBackend {
 			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
 		}
 
-		globals["_cal_exception"] = Global(GetType("Exception"), false, 0);
+		globals ~= Global("_cal_exception", GetType("Exception"), false, 0);
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
-	}
-
-	bool VariableExists(string name) => variables.any!(v => v.name == name);
-
-	Variable GetVariable(string name) {
-		foreach (ref var ; variables) {
-			if (var.name == name) {
-				return var;
-			}
-		}
-
-		assert(0);
-	}
-
-	bool TypeExists(string name) => types.any!(v => v.name == name);
-
-	Type GetType(string name) {
-		foreach (ref type ; types) {
-			if (type.name == name) {
-				return type;
-			}
-		}
-
-		assert(0);
-	}
-
-	void SetType(string name, Type ptype) {
-		foreach (i, ref type ; types) {
-			if (type.name == name) {
-				types[i] = ptype;
-				return;
-			}
-		}
-
-		assert(0);
-	}
-
-	bool IsStructMember(string identifier) {
-		string[] parts = identifier.split(".");
-
-		if (parts.length < 2) return false;
-
-		if (VariableExists(parts[0])) return GetVariable(parts[0]).type.isStruct;
-		else if (parts[0] in globals) return globals[parts[0]].type.isStruct;
-		else                          return false;
-	}
-
-	size_t GetStructOffset(Node node, string identifier) {
-		string[] parts = identifier.split(".");
-
-		StructEntry[] structure;
-
-		if (VariableExists(parts[0])) {
-			structure = GetVariable(parts[0]).type.structure;
-		}
-		else if (parts[0] in globals) {
-			structure = globals[parts[0]].type.structure;
-		}
-		else {
-			Error(node.error, "Structure '%s' doesn't exist");
-		}
-
-		parts = parts[1 .. $];
-
-		size_t offset;
-
-		while (parts.length > 1) {
-			ptrdiff_t index = structure.countUntil!(a => a.name == parts[0]);
-
-			// TODO: maybe this should error?
-			if (index == -1) {
-				Error(node.error, "Member '%s' doesn't exist", parts[0]);
-			}
-			if (!structure[index].type.isStruct) {
-				Error(node.error, "Member '%s' is not a structure", parts[0]);
-			}
-
-			offset    += structure[index].offset;
-			structure  = structure[index].type.structure;
-			parts      = parts[1 .. $];
-		}
-
-		ptrdiff_t index = structure.countUntil!(a => a.name == parts[0]);
-
-		if (index == -1) {
-			Error(node.error, "Member '%s' doesn't exist", parts[0]);
-		}
-
-		offset += structure[index].offset;
-		return offset;
-	}
-
-	size_t GetStackSize() {
-		// old
-		//return variables.empty()? 0 : variables[0].offset + variables[0].type.size;
-
-		size_t size;
-		foreach (ref var ; variables) {
-			size += var.Size();
-		}
-
-		return size;
 	}
 
 	//override string[] GetVersions() => [
@@ -384,10 +235,10 @@ class BackendX86_64 : CompilerBackend {
 		output ~= "__calmain:\n";
 
 		// call constructors
-		foreach (name, global ; globals) {
+		foreach (global ; globals) {
 			if (global.type.hasInit) {
 				output ~= format(
-					"lea rax, qword [__global_%s]\n", name.Sanitise()
+					"lea rax, qword [__global_%s]\n", global.name.Sanitise()
 				);
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
@@ -465,9 +316,9 @@ class BackendX86_64 : CompilerBackend {
 	
 	override void End() {
 		// call destructors
-		foreach (name, global ; globals) {
+		foreach (global ; globals) {
 			if (global.type.hasDeinit) {
-				output ~= format("lea rax, qword [__global_%s]\n", Sanitise(name));
+				output ~= format("lea rax, qword [__global_%s]\n", Sanitise(global.name));
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 				output ~= format("call __type_deinit_%s\n", Sanitise(global.type.name));
@@ -507,11 +358,11 @@ class BackendX86_64 : CompilerBackend {
 		// create global variables
 		output ~= "section .bss\n";
 
-		foreach (name, var ; globals) {
-			output ~= format("__global_%s: resb %d\n", name.Sanitise(), var.Size());
+		foreach (var ; globals) {
+			output ~= format("__global_%s: resb %d\n", var.name.Sanitise(), var.Size());
 
 			if (exportSymbols) {
-				output ~= format("global __global_%s\n", name.Sanitise());
+				output ~= format("global __global_%s\n", var.name.Sanitise());
 			}
 		}
 
@@ -698,16 +549,16 @@ class BackendX86_64 : CompilerBackend {
 			PushVariableValue(node, GetVariable(node.name));
 			return;
 		}
-		else if (node.name in globals) {
-			PushGlobalValue(node, node.name, globals[node.name]);
+		else if (GlobalExists(node.name)) {
+			PushGlobalValue(node, node.name, GetGlobal(node.name));
 			return;
 		}
 		else if (IsStructMember(node.name)) {
 			string name   = node.name[0 .. node.name.countUntil(".")];
 			size_t offset = GetStructOffset(node, node.name);
 
-			if (name in globals) {
-				PushGlobalValue(node, name, globals[name], offset, true);
+			if (GlobalExists(name)) {
+				PushGlobalValue(node, name, GetGlobal(name), offset, true);
 			}
 			else if (VariableExists(name)) {
 				PushVariableValue(node, GetVariable(name), offset, true);
@@ -1007,7 +858,8 @@ class BackendX86_64 : CompilerBackend {
 			global.type        = GetType(node.varType);
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
-			globals[node.name] = global;
+			global.name        = node.name;
+			globals           ~= global;
 		}
 	}
 	
@@ -1322,8 +1174,8 @@ class BackendX86_64 : CompilerBackend {
 			output ~= "mov [r15], rax\n";
 			output ~= "add r15, 8\n";
 		}
-		else if (node.func in globals) {
-			auto var = globals[node.func];
+		else if (GlobalExists(node.func)) {
+			auto var = GetGlobal(node.func);
 
 			output ~= format(
 				"lea rax, qword [__global_%s]\n", node.func.Sanitise()
@@ -1345,8 +1197,8 @@ class BackendX86_64 : CompilerBackend {
 			string name   = node.func[0 .. node.func.countUntil(".")];
 			size_t offset = GetStructOffset(node, node.func);
 
-			if (name in globals) {
-				auto var = globals[name];
+			if (GlobalExists(name)) {
+				auto var = GetGlobal(name);
 
 				output ~= format(
 					"lea rax, qword [__global_%s + %d]\n", name.Sanitise(), offset
@@ -1480,8 +1332,8 @@ class BackendX86_64 : CompilerBackend {
 		if (VariableExists(node.var)) {
 			SetVariable(node, GetVariable(node.var));
 		}
-		else if (node.var in globals) {
-			SetGlobal(node, globals[node.var], node.var);
+		else if (GlobalExists(node.var)) {
+			SetGlobal(node, GetGlobal(node.var), node.var);
 		}
 		else if (IsStructMember(node.var)) {
 			string name   = node.var[0 .. node.var.countUntil(".")];
@@ -1490,8 +1342,8 @@ class BackendX86_64 : CompilerBackend {
 			if (VariableExists(name)) {
 				SetVariable(node, GetVariable(name), offset, true);
 			}
-			else if (name in globals) {
-				SetGlobal(node, globals[name], name, offset, true);
+			else if (GlobalExists(name)) {
+				SetGlobal(node, GetGlobal(name), name, offset, true);
 			}
 		}
 		else {

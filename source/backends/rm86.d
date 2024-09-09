@@ -18,52 +18,6 @@ private struct Word {
 	bool   error;
 }
 
-private struct StructEntry {
-	Type   type;
-	string name;
-	bool   array;
-	size_t size;
-}
-
-private struct Type {
-	string        name;
-	ulong         size;
-	bool          isStruct;
-	StructEntry[] structure;
-	bool          hasInit;
-	bool          hasDeinit;
-}
-
-private struct Variable {
-	string name;
-	Type   type;
-	uint   offset; // SP + offset to access
-	bool   array;
-	ulong  arraySize;
-
-	size_t Size() => array? arraySize * type.size : type.size;
-}
-
-private struct Global {
-	Type  type;
-	bool  array;
-	ulong arraySize;
-
-	size_t Size() => array? arraySize * type.size : type.size;
-}
-
-private struct Constant {
-	Node value;
-}
-
-private struct Array {
-	string[] values;
-	Type     type;
-	bool     global;
-
-	size_t Size() => type.size * values.length;
-}
-
 private struct RM86Opts {
 	bool noDos;
 }
@@ -71,12 +25,8 @@ private struct RM86Opts {
 class BackendRM86 : CompilerBackend {
 	Word[string]     words;
 	uint             blockCounter; // used for block statements
-	Type[]           types;
-	Variable[]       variables;
-	Global[string]   globals;
 	Constant[string] consts;
 	bool             inScope;
-	Array[]          arrays;
 	string           thisFunc;
 	bool             inWhile;
 	uint             currentLoop;
@@ -119,62 +69,15 @@ class BackendRM86 : CompilerBackend {
 		}
 
 		if (!opts.noDos) { // TODO: remove this
-			globals["__rm86_argv"] = Global(GetType("addr"), false, 0);
-			globals["__rm86_arglen"] = Global(GetType("cell"), false, 0);
+			globals ~= Global("__rm86_argv", GetType("addr"), false, 0);
+			globals ~= Global("__rm86_arglen", GetType("cell"), false, 0);
 		}
 
-		globals["_cal_exception"] = Global(GetType("Exception"), false, 0);
+		globals ~= Global("_cal_exception", GetType("Exception"), false, 0);
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
-	}
-
-	bool VariableExists(string name) => variables.any!(v => v.name == name);
-
-	Variable GetVariable(string name) {
-		foreach (ref var ; variables) {
-			if (var.name == name) {
-				return var;
-			}
-		}
-
-		assert(0);
-	}
-
-	bool TypeExists(string name) => types.any!(v => v.name == name);
-
-	Type GetType(string name) {
-		foreach (ref type ; types) {
-			if (type.name == name) {
-				return type;
-			}
-		}
-
-		assert(0);
-	}
-
-	void SetType(string name, Type ptype) {
-		foreach (i, ref type ; types) {
-			if (type.name == name) {
-				types[i] = ptype;
-				return;
-			}
-		}
-
-		assert(0);
-	}
-
-	size_t GetStackSize() {
-		// old
-		//return variables.empty()? 0 : variables[0].offset + variables[0].type.size;
-
-		size_t size;
-		foreach (ref var ; variables) {
-			size += var.Size();
-		}
-
-		return size;
 	}
 
 	override string[] GetVersions() => [
@@ -208,10 +111,11 @@ class BackendRM86 : CompilerBackend {
 		output ~= "__calmain:\n";
 
 		// call globals
-		foreach (name, global ; globals) {
+		// what?
+		foreach (global ; globals) {
 			if (global.type.hasInit) {
 				output ~= format(
-					"mov word [si], word __global_%s\n", name.Sanitise()
+					"mov word [si], word __global_%s\n", global.name.Sanitise()
 				);
 				output ~= "add si, 2\n";
 				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
@@ -259,9 +163,9 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override void End() {
-		foreach (name, global ; globals) {
+		foreach (global ; globals) {
 			if (global.type.hasDeinit) {
-				output ~= format("mov word [si], word __global_%s\n", Sanitise(name));
+				output ~= format("mov word [si], word __global_%s\n", Sanitise(global.name));
 				output ~= "add si, 2\n";
 				output ~= format("call __type_deinit_%s\n", Sanitise(global.type.name));
 			}
@@ -284,8 +188,8 @@ class BackendRM86 : CompilerBackend {
 		}
 		output ~= "ret\n";
 
-		foreach (name, var ; globals) {
-			output ~= format("__global_%s: times %d db 0\n", name.Sanitise(), var.Size());
+		foreach (var ; globals) {
+			output ~= format("__global_%s: times %d db 0\n", var.name.Sanitise(), var.Size());
 		}
 
 		foreach (i, ref array ; arrays) {
@@ -385,8 +289,8 @@ class BackendRM86 : CompilerBackend {
 			output ~= "mov [si], ax\n";
 			output ~= "add si, 2\n";
 		}
-		else if (node.name in globals) {
-			auto var = globals[node.name];
+		else if (GlobalExists(node.name)) {
+			auto var = GetGlobal(node.name);
 
 			if (var.type.size != 8) {
 				output ~= "xor ax, ax\n";
@@ -687,7 +591,8 @@ class BackendRM86 : CompilerBackend {
 			global.type        = GetType(node.varType);
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
-			globals[node.name] = global;
+			global.name        = node.name;
+			globals           ~= global;
 
 			if (!orgSet) {
 				Warn(node.error, "Declaring global variables without a set org value");
@@ -977,8 +882,8 @@ class BackendRM86 : CompilerBackend {
 			output ~= "mov [si], ax\n";
 			output ~= "add si, 2\n";
 		}
-		else if (node.func in globals) {
-			auto var = globals[node.func];
+		else if (GlobalExists(node.func)) {
+			auto var = GetGlobal(node.func);
 
 			output ~= format(
 				"mov [si], word __global_%s\n", node.func.Sanitise()
@@ -1085,8 +990,8 @@ class BackendRM86 : CompilerBackend {
 				default: Error(node.error, "Bad variable type size");
 			}
 		}
-		else if (node.var in globals) {
-			auto global = globals[node.var];
+		else if (GlobalExists(node.var)) {
+			auto global = GetGlobal(node.var);
 
 			if (global.type.isStruct) {
 				Error(node.error, "Can't set struct value");
