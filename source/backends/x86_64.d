@@ -404,7 +404,7 @@ class BackendX86_64 : CompilerBackend {
 		}
 	}
 
-	void PushGlobalValue(Node node, string name, Global var, size_t offset = 0, bool member = false) {
+	void PushGlobalValue(Node node, Global var, size_t offset = 0, bool member = false) {
 		if (var.type.size != 8) {
 			output ~= "xor rax, rax\n";
 		}
@@ -413,7 +413,7 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Can't push value of struct");
 		}
 
-		string symbol = format("__global_%s", name.Sanitise());
+		string symbol = format("__global_%s", var.name.Sanitise());
 
 		switch (var.type.size) {
 			case 1: output ~= format("mov al, [%s", symbol); break;
@@ -550,22 +550,20 @@ class BackendX86_64 : CompilerBackend {
 			return;
 		}
 		else if (GlobalExists(node.name)) {
-			PushGlobalValue(node, node.name, GetGlobal(node.name));
-			return;
+			PushGlobalValue(node, GetGlobal(node.name));
 		}
 		else if (IsStructMember(node.name)) {
 			string name   = node.name[0 .. node.name.countUntil(".")];
 			size_t offset = GetStructOffset(node, node.name);
 
 			if (GlobalExists(name)) {
-				PushGlobalValue(node, name, GetGlobal(name), offset, true);
+				PushGlobalValue(node, GetGlobal(name), offset, true);
 			}
 			else if (VariableExists(name)) {
 				PushVariableValue(node, GetVariable(name), offset, true);
 			}
-			return;
 		}
-		if (node.name in consts) {
+		else if (node.name in consts) {
 			auto value  = consts[node.name].value;
 			value.error = node.error;
 
@@ -1304,7 +1302,7 @@ class BackendX86_64 : CompilerBackend {
 		}
 	}
 
-	void SetGlobal(Node node, Global global, string name, size_t offset = 0, bool member = false) {
+	void SetGlobal(Node node, Global global, size_t offset = 0, bool member = false) {
 		output ~= "sub r15, 8\n";
 		output ~= "mov rax, [r15]\n";
 
@@ -1312,7 +1310,7 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Can't set struct value");
 		}
 
-		string symbol = format("__global_%s", name.Sanitise());
+		string symbol = format("__global_%s", global.name.Sanitise());
 
 		if (global.type.size != 8) {
 			output ~= "xor rbx, rbx\n";
@@ -1333,7 +1331,7 @@ class BackendX86_64 : CompilerBackend {
 			SetVariable(node, GetVariable(node.var));
 		}
 		else if (GlobalExists(node.var)) {
-			SetGlobal(node, GetGlobal(node.var), node.var);
+			SetGlobal(node, GetGlobal(node.var));
 		}
 		else if (IsStructMember(node.var)) {
 			string name   = node.var[0 .. node.var.countUntil(".")];
@@ -1343,7 +1341,7 @@ class BackendX86_64 : CompilerBackend {
 				SetVariable(node, GetVariable(name), offset, true);
 			}
 			else if (GlobalExists(name)) {
-				SetGlobal(node, GetGlobal(name), name, offset, true);
+				SetGlobal(node, GetGlobal(name), offset, true);
 			}
 		}
 		else {

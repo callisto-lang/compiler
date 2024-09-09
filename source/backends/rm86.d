@@ -220,6 +220,51 @@ class BackendRM86 : CompilerBackend {
 		output ~= "__stack: times 512 dw 0\n";
 	}
 
+	void PushVariableValue(Node node, Variable var, size_t offset = 0, bool member = false) {
+		output ~= "mov di, sp\n";
+		if (var.offset > 0) {
+			output ~= format("add di, %d\n", var.offset + offset);
+		}
+
+		if (var.type.isStruct && !member) {
+			Error(node.error, "Can't push value of struct");
+		}
+
+		if (var.type.size != 2) {
+			output ~= "xor ax, ax\n";
+		}
+
+		switch (var.type.size) {
+			case 1: output ~= format("mov al, [di]\n"); break;
+			case 2: output ~= format("mov ax, [di]\n"); break;
+			default: Error(node.error, "Bad variable type size");
+		}
+
+		output ~= "mov [si], ax\n";
+		output ~= "add si, 2\n";
+	}
+
+	void PushGlobalValue(Node node, Global var, size_t offset = 0, bool member = false) {
+		if (var.type.size != 8) {
+			output ~= "xor ax, ax\n";
+		}
+
+		if (var.type.isStruct && !member) {
+			Error(node.error, "Can't push value of struct");
+		}
+
+		string symbol = format("__global_%s", var.name.Sanitise());
+
+		switch (var.type.size) {
+			case 1: output ~= format("mov al, [%s + %d]\n", symbol, offset); break;
+			case 2: output ~= format("mov ax, [%s + %d]\n", symbol, offset); break;
+			default: Error(node.error, "Bad variable type size");
+		}
+
+		output ~= "mov [si], ax\n";
+		output ~= "add si, 2\n";
+	}
+
 	override void CompileWord(WordNode node) {
 		if (node.name in words) {
 			auto word = words[node.name];
@@ -265,51 +310,21 @@ class BackendRM86 : CompilerBackend {
 			}
 		}
 		else if (VariableExists(node.name)) {
-			auto var = GetVariable(node.name);
-
-			output ~= "mov di, sp\n";
-			if (var.offset > 0) {
-				output ~= format("add di, %d\n", var.offset);
-			}
-
-			if (var.type.isStruct) {
-				Error(node.error, "Can't push value of struct");
-			}
-
-			if (var.type.size != 2) {
-				output ~= "xor ax, ax\n";
-			}
-
-			switch (var.type.size) {
-				case 1: output ~= format("mov al, [di]\n"); break;
-				case 2: output ~= format("mov ax, [di]\n"); break;
-				default: Error(node.error, "Bad variable type size");
-			}
-
-			output ~= "mov [si], ax\n";
-			output ~= "add si, 2\n";
+			PushVariableValue(node, GetVariable(node.name));
 		}
 		else if (GlobalExists(node.name)) {
-			auto var = GetGlobal(node.name);
+			PushGlobalValue(node, GetGlobal(node.name));
+		}
+		else if (IsStructMember(node.name)) {
+			string name   = node.name[0 .. node.name.countUntil(".")];
+			size_t offset = GetStructOffset(node, node.name);
 
-			if (var.type.size != 8) {
-				output ~= "xor ax, ax\n";
+			if (GlobalExists(name)) {
+				PushGlobalValue(node, GetGlobal(name), offset, true);
 			}
-
-			if (var.type.isStruct) {
-				Error(node.error, "Can't push value of struct");
+			else if (VariableExists(name)) {
+				PushVariableValue(node, GetVariable(name), offset, true);
 			}
-
-			string symbol = format("__global_%s", node.name.Sanitise());
-
-			switch (var.type.size) {
-				case 1: output ~= format("mov al, [%s]\n", symbol); break;
-				case 2: output ~= format("mov ax, [%s]\n", symbol); break;
-				default: Error(node.error, "Bad variable type size");
-			}
-
-			output ~= "mov [si], ax\n";
-			output ~= "add si, 2\n";
 		}
 		else if (node.name in consts) {
 			auto value  = consts[node.name].value;
@@ -900,6 +915,31 @@ class BackendRM86 : CompilerBackend {
 			output ~= "mov [si], di\n";
 			output ~= "add si, 2\n";
 		}
+		else if (IsStructMember(node.func)) {
+			string name   = node.func[0 .. node.func.countUntil(".")];
+			size_t offset = GetStructOffset(node, node.func);
+
+			if (GlobalExists(name)) {
+				auto var = GetGlobal(name);
+
+				output ~= format(
+					"lea ax, [__global_%s + %d]\n", name.Sanitise(), offset
+				);
+				output ~= "mov [si], ax\n";
+				output ~= "add si, 2\n";
+			}
+			else if (VariableExists(node.func)) {
+				auto var = GetVariable(name);
+
+				output ~= "mov ax, si\n";
+				if (var.offset > 0) {
+					output ~= format("add ax, %d\n", var.offset + offset);
+				}
+				output ~= "mov [si], ax\n";
+				output ~= "add si, 2\n";
+			}
+			else assert(0);
+		}
 		else {
 			Error(node.error, "Undefined identifier '%s'", node.func);
 		}
@@ -969,45 +1009,60 @@ class BackendRM86 : CompilerBackend {
 		variables  = [];
 	}
 
+	void SetVariable(Node node, Variable var, size_t offset = 0, bool member = false) {
+		if (var.type.isStruct && !member) {
+			Error(node.error, "Can't set struct value");
+		}
+
+		output ~= "mov bx, sp\n";
+
+		string addr = var.offset == 0? "bx" : format("bx + %d", var.offset);
+
+		switch (var.type.size) {
+			case 1: output ~= format("mov [%s], al\n", addr); break;
+			case 2: output ~= format("mov [%s], ax\n", addr); break;
+			default: Error(node.error, "Bad variable type size");
+		}
+	}
+
+	void SetGlobal(Node node, Global global, size_t offset = 0, bool member = false) {
+		if (global.type.isStruct && !member) {
+			Error(node.error, "Can't set struct value");
+		}
+
+		string symbol = format("__global_%s", global.name.Sanitise());
+
+		if (global.type.size != 2) {
+			output ~= "xor bx, bx\n";
+			output ~= format("mov [%s], bx\n", symbol);
+		}
+
+		switch (global.type.size) {
+			case 1: output ~= format("mov [%s], al\n", symbol); break;
+			case 2: output ~= format("mov [%s], ax\n", symbol); break;
+			default: Error(node.error, "Bad variable type size");
+		}
+	}
+
 	override void CompileSet(SetNode node) {
 		output ~= "sub si, 2\n";
 		output ~= "mov ax, [si]\n";
 
 		if (VariableExists(node.var)) {
-			auto var = GetVariable(node.var);
-
-			if (var.type.isStruct) {
-				Error(node.error, "Can't set struct value");
-			}
-
-			output ~= "mov bx, sp\n";
-
-			string addr = var.offset == 0? "bx" : format("bx + %d", var.offset);
-
-			switch (var.type.size) {
-				case 1: output ~= format("mov [%s], al\n", addr); break;
-				case 2: output ~= format("mov [%s], ax\n", addr); break;
-				default: Error(node.error, "Bad variable type size");
-			}
+			SetVariable(node, GetVariable(node.var));
 		}
 		else if (GlobalExists(node.var)) {
-			auto global = GetGlobal(node.var);
+			SetGlobal(node, GetGlobal(node.var));
+		}
+		else if (IsStructMember(node.var)) {
+			string name   = node.var[0 .. node.var.countUntil(".")];
+			size_t offset = GetStructOffset(node, node.var);
 
-			if (global.type.isStruct) {
-				Error(node.error, "Can't set struct value");
+			if (VariableExists(name)) {
+				SetVariable(node, GetVariable(name), offset, true);
 			}
-
-			string symbol = format("__global_%s", node.var.Sanitise());
-
-			if (global.type.size != 2) {
-				output ~= "xor bx, bx\n";
-				output ~= format("mov [%s], bx\n", symbol);
-			}
-
-			switch (global.type.size) {
-				case 1: output ~= format("mov [%s], al\n", symbol); break;
-				case 2: output ~= format("mov [%s], ax\n", symbol); break;
-				default: Error(node.error, "Bad variable type size");
+			else if (GlobalExists(name)) {
+				SetGlobal(node, GetGlobal(name), offset, true);
 			}
 		}
 		else {
