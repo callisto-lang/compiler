@@ -18,61 +18,15 @@ private struct Word {
 	bool   error;
 }
 
-private struct StructEntry {
-	Type   type;
-	string name;
-	bool   array;
-	size_t size;
-}
-
-private struct Type {
-	string        name;
-	ulong         size;
-	bool          isStruct;
-	StructEntry[] structure;
-	bool          hasInit;
-	bool          hasDeinit;
-}
-
-private struct Variable {
-	string name;
-	Type   type;
-	uint   offset; // SP + offset to access
-	bool   array;
-	ulong  arraySize;
-
-	size_t Size() => array? arraySize * type.size : type.size;
-}
-
-private struct Global {
-	Type  type;
-	bool  array;
-	ulong arraySize;
-
-	size_t Size() => array? arraySize * type.size : type.size;
-}
-
 private struct Constant {
 	Node value;
-}
-
-private struct Array {
-	string[] values;
-	Type     type;
-	bool     global;
-
-	size_t Size() => type.size * values.length;
 }
 
 class BackendUXN : CompilerBackend {
 	Word[string]     words;
 	uint             blockCounter; // used for block statements
-	Type[]           types;
-	Variable[]       variables;
-	Global[string]   globals;
 	Constant[string] consts;
 	bool             inScope;
-	Array[]          arrays;
 	string           thisFunc;
 	bool             inWhile;
 	uint             currentLoop;
@@ -111,7 +65,7 @@ class BackendUXN : CompilerBackend {
 			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
 		}
 
-		globals["_cal_exception"] = Global(GetType("Exception"), false, 0);
+		globals ~= Global("_cal_exception", GetType("Exception"), false, 0);
 	}
 
 	override string[] GetVersions() => [
@@ -140,59 +94,12 @@ class BackendUXN : CompilerBackend {
 		consts[name] = Constant(new IntegerNode(error, value));
 	}
 
-	bool VariableExists(string name) => variables.any!(v => v.name == name);
-
-	Variable GetVariable(string name) {
-		foreach (ref var ; variables) {
-			if (var.name == name) {
-				return var;
-			}
-		}
-
-		assert(0);
-	}
-
-	bool TypeExists(string name) => types.any!(v => v.name == name);
-
-	Type GetType(string name) {
-		foreach (ref type ; types) {
-			if (type.name == name) {
-				return type;
-			}
-		}
-
-		assert(0);
-	}
-
-	void SetType(string name, Type ptype) {
-		foreach (i, ref type ; types) {
-			if (type.name == name) {
-				types[i] = ptype;
-				return;
-			}
-		}
-
-		assert(0);
-	}
-
-	size_t GetStackSize() {
-		// old
-		//return variables.empty()? 0 : variables[0].offset + variables[0].type.size;
-
-		size_t size;
-		foreach (ref var ; variables) {
-			size += var.Size();
-		}
-
-		return size;
-	}
-
 	override void BeginMain() {
 		output ~= "@calmain\n";
 
-		foreach (name, global ; globals) {
+		foreach (global ; globals) {
 			if (global.type.hasInit) {
-				output ~= format(";global_%s\n", name.Sanitise());
+				output ~= format(";global_%s\n", global.name.Sanitise());
 				output ~= format("type_init_%s\n", global.type.name.Sanitise());
 			}
 		}
@@ -228,17 +135,17 @@ class BackendUXN : CompilerBackend {
 
 	override void End() {
 		// call destructors
-		foreach (name, global ; globals) {
+		foreach (global ; globals) {
 			if (global.type.hasDeinit) {
-				output ~= format(";global_%s\n", name.Sanitise());
+				output ~= format(";global_%s\n", global.name.Sanitise());
 				output ~= format("type_deinit_%s\n", global.type.name.Sanitise());
 			}
 		}
 
 		output ~= "JMP2r\n";
 
-		foreach (name, var ; globals) {
-			output ~= format("@global_%s", name.Sanitise());
+		foreach (var ; globals) {
+			output ~= format("@global_%s", var.name.Sanitise());
 
 			foreach (i ; 0 .. var.Size()) {
 				output ~= " 00";
@@ -275,6 +182,50 @@ class BackendUXN : CompilerBackend {
 
 		// pad for the stack
 		output ~= "|e0000\n";
+	}
+
+	void PushVariableValue(
+		Node node, Variable var, size_t size = 0, size_t offset = 0, bool member = false
+	) {
+		if (size == 0) {
+			size = var.type.size;
+		}
+		if (var.type.isStruct && !member) {
+			Error(node.error, "Can't push value of struct");
+		}
+
+		if (var.offset == 0) {
+			output ~= ".vsp LDZ2\n";
+		}
+		else {
+			output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
+		}
+
+		switch (var.type.size) {
+			case 1: output ~= "LDA NIP\n"; break;
+			case 2: output ~= "LDA2\n"; break;
+			default: Error(node.error, "Bad variable type size");
+		}
+	}
+
+	void PushGlobalValue(
+		Node node, Global var, size_t size = 0, size_t offset = 0, bool member = false
+	) {
+		if (size == 0) {
+			size = var.type.size;
+		}
+
+		output ~= format(";global_%s\n", var.name.Sanitise());
+
+		if (var.type.isStruct && !member) {
+			Error(node.error, "Can't push value of struct");
+		}
+
+		switch (var.type.size) {
+			case 1: output ~= "LDA NIP\n"; break;
+			case 2: output ~= "LDA2\n"; break;
+			default: Error(node.error, "Bad variable type size");
+		}
 	}
 
 	override void CompileWord(WordNode node) {
@@ -321,37 +272,20 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 		else if (VariableExists(node.name)) {
-			auto var = GetVariable(node.name);
-
-			if (var.type.isStruct) {
-				Error(node.error, "Can't push value of struct");
-			}
-
-			if (var.offset == 0) {
-				output ~= ".vsp LDZ2\n";
-			}
-			else {
-				output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
-			}
-
-			switch (var.type.size) {
-				case 1: output ~= "LDA NIP\n"; break;
-				case 2: output ~= "LDA2\n"; break;
-				default: Error(node.error, "Bad variable type size");
-			}
+			PushVariableValue(node, GetVariable(node.name));
 		}
-		else if (node.name in globals) {
-			auto var = globals[node.name];
-			output ~= format(";global_%s\n", node.name.Sanitise());
+		else if (GlobalExists(node.name)) {
+			PushGlobalValue(node, GetGlobal(node.name));
+		}
+		else if (IsStructMember(node.name)) {
+			string name    = node.name[0 .. node.name.countUntil(".")];
+			auto structVar = GetStructVariable(node, node.name);
 
-			if (var.type.isStruct) {
-				Error(node.error, "Can't push value of struct");
+			if (GlobalExists(name)) {
+				PushGlobalValue(node, GetGlobal(name), structVar.size, structVar.offset, true);
 			}
-
-			switch (var.type.size) {
-				case 1: output ~= "LDA NIP\n"; break;
-				case 2: output ~= "LDA2\n"; break;
-				default: Error(node.error, "Bad variable type size");
+			else if (VariableExists(name)) {
+				PushVariableValue(node, GetVariable(name), structVar.size, structVar.offset, true);
 			}
 		}
 		else if (node.name in consts) {
@@ -633,7 +567,8 @@ class BackendUXN : CompilerBackend {
 			global.type        = GetType(node.varType);
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
-			globals[node.name] = global;
+			global.name        = node.name;
+			globals           ~= global;
 		}
 	}
 
@@ -922,7 +857,22 @@ class BackendUXN : CompilerBackend {
 				output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
 			}
 		}
-		else if (node.func in globals) {
+		else if (IsStructMember(node.func)) {
+			string name      = node.func[0 .. node.func.countUntil(".")];
+			auto   structVar = GetStructVariable(node, node.func);
+			size_t offset    = structVar.offset;
+
+			if (GlobalExists(name)) {
+				auto var = GetGlobal(name);
+				output ~= format(";global_%s #%.4x ADD2\n", name.Sanitise(), offset);
+			}
+			else if (VariableExists(node.func)) {
+				auto var = GetVariable(name);
+				output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset + offset);
+			}
+			else assert(0);
+		}
+		else if (GlobalExists(node.func)) {
 			output ~= format(";global_%s\n", node.func.Sanitise());
 		}
 		else {
@@ -998,48 +948,73 @@ class BackendUXN : CompilerBackend {
 		variables  = [];
 	}
 
-	override void CompileSet(SetNode node) {
-		if (VariableExists(node.var)) {
-			auto var = GetVariable(node.var);
+	void SetVariable(
+		Node node, Variable var, size_t size = 0, size_t offset = 0, bool member = false
+	) {
+		if (size == 0) {
+			size = var.type.size;
+		}
+		if (var.type.isStruct && !member) {
+			Error(node.error, "Can't set struct value");
+		}
 
-			if (var.type.isStruct) {
-				Error(node.error, "Can't set struct value");
-			}
-
-			if (var.offset == 0) {
-				switch (var.type.size) {
-					case 1: output ~= "NIP .vsp LDZ2 STA\n"; break;
-					case 2: output ~= ".vsp LDZ2 STA2\n"; break;
-					default: Error(node.error, "Bad variable type size");
-				}
-			}
-			else {
-				switch (var.type.size) {
-					case 1: {
-						output ~= format("NIP .vsp LDZ2 #%.4X ADD2 STA\n", var.offset);
-						break;
-					}
-					case 2: {
-						output ~= format(".vsp LDZ2 #%.4X ADD2 STA2\n", var.offset);
-						break;
-					}
-					default: Error(node.error, "Bad variable type size");
-				}
+		if (var.offset == 0) {
+			switch (var.type.size) {
+				case 1: output ~= "NIP .vsp LDZ2 STA\n"; break;
+				case 2: output ~= ".vsp LDZ2 STA2\n"; break;
+				default: Error(node.error, "Bad variable type size");
 			}
 		}
-		else if (node.var in globals) {
-			auto global = globals[node.var];
-
-			if (global.type.isStruct) {
-				Error(node.error, "Can't set struct value");
-			}
-
-			string symbol = format("global_%s", node.var.Sanitise());
-
-			switch (global.type.size) {
-				case 1: output ~= format("NIP ;%s STA\n", symbol); break;
-				case 2: output ~= format(";%s STA2\n", symbol); break;
+		else {
+			switch (var.type.size) {
+				case 1: {
+					output ~= format("NIP .vsp LDZ2 #%.4X ADD2 STA\n", var.offset);
+					break;
+				}
+				case 2: {
+					output ~= format(".vsp LDZ2 #%.4X ADD2 STA2\n", var.offset);
+					break;
+				}
 				default: Error(node.error, "Bad variable type size");
+			}
+		}
+	}
+
+	void SetGlobal(
+		Node node, Global global, size_t size = 0, size_t offset = 0, bool member = false
+	) {
+		if (size == 0) {
+			size = global.type.size;
+		}
+		if (global.type.isStruct && !member) {
+			Error(node.error, "Can't set struct value");
+		}
+
+		string symbol = format("global_%s", global.name.Sanitise());
+
+		switch (global.type.size) {
+			case 1: output ~= format("NIP ;%s STA\n", symbol); break;
+			case 2: output ~= format(";%s STA2\n", symbol); break;
+			default: Error(node.error, "Bad variable type size");
+		}
+	}
+
+	override void CompileSet(SetNode node) {
+		if (VariableExists(node.var)) {
+			SetVariable(node, GetVariable(node.var));
+		}
+		else if (GlobalExists(node.var)) {
+			SetGlobal(node, GetGlobal(node.var));
+		}
+		else if (IsStructMember(node.var)) {
+			string name    = node.var[0 .. node.var.countUntil(".")];
+			auto structVar = GetStructVariable(node, node.var);
+
+			if (VariableExists(name)) {
+				SetVariable(node, GetVariable(name), structVar.size, structVar.offset, true);
+			}
+			else if (GlobalExists(name)) {
+				SetGlobal(node, GetGlobal(name), structVar.size, structVar.offset, true);
 			}
 		}
 		else {
