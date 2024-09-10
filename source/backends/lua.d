@@ -165,6 +165,47 @@ class BackendLua : CompilerBackend {
 		output ~= "function calmain()\n";
 	}
 
+	void PushVariableValue(
+		Node node, Variable var, size_t size = 0, size_t offset = 0,
+		bool member = false
+	) {
+		if (size == 0) {
+			size = var.type.size;
+		}
+
+		if (var.type.isStruct && !member) {
+			Error(node.error, "Can't push value of struct");
+		}
+
+		if (size != 1) {
+			Error(node.error, "Bad variable type size");
+		}
+
+		output ~= format("mem[dsp] = mem[vsp + %d]\n", var.offset);
+		output ~= "dsp = dsp + 1\n";
+	}
+
+	void PushGlobalValue(
+		Node node, Global var, size_t size = 0, size_t offset = 0, bool member = false
+	) {
+		if (size == 0) {
+			size = var.type.size;
+		}
+
+		auto extra = cast(GlobalExtra*) var.extra;
+
+		if (var.type.isStruct && !member) {
+			Error(node.error, "Can't push value of struct");
+		}
+
+		if (var.type.size != 1) {
+			Error(node.error, "Bad variable type size");
+		}
+
+		output ~= format("mem[dsp] = mem[%d]\n", extra.addr);
+		output ~= "dsp = dsp + 1\n";
+	}
+
 	override void CompileWord(WordNode node) {
 		if (node.name in words) {
 			auto word = words[node.name];
@@ -193,33 +234,21 @@ class BackendLua : CompilerBackend {
 			}
 		}
 		else if (VariableExists(node.name)) {
-			auto var = GetVariable(node.name);
-
-			if (var.type.isStruct) {
-				Error(node.error, "Can't push value of struct");
-			}
-
-			if (var.type.size != 1) {
-				Error(node.error, "Bad variable type size");
-			}
-
-			output ~= format("mem[dsp] = mem[vsp + %d]\n", var.offset);
-			output ~= "dsp = dsp + 1\n";
+			PushVariableValue(node, GetVariable(node.name));
 		}
 		else if (GlobalExists(node.name)) {
-			auto var   = GetGlobal(node.name);
-			auto extra = cast(GlobalExtra*) var.extra;
+			PushGlobalValue(node, GetGlobal(node.name));
+		}
+		else if (IsStructMember(node.name)) {
+			string name    = node.name[0 .. node.name.countUntil(".")];
+			auto structVar = GetStructVariable(node, node.name);
 
-			if (var.type.isStruct) {
-				Error(node.error, "Can't push value of struct");
+			if (GlobalExists(name)) {
+				PushGlobalValue(node, GetGlobal(name), structVar.size, structVar.offset, true);
 			}
-
-			if (var.type.size != 1) {
-				Error(node.error, "Bad variable type size");
+			else if (VariableExists(name)) {
+				PushVariableValue(node, GetVariable(name), structVar.size, structVar.offset, true);
 			}
-
-			output ~= format("mem[dsp] = mem[%d]\n", extra.addr);
-			output ~= "dsp = dsp + 1\n";
 		}
 		else if (node.name in consts) {
 			auto value  = consts[node.name].value;
@@ -485,6 +514,7 @@ class BackendLua : CompilerBackend {
 			global.type       = GetType(node.varType);
 			global.array      = node.array;
 			global.arraySize  = node.arraySize;
+			global.extra      = extra;
 			globals          ~= global;
 
 			globalStack += global.Size();
@@ -792,6 +822,26 @@ class BackendLua : CompilerBackend {
 
 			output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 		}
+		else if (IsStructMember(node.func)) {
+			string name      = node.func[0 .. node.func.countUntil(".")];
+			auto   structVar = GetStructVariable(node, node.func);
+			size_t offset    = structVar.offset;
+
+			if (GlobalExists(name)) {
+				auto var   = GetGlobal(name);
+				auto extra = cast(GlobalExtra*) var.extra;
+
+				output ~= format("mem[dsp] = %d\n", extra.addr + offset);
+				output ~= "dsp = dsp + 1\n";
+			}
+			else if (VariableExists(node.func)) {
+				auto var = GetVariable(name);
+
+				output ~= format("mem[dsp] = vsp + %d\n", var.offset + offset);
+				output ~= "dsp = dsp + 1";
+			}
+			else assert(0);
+		}
 		else {
 			Error(node.error, "Undefined identifier '%s'", node.func);
 		}
@@ -857,25 +907,50 @@ class BackendLua : CompilerBackend {
 		variables  = [];
 	}
 
+	void SetGlobal(
+		Node node, Global global, size_t size = 0, size_t offset = 0,
+		bool member = false
+	) {
+		if (size == 0) {
+			size = global.type.size;
+		}
+
+		auto extra  = cast(GlobalExtra*) global.extra;
+
+		if (global.type.isStruct && !member) {
+			Error(node.error, "Can't set struct value");
+		}
+
+		output ~= format("mem[%d] = cal_pop()\n", extra.addr);
+	}
+
+	void SetVariable(
+		Node node, Variable var, size_t size = 0, size_t offset = 0, bool member = false
+	) {
+		if (var.type.isStruct && !member) {
+			Error(node.error, "Can't set struct value");
+		}
+
+		output ~= format("mem[vsp + %d] = cal_pop()\n", var.offset);
+	}
+
 	override void CompileSet(SetNode node) {
 		if (VariableExists(node.var)) {
-			auto var = GetVariable(node.var);
-
-			if (var.type.isStruct) {
-				Error(node.error, "Can't set struct value");
-			}
-
-			output ~= format("mem[vsp + %d] = cal_pop()\n", var.offset);
+			SetVariable(node, GetVariable(node.var));
 		}
 		else if (GlobalExists(node.var)) {
-			auto global = GetGlobal(node.var);
-			auto extra  = cast(GlobalExtra*) global.extra;
+			SetGlobal(node, GetGlobal(node.var));
+		}
+		else if (IsStructMember(node.var)) {
+			string name    = node.var[0 .. node.var.countUntil(".")];
+			auto structVar = GetStructVariable(node, node.var);
 
-			if (global.type.isStruct) {
-				Error(node.error, "Can't set struct value");
+			if (VariableExists(name)) {
+				SetVariable(node, GetVariable(name), structVar.size, structVar.offset, true);
 			}
-
-			output ~= format("mem[%d] = cal_pop()\n", extra.addr);
+			else if (GlobalExists(name)) {
+				SetGlobal(node, GetGlobal(name), structVar.size, structVar.offset, true);
+			}
 		}
 		else {
 			Error(node.error, "Variable '%s' doesn't exist", node.var);

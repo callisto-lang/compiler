@@ -563,7 +563,6 @@ class BackendX86_64 : CompilerBackend {
 		else if (IsStructMember(node.name)) {
 			string name    = node.name[0 .. node.name.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.name);
-			writeln(structVar);
 
 			if (GlobalExists(name)) {
 				PushGlobalValue(node, GetGlobal(name), structVar.size, structVar.offset, true);
@@ -1201,9 +1200,9 @@ class BackendX86_64 : CompilerBackend {
 			output ~= "add r15, 8\n";
 		}
 		else if (IsStructMember(node.func)) {
-			string name    = node.func[0 .. node.func.countUntil(".")];
-			auto structVar = GetStructVariable(node, node.func);
-			size_t offset  = structVar.offset;
+			string name      = node.func[0 .. node.func.countUntil(".")];
+			auto   structVar = GetStructVariable(node, node.func);
+			size_t offset    = structVar.offset;
 
 			if (GlobalExists(name)) {
 				auto var = GetGlobal(name);
@@ -1316,7 +1315,10 @@ class BackendX86_64 : CompilerBackend {
 		}
 	}
 
-	void SetGlobal(Node node, Global global, size_t size = 0, size_t offset = 0, bool member = false) {
+	void SetGlobal(
+		Node node, Global global, size_t size = 0, size_t offset = 0,
+		bool member = false
+	) {
 		if (size == 0) {
 			size = global.type.size;
 		}
