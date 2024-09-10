@@ -1152,7 +1152,10 @@ class BackendX86_64 : CompilerBackend {
 				}
 
 				word.symbolName = node.func;
-				funcName        = node.asName;
+
+				if (node.asName != "") {
+					funcName = node.asName;
+				}
 				break;
 			}
 		}
