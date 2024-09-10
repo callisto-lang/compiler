@@ -404,8 +404,12 @@ class BackendX86_64 : CompilerBackend {
 		}
 	}
 
-	void PushGlobalValue(Node node, Global var, size_t offset = 0, bool member = false) {
-		if (var.type.size != 8) {
+	void PushGlobalValue(Node node, Global var, size_t size = 0, size_t offset = 0, bool member = false) {
+		if (size == 0) {
+			size = var.type.size;
+		}
+
+		if (size != 8) {
 			output ~= "xor rax, rax\n";
 		}
 
@@ -415,7 +419,7 @@ class BackendX86_64 : CompilerBackend {
 
 		string symbol = format("__global_%s", var.name.Sanitise());
 
-		switch (var.type.size) {
+		switch (size) {
 			case 1: output ~= format("mov al, [%s", symbol); break;
 			case 2: output ~= format("mov ax, [%s", symbol); break;
 			case 4: output ~= format("mov eax, [%s", symbol); break;
@@ -430,7 +434,11 @@ class BackendX86_64 : CompilerBackend {
 		output ~= "add r15, 8\n";
 	}
 
-	void PushVariableValue(Node node, Variable var, size_t offset = 0, bool member = false) {
+	void PushVariableValue(Node node, Variable var, size_t size = 0, size_t offset = 0, bool member = false) {
+		if (size == 0) {
+			size = var.type.size;
+		}
+
 		output ~= "mov rdi, rsp\n";
 		if (var.offset > 0) {
 			output ~= format("add rdi, %d\n", var.offset);
@@ -440,11 +448,11 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Can't push value of struct");
 		}
 
-		if (var.type.size != 8) {
+		if (size != 8) {
 			output ~= "xor rax, rax\n";
 		}
 
-		switch (var.type.size) {
+		switch (size) {
 			case 1: output ~= format("mov al, [rdi"); break;
 			case 2: output ~= format("mov ax, [rdi"); break;
 			case 4: output ~= format("mov eax, [rdi"); break;
@@ -553,14 +561,15 @@ class BackendX86_64 : CompilerBackend {
 			PushGlobalValue(node, GetGlobal(node.name));
 		}
 		else if (IsStructMember(node.name)) {
-			string name   = node.name[0 .. node.name.countUntil(".")];
-			size_t offset = GetStructOffset(node, node.name);
+			string name    = node.name[0 .. node.name.countUntil(".")];
+			auto structVar = GetStructVariable(node, node.name);
+			writeln(structVar);
 
 			if (GlobalExists(name)) {
-				PushGlobalValue(node, GetGlobal(name), offset, true);
+				PushGlobalValue(node, GetGlobal(name), structVar.size, structVar.offset, true);
 			}
 			else if (VariableExists(name)) {
-				PushVariableValue(node, GetVariable(name), offset, true);
+				PushVariableValue(node, GetVariable(name), structVar.size, structVar.offset, true);
 			}
 		}
 		else if (node.name in consts) {
@@ -1192,8 +1201,9 @@ class BackendX86_64 : CompilerBackend {
 			output ~= "add r15, 8\n";
 		}
 		else if (IsStructMember(node.func)) {
-			string name   = node.func[0 .. node.func.countUntil(".")];
-			size_t offset = GetStructOffset(node, node.func);
+			string name    = node.func[0 .. node.func.countUntil(".")];
+			auto structVar = GetStructVariable(node, node.func);
+			size_t offset  = structVar.offset;
 
 			if (GlobalExists(name)) {
 				auto var = GetGlobal(name);
@@ -1285,7 +1295,11 @@ class BackendX86_64 : CompilerBackend {
 		variables  = [];
 	}
 
-	void SetVariable(Node node, Variable var, size_t offset = 0, bool member = false) {
+	void SetVariable(Node node, Variable var, size_t size = 0, size_t offset = 0, bool member = false) {
+		if (size == 0) {
+			size = var.type.size;
+		}
+
 		output ~= "sub r15, 8\n";
 		output ~= "mov rax, [r15]\n";
 
@@ -1293,7 +1307,7 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Can't set struct value");
 		}
 
-		switch (var.type.size) {
+		switch (size) {
 			case 1: output ~= format("mov [rsp + %d], al\n", var.offset + offset); break;
 			case 2: output ~= format("mov [rsp + %d], ax\n", var.offset + offset); break;
 			case 4: output ~= format("mov [rsp + %d], eax\n", var.offset + offset); break;
@@ -1302,7 +1316,11 @@ class BackendX86_64 : CompilerBackend {
 		}
 	}
 
-	void SetGlobal(Node node, Global global, size_t offset = 0, bool member = false) {
+	void SetGlobal(Node node, Global global, size_t size = 0, size_t offset = 0, bool member = false) {
+		if (size == 0) {
+			size = global.type.size;
+		}
+
 		output ~= "sub r15, 8\n";
 		output ~= "mov rax, [r15]\n";
 
@@ -1312,12 +1330,12 @@ class BackendX86_64 : CompilerBackend {
 
 		string symbol = format("__global_%s", global.name.Sanitise());
 
-		if (global.type.size != 8) {
+		if (size != 8) {
 			output ~= "xor rbx, rbx\n";
 			output ~= format("mov [%s + %d], rbx\n", symbol, offset);
 		}
 
-		switch (global.type.size) {
+		switch (size) {
 			case 1: output ~= format("mov [%s + %d], al\n", symbol, offset); break;
 			case 2: output ~= format("mov [%s + %d], ax\n", symbol, offset); break;
 			case 4: output ~= format("mov [%s + %d], eax\n", symbol, offset); break;
@@ -1334,14 +1352,14 @@ class BackendX86_64 : CompilerBackend {
 			SetGlobal(node, GetGlobal(node.var));
 		}
 		else if (IsStructMember(node.var)) {
-			string name   = node.var[0 .. node.var.countUntil(".")];
-			size_t offset = GetStructOffset(node, node.var);
+			string name    = node.var[0 .. node.var.countUntil(".")];
+			auto structVar = GetStructVariable(node, node.var);
 
 			if (VariableExists(name)) {
-				SetVariable(node, GetVariable(name), offset, true);
+				SetVariable(node, GetVariable(name), structVar.size, structVar.offset, true);
 			}
 			else if (GlobalExists(name)) {
-				SetGlobal(node, GetGlobal(name), offset, true);
+				SetGlobal(node, GetGlobal(name), structVar.size, structVar.offset, true);
 			}
 		}
 		else {

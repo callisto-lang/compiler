@@ -19,6 +19,11 @@ struct StructEntry {
 	size_t offset;
 }
 
+struct StructVariable {
+	size_t size;
+	size_t offset; // Relative to root struct, unlike StructEntry
+}
+
 struct Type {
 	string        name;
 	ulong         size;
@@ -182,7 +187,7 @@ class CompilerBackend {
 		else                             return false;
 	}
 
-	final size_t GetStructOffset(Node node, string identifier) {
+	final StructVariable GetStructVariable(Node node, string identifier) {
 		string[] parts = identifier.split(".");
 
 		StructEntry[] structure;
@@ -223,7 +228,9 @@ class CompilerBackend {
 		}
 
 		offset += structure[index].offset;
-		return offset;
+		size_t size = structure[index].type.size;
+
+		return StructVariable(size, offset);
 	}
 
 	final size_t GetStackSize() {
