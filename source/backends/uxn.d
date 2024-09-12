@@ -124,7 +124,6 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void Init() {
-		WarnNoInfo("This backend is slightly broken. Don't use implement");
 		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
@@ -609,14 +608,12 @@ class BackendUXN : CompilerBackend {
 			output ~= format(".vsp LDZ2 #%.4x SUB2 .vsp STZ2\n", array.Size());
 
 			// copy array contents
-			output ~= format(";array_%d .arraySrc STZ2\n", arrays.length - 1);
-			output ~= ".vsp LDZ2 .arrayDest STZ2\n";
-			output ~= format("#%.4x\n", array.Size());
-			output ~= format("@copy_loop_%d\n", arrays.length - 1);
-			output ~= ".arraySrc LDZ2 LDA .arrayDest LDZ2 STA\n";
-			output ~= ".arraySrc LDZ2 INC2 .arraySrc STZ2\n";
-			output ~= ".arrayDest LDZ2 INC2 .arrayDest STZ2\n";
-			output ~= format("#0001 SUB2 DUP2 #0000 NEQ2 ,copy_loop_%d JCN\n", arrays.length - 1);
+			output ~= format("#%.4x ;memcpy/length STA2\n", array.Size());
+			output ~= "#0000 ;memcpy/srcBank STA2\n";
+			output ~= format(";array_%d ;memcpy/srcAddr STA2\n", arrays.length - 1);
+			output ~= "#0000 ;memcpy/dstBank STA2\n";
+			output ~= ".vsp LDZ2 ;memcpy/dstAddr STA2\n";
+			output ~= ";memcpy .System/expansion DEO2\n";
 
 			Variable var;
 			var.type      = array.type;

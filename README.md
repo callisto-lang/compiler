@@ -9,7 +9,7 @@ scripting languages like Lua, while still maintaining a relatively low-level app
 - **x86 Real Mode, MS-DOS:** Fully supported
 - **x86_64 Linux, macOS:** Fully supported
 - **ARM64 Linux, macOS:** Fully supported
-- **Uxn:** Fully supported (note: `implement` is broken, see [issue #6](#6))
+- **Uxn:** Fully supported
 - **Lua:** Fully supported (subset: CallistoScript)
 
 ## Build Instructions
