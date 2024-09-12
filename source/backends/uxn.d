@@ -124,7 +124,7 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void Init() {
-		WarnNoInfo("This backend is slightly broken. Don't use implement or printf");
+		WarnNoInfo("This backend is slightly broken. Don't use implement");
 		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
@@ -437,7 +437,7 @@ class BackendUXN : CompilerBackend {
 			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format(
-					".vsp LDZ2 #%.4x ADD .vsp STZ2\n", GetStackSize() - oldSize
+					".vsp LDZ2 #%.4x ADD2 .vsp STZ2\n", GetStackSize() - oldSize
 				);
 			}
 			variables = oldVars;
@@ -467,7 +467,7 @@ class BackendUXN : CompilerBackend {
 			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format(
-					".vsp LDZ2 #%.4x ADD .vsp STZ2\n", GetStackSize() - oldSize
+					".vsp LDZ2 #%.4x ADD2 .vsp STZ2\n", GetStackSize() - oldSize
 				);
 			}
 			variables = oldVars;
@@ -506,7 +506,7 @@ class BackendUXN : CompilerBackend {
 		}
 		if (GetStackSize() - oldSize > 0) {
 			output ~= format(
-				".vsp LDZ2 #%.4x ADD .vsp STZ2\n", GetStackSize() - oldSize
+				".vsp LDZ2 #%.4x ADD2 .vsp STZ2\n", GetStackSize() - oldSize
 			);
 		}
 		variables = oldVars;
@@ -1047,8 +1047,8 @@ class BackendUXN : CompilerBackend {
 
 		++ blockCounter;
 
-		output ~= format(";global_%s LDA2 #0000 EQU\n", Sanitise("_cal_exception"));
-		output ~= format(";catch_%d_end JCN\n", blockCounter);
+		output ~= format(";global_%s LDA2 #0000 EQU2\n", Sanitise("_cal_exception"));
+		output ~= format(";catch_%d_end JCN2\n", blockCounter);
 
 		// create scope
 		auto oldVars = variables.dup;
@@ -1068,7 +1068,7 @@ class BackendUXN : CompilerBackend {
 		}
 		if (GetStackSize() - oldSize > 0) {
 			output ~= format(
-				".vsp LDZ2 #%.4x ADD .vsp STZ2\n", GetStackSize() - oldSize
+				".vsp LDZ2 #%.4x ADD2 .vsp STZ2\n", GetStackSize() - oldSize
 			);
 		}
 		variables = oldVars;
