@@ -106,12 +106,11 @@ class BackendARM64 : CompilerBackend {
 		// OS features
 		switch (os) {
 			case "linux": {
-				ret ~= ["Linux", "IO", "File", "Args", "Time", "Heap", "Exit"];
+				ret ~= ["Linux"];
 				break;
 			}
 			case "osx": {
-				ret ~= ["OSX", "IO", "File", "Args", "Time", "Exit"];
-				if (useLibc) ret ~= "Heap";
+				ret ~= ["OSX"];
 				break;
 			}
 			default: break;

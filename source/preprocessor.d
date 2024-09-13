@@ -14,7 +14,8 @@ class Preprocessor {
 	string[] includeDirs;
 	string[] included;
 	string[] versions;
-	string[] restricted = ["IO", "File", "Time", "Exit"];
+	string[] restricted;
+	string[] disabled;
 	bool     success = true;
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
@@ -89,6 +90,8 @@ class Preprocessor {
 						);
 					}
 
+					if (disabled.canFind(node.ver)) break;
+
 					if (!versions.canFind(node.ver)) {
 						versions ~= node.ver;
 					}
@@ -96,12 +99,6 @@ class Preprocessor {
 				}
 				case NodeType.Restrict: {
 					auto node = cast(RestrictNode) inode;
-
-					if (versions.canFind(node.ver)) {
-						Error(
-							node.error, "Restricted version '%s' is enabled", node.ver
-						);
-					}
 
 					restricted ~= node.ver;
 					break;

@@ -377,6 +377,7 @@ int main(string[] args) {
 	}
 
 	auto preproc        = new Preprocessor();
+	preproc.disabled    = disabled;
 	preproc.includeDirs = includeDirs;
 	preproc.versions    = versions;
 
