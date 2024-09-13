@@ -67,25 +67,26 @@ struct Array {
 }
 
 class CompilerBackend {
-	string     output;
-	ulong      org;
-	bool       orgSet;
-	Compiler   compiler;
-	bool       useDebug;
-	bool       exportSymbols;
-	string[]   link;
-	bool       keepAssembly;
-	string     os;
-	string     defaultOS;
-	Variable[] variables;
-	Global[]   globals;
-	Array[]    arrays;
-	Type[]     types;
+	string           output;
+	ulong            org;
+	bool             orgSet;
+	Compiler         compiler;
+	bool             useDebug;
+	bool             exportSymbols;
+	string[]         link;
+	bool             keepAssembly;
+	string           os;
+	string           defaultOS;
+	Variable[]       variables;
+	Global[]         globals;
+	Array[]          arrays;
+	Type[]           types;
+	Constant[string] consts;
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
 	abstract long     MaxInt();
-	abstract void     NewConst(string name, long value, ErrorInfo error);
+	abstract void     NewConst(string name, long value, ErrorInfo error = ErrorInfo.init);
 	abstract string   DefaultHeader();
 	abstract bool     HandleOption(string opt, ref string[] versions);
 
@@ -101,14 +102,9 @@ class CompilerBackend {
 	abstract void CompileLet(LetNode node);
 	abstract void CompileArray(ArrayNode node);
 	abstract void CompileString(StringNode node);
-	abstract void CompileStruct(StructNode node);
 	abstract void CompileReturn(WordNode node);
-	abstract void CompileConst(ConstNode node);
-	abstract void CompileEnum(EnumNode node);
 	abstract void CompileBreak(WordNode node);
 	abstract void CompileContinue(WordNode node);
-	abstract void CompileUnion(UnionNode node);
-	abstract void CompileAlias(AliasNode node);
 	abstract void CompileExtern(ExternNode node);
 	abstract void CompileCall(WordNode node);
 	abstract void CompileAddr(AddrNode node);
@@ -116,6 +112,130 @@ class CompilerBackend {
 	abstract void CompileSet(SetNode node);
 	abstract void CompileTryCatch(TryCatchNode node);
 	abstract void CompileThrow(WordNode node);
+
+	void CompileStruct(StructNode node) {
+		size_t offset;
+
+		if (TypeExists(node.name)) {
+			Error(node.error, "Type '%s' defined multiple times", node.name);
+		}
+
+		StructEntry[] entries;
+		string[]      members;
+
+		if (node.inherits) {
+			if (!TypeExists(node.inheritsFrom)) {
+				Error(node.error, "Type '%s' doesn't exist", node.inheritsFrom);
+			}
+
+			if (!GetType(node.inheritsFrom).isStruct) {
+				Error(node.error, "Type '%s' is not a structure", node.inheritsFrom);
+			}
+
+			entries = GetType(node.inheritsFrom).structure;
+
+			foreach (ref member ; GetType(node.inheritsFrom).structure) {
+				members ~= member.name;
+			}
+		}
+
+		foreach (ref member ; node.members) {
+			if (!TypeExists(member.type)) {
+				Error(node.error, "Type '%s' doesn't exist", member.type);
+			}
+			if (members.canFind(member.name)) {
+				Error(node.error, "Duplicate member '%s'", member.name);
+			}
+
+			auto newMember = StructEntry(
+				GetType(member.type), member.name, member.array, member.size, offset
+			);
+			entries ~= newMember;
+			members ~= member.name;
+
+			offset += newMember.array?
+				newMember.type.size * newMember.size : newMember.type.size;
+		}
+
+		foreach (ref member ; entries) {
+			NewConst(format("%s.%s", node.name, member.name), member.offset);
+		}
+
+		NewConst(format("%s.sizeof", node.name), offset);
+		types ~= Type(node.name, offset, true, entries);
+	}
+
+	void CompileEnum(EnumNode node) {
+		if (!TypeExists(node.enumType)) {
+			Error(node.error, "Enum base type '%s' doesn't exist", node.enumType);
+		}
+		if (TypeExists(node.name)) {
+			Error(node.error, "Enum name is already used by type '%s'", node.enumType);
+		}
+
+		auto baseType  = GetType(node.enumType);
+		baseType.name  = node.name;
+		types         ~= baseType;
+
+		foreach (i, ref name ; node.names) {
+			NewConst(format("%s.%s", node.name, name), node.values[i]);
+		}
+
+		NewConst(format("%s.min", node.name), node.values.minElement());
+		NewConst(format("%s.max", node.name), node.values.maxElement());
+		NewConst(format("%s.sizeof", node.name), GetType(node.name).size);
+	}
+
+	void CompileConst(ConstNode node) {
+		if (node.name in consts) {
+			Error(node.error, "Constant '%s' already defined", node.name);
+		}
+		
+		NewConst(node.name, node.value);
+	}
+
+	void CompileUnion(UnionNode node) {
+		size_t maxSize = 0;
+
+		if (TypeExists(node.name)) {
+			Error(node.error, "Type '%s' already exists", node.name);
+		}
+
+		string[] unionTypes;
+
+		foreach (ref type ; node.types) {
+			if (unionTypes.canFind(type)) {
+				Error(node.error, "Union type '%s' defined twice", type);
+			}
+			unionTypes ~= type;
+
+			if (!TypeExists(type)) {
+				Error(node.error, "Type '%s' doesn't exist", type);
+			}
+
+			if (GetType(type).size > maxSize) {
+				maxSize = GetType(type).size;
+			}
+		}
+
+		types ~= Type(node.name, maxSize);
+		NewConst(format("%s.sizeof", node.name), cast(long) maxSize);
+	}
+
+	void CompileAlias(AliasNode node) {
+		if (!TypeExists(node.from)) {
+			Error(node.error, "Type '%s' doesn't exist", node.from);
+		}
+		if ((TypeExists(node.to)) && !node.overwrite) {
+			Error(node.error, "Type '%s' already defined", node.to);
+		}
+
+		auto baseType  = GetType(node.from);
+		baseType.name  = node.to;
+		types         ~= baseType;
+
+		NewConst(format("%s.sizeof", node.to), cast(long) GetType(node.to).size);
+	}
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
 		ErrorBegin(error);

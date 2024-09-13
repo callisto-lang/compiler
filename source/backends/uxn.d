@@ -18,14 +18,9 @@ private struct Word {
 	bool   error;
 }
 
-private struct Constant {
-	Node value;
-}
-
 class BackendUXN : CompilerBackend {
 	Word[string]     words;
 	uint             blockCounter; // used for block statements
-	Constant[string] consts;
 	bool             inScope;
 	string           thisFunc;
 	bool             inWhile;
@@ -667,55 +662,6 @@ class BackendUXN : CompilerBackend {
 		CompileArray(arrayNode);
 	}
 
-	override void CompileStruct(StructNode node) {
-		size_t offset;
-
-		if (TypeExists(node.name)) {
-			Error(node.error, "Type '%s' defined multiple times", node.name);
-		}
-
-		StructEntry[] entries;
-		string[]      members;
-
-		if (node.inherits) {
-			if (!TypeExists(node.inheritsFrom)) {
-				Error(node.error, "Type '%s' doesn't exist", node.inheritsFrom);
-			}
-
-			if (!GetType(node.inheritsFrom).isStruct) {
-				Error(node.error, "Type '%s' is not a structure", node.inheritsFrom);
-			}
-
-			entries = GetType(node.inheritsFrom).structure;
-
-			foreach (ref member ; GetType(node.inheritsFrom).structure) {
-				members ~= member.name;
-			}
-		}
-
-		foreach (ref member ; node.members) {
-			if (!TypeExists(member.type)) {
-				Error(node.error, "Type '%s' doesn't exist", member.type);
-			}
-			if (members.canFind(member.name)) {
-				Error(node.error, "Duplicate member '%s'", member.name);
-			}
-
-			entries ~= StructEntry(
-				GetType(member.type), member.name, member.array, member.size
-			);
-			members ~= member.name;
-		}
-
-		foreach (ref member ; entries) {
-			NewConst(format("%s.%s", node.name, member.name), offset);
-			offset += member.array? member.type.size * member.size : member.type.size;
-		}
-
-		NewConst(format("%s.sizeof", node.name), offset);
-		types ~= Type(node.name, offset, true, entries);
-	}
-
 	override void CompileReturn(WordNode node) {
 		if (!inScope) {
 			Error(node.error, "Return used outside of function");
@@ -734,35 +680,6 @@ class BackendUXN : CompilerBackend {
 		output ~= "JMP2r\n";
 	}
 
-	override void CompileConst(ConstNode node) {
-		if (node.name in consts) {
-			Error(node.error, "Constant '%s' already defined", node.name);
-		}
-		
-		NewConst(node.name, node.value);
-	}
-
-	override void CompileEnum(EnumNode node) {
-		if (!TypeExists(node.enumType)) {
-			Error(node.error, "Enum base type '%s' doesn't exist", node.enumType);
-		}
-		if (TypeExists(node.name)) {
-			Error(node.error, "Enum name is already used by type '%s'", node.enumType);
-		}
-
-		auto baseType  = GetType(node.enumType);
-		baseType.name  = node.name;
-		types         ~= baseType;
-
-		foreach (i, ref name ; node.names) {
-			NewConst(format("%s.%s", node.name, name), node.values[i]);
-		}
-
-		NewConst(format("%s.min", node.name), node.values.minElement());
-		NewConst(format("%s.max", node.name), node.values.maxElement());
-		NewConst(format("%s.sizeof", node.name), GetType(node.name).size);
-	}
-
 	override void CompileBreak(WordNode node) {
 		if (!inWhile) {
 			Error(node.error, "Not in while loop");
@@ -777,49 +694,6 @@ class BackendUXN : CompilerBackend {
 		}
 
 		output ~= format(";while_%d_next JMP2\n", currentLoop);
-	}
-
-	override void CompileUnion(UnionNode node) {
-		size_t maxSize = 0;
-
-		if (TypeExists(node.name)) {
-			Error(node.error, "Type '%s' already exists", node.name);
-		}
-
-		string[] unionTypes;
-
-		foreach (ref type ; node.types) {
-			if (unionTypes.canFind(type)) {
-				Error(node.error, "Union type '%s' defined twice", type);
-			}
-			unionTypes ~= type;
-
-			if (!TypeExists(type)) {
-				Error(node.error, "Type '%s' doesn't exist", type);
-			}
-
-			if (GetType(type).size > maxSize) {
-				maxSize = GetType(type).size;
-			}
-		}
-
-		types ~= Type(node.name, maxSize);
-		NewConst(format("%s.sizeof", node.name), cast(long) maxSize);
-	}
-
-	override void CompileAlias(AliasNode node) {
-		if (!TypeExists(node.from)) {
-			Error(node.error, "Type '%s' doesn't exist", node.from);
-		}
-		if (TypeExists(node.to) && !node.overwrite) {
-			Error(node.error, "Type '%s' already defined", node.to);
-		}
-
-		auto baseType  = GetType(node.from);
-		baseType.name  = node.to;
-		types         ~= baseType;
-
-		NewConst(format("%s.sizeof", node.to), cast(long) GetType(node.to).size);
 	}
 
 	override void CompileExtern(ExternNode node) {
