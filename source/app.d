@@ -9,6 +9,7 @@ import std.algorithm;
 import callisto.error;
 import callisto.compiler;
 import callisto.language;
+import callisto.stackCheck;
 import callisto.codeRemover;
 import callisto.preprocessor;
 import callisto.backends.lua;
@@ -43,6 +44,7 @@ Flags:
   -ka         - Keeps the generated assembly
   -al         - Prints assembly line numbers for Callisto nodes
   -os OS      - Sets the operating system for the backend (see below)
+  -sc         - Stop after stack check
   --help      - Shows this help text
 
 Backends and their operating systems:
@@ -88,6 +90,7 @@ int main(string[] args) {
 	bool            keepAssembly;
 	bool            assemblyLines;
 	string          os = "DEFAULT";
+	bool            onlyStackCheck = false;
 
 	// choose default backend
 	version (X86_64) {
@@ -284,6 +287,10 @@ int main(string[] args) {
 					os = args[i];
 					break;
 				}
+				case "-sc": {
+					onlyStackCheck = true;
+					break;
+				}
 				case "--help": {
 					writeln(usage.strip());
 					return 0;
@@ -389,6 +396,27 @@ int main(string[] args) {
 		codeRemover.Run(nodes);
 		nodes = codeRemover.res;
 		if (!codeRemover.success) return 1;
+	}
+
+	auto stackChecker = new StackChecker();
+	try {
+		stackChecker.Evaluate(nodes);
+	}
+	catch (StackCheckerError) {
+		return 1;
+	}
+
+	if (stackChecker.stack.length > 0) {
+		try {
+			stackChecker.StackOverflow(nodes[$ - 1], 0);
+		}
+		catch (StackCheckerError) {
+			return 1;
+		}
+	}
+
+	if (onlyStackCheck) {
+		return 0;
 	}
 
 	compiler.versions = preproc.versions;

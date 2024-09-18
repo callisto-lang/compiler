@@ -87,6 +87,9 @@ class FuncDefNode : Node {
 	string[] paramTypes;
 	string[] params;
 	bool     errors;
+	bool     manual;
+	bool     unsafe;
+	size_t   numReturns;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.FuncDef;
@@ -99,7 +102,7 @@ class FuncDefNode : Node {
 		foreach (i, ref param ; params) {
 			ret ~= format(" %s %s", paramTypes[i], param);
 		}
-		ret ~= " begin\n";
+		ret ~= format(" -> %d begin\n", numReturns);
 
 		foreach (ref node ; nodes) {
 			ret ~= "    " ~ node.toString() ~ '\n';
@@ -573,32 +576,44 @@ class Parser {
 		ret.inline = inline;
 		parsing    = NodeType.FuncDef;
 
-		Next();
-		Expect(TokenType.Identifier);
-
-		if (tokens[i].contents == "error") {
-			ret.errors = true;
+		bool readingAttr = true;
+		while (readingAttr) {
 			Next();
 			Expect(TokenType.Identifier);
-		}
 
-		if (tokens[i].contents == "raw") {
-			ret.raw = true;
-			Next();
-			Expect(TokenType.Identifier);
+			switch (tokens[i].contents) {
+				case "error":  ret.errors  = true; break;
+				case "raw":    ret.raw     = true; break;
+				case "man":    ret.manual  = true; break;
+				case "unsafe": ret.unsafe  = true; break;
+				default:       readingAttr = false;
+			}
 		}
 
 		ret.name = tokens[i].contents;
 
 		Next();
 
-		while (!IsIdentifier("begin")) {
+		while (true) {
 			Expect(TokenType.Identifier);
 			ret.paramTypes ~= tokens[i].contents;
 			Next();
 			Expect(TokenType.Identifier);
 			ret.params ~= tokens[i].contents;
 			Next();
+
+			if (IsIdentifier("begin")) {
+				break;
+			}
+			else if (IsIdentifier("->")) {
+				Next();
+				while (!IsIdentifier("begin")) {
+					Next();
+					++ ret.numReturns;
+				}
+
+				break;
+			}
 		}
 
 		Next();
