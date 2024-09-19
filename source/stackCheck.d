@@ -14,6 +14,7 @@ struct Effect {
 
 struct Word {
 	Effect effect;
+	bool   unsafe;
 }
 
 struct StackCell {
@@ -29,6 +30,7 @@ class StackCheckerError : Exception {
 class StackChecker {
 	Word[string] words;
 	StackCell[]  stack;
+	string[]     identifiers;
 
 	this() {
 		
@@ -45,6 +47,12 @@ class StackChecker {
 		stderr.writeln(format(fmt, args));
 		PrintErrorLine(error);
 		throw new StackCheckerError();
+	}
+
+	void Note(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
+		NoteBegin(error);
+		stderr.writeln(format(fmt, args));
+		PrintErrorLine(error);
 	}
 
 	void StackOverflow(Node node, size_t start) {
@@ -119,6 +127,8 @@ class StackChecker {
 		if (stack.length > node.numReturns) {
 			StackOverflow(node, node.numReturns);
 		}
+
+		stack = oldStack;
 	}
 
 	void EvaluateIf(IfNode node) {
@@ -149,6 +159,104 @@ class StackChecker {
 			stack = oldStack;
 		}
 	}
+
+	void EvaluateWhile(WhileNode node) {
+		auto oldStack = stack.dup;
+
+		if (node.condition.empty()) {
+			Error(node.error, "Empty while condition");
+		}
+
+		Evaluate(node.condition);
+		Pop(node.condition[$ - 1], 1);
+
+		size_t oldSize = stack.length;
+		Evaluate(node.doWhile);
+
+		if (oldSize != stack.length) {
+			if (stack.length > oldSize) {
+				StackOverflow(node.doWhile[$ - 1], oldSize);
+			}
+			else {
+				Error(node.doWhile[$ - 1].error, "Stack underflow");
+			}
+		}
+
+		stack = oldStack;
+	}
+
+	void EvaluateDef(LetNode node) {
+		identifiers ~= node.name;
+	}
+	
+	void EvaluateDef(ConstNode node) {
+		identifiers ~= node.name;
+	}
+
+	void EvaluateExtern(ExternNode node) {
+		string name = node.asName == ""? node.func : node.asName;
+
+		if (node.externType == ExternType.C) {
+			words[name] = Word(
+				Effect(node.retType == "void"? 0 : 1, node.types.length)
+			);
+		}
+		else {
+			words[name] = Word(Effect.init, false);
+		}
+	}
+
+	void EvaluateImplement(ImplementNode node) {
+		auto oldStack = stack;
+		stack         = [StackCell(node)];
+
+		Evaluate(node.nodes);
+
+		if (!stack.empty()) {
+			Note(node.error, "Implement block must leave the stack empty");
+			StackOverflow(node, 0);
+		}
+
+		stack = oldStack;
+	}
+
+	void EvaluateTryCatch(TryCatchNode node) {
+		if (node.func !in words) {
+			Error(node.error, "Unknown function '%s'", node.func);
+		}
+
+
+		auto word = words[node.func];
+
+		assert(!word.unsafe);
+		Pop(node, word.effect.pop);
+
+		auto oldStack = stack;
+		stack         = [];
+
+		ptrdiff_t successRes = stack.length + word.effect.push;
+
+		Evaluate(node.catchBlock);
+
+		if (stack.length != successRes) {
+			Note(
+				node.error,
+				"Catch block must have same stack effect as the called function"
+			);
+			if (cast(ptrdiff_t) stack.length > successRes) {
+				StackOverflow(node.catchBlock[$ - 1], cast(size_t) successRes);
+			}
+			else {
+				auto error = node.catchBlock.empty()?
+					node.error : node.catchBlock[$ - 1].error;
+
+				Error(node.catchBlock[$ - 1].error, "Stack underflow");
+			}
+		}
+
+		stack = oldStack;
+	}
+
 	void EvaluateNode(Node node) {
 		switch (node.type) {
 			case NodeType.Word:    EvaluateWord(cast(WordNode) node); break;
@@ -159,16 +267,16 @@ class StackChecker {
 				break;
 			}
 			case NodeType.If:        EvaluateIf(cast(IfNode) node); break;
-			case NodeType.While:     assert(0);
-			case NodeType.Let:       assert(0);
+			case NodeType.While:     EvaluateWhile(cast(WhileNode) node); break;
+			case NodeType.Let:       EvaluateDef(cast(LetNode) node); break;
 			case NodeType.Array:     Push(node, 1); break;
 			case NodeType.String:    Push(node, 1); break;
-			case NodeType.Const:     assert(0);
-			case NodeType.Extern:    assert(0);
+			case NodeType.Const:     EvaluateDef(cast(ConstNode) node); break;
+			case NodeType.Extern:    EvaluateExtern(cast(ExternNode) node); break;
 			case NodeType.Addr:      Push(node, 1); break;
-			case NodeType.Implement: assert(0);
+			case NodeType.Implement: EvaluateImplement(cast(ImplementNode) node); break;
 			case NodeType.Set:       Pop(node, 1); break;
-			case NodeType.TryCatch:  assert(0);
+			case NodeType.TryCatch:  EvaluateTryCatch(cast(TryCatchNode) node); break;
 			default: break;
 		}
 	}
