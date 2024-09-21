@@ -45,6 +45,7 @@ Flags:
   -al         - Prints assembly line numbers for Callisto nodes
   -os OS      - Sets the operating system for the backend (see below)
   -sc         - Stop after stack check
+  -nsc        - No stack checker
   --help      - Shows this help text
 
 Backends and their operating systems:
@@ -91,6 +92,7 @@ int main(string[] args) {
 	bool            assemblyLines;
 	string          os = "DEFAULT";
 	bool            onlyStackCheck = false;
+	bool            noStackCheck;
 
 	// choose default backend
 	version (X86_64) {
@@ -150,10 +152,7 @@ int main(string[] args) {
 					includeDirs ~= args[i];
 					break;
 				}
-				case "-O": {
-					optimise = true;
-					break;
-				}
+				case "-O": optimise = true; break;
 				case "-v": {
 					++ i;
 					if (i >= args.length) {
@@ -204,26 +203,11 @@ int main(string[] args) {
 					writeln("Callisto compiler beta 0.10.1");
 					return 0;
 				}
-				case "-a": {
-					runFinal = true;
-					break;
-				}
-				case "-na": {
-					runFinal = false;
-					break;
-				}
-				case "-d": {
-					doDebug = true;
-					break;
-				}
-				case "-dp": {
-					debugParser = true;
-					break;
-				}
-				case "-es": {
-					exportSymbols = true;
-					break;
-				}
+				case "-a":  runFinal      = true; break;
+				case "-na": runFinal      = false; break;
+				case "-d":  doDebug       = true; break;
+				case "-dp": debugParser   = true; break;
+				case "-es": exportSymbols = true; break;
 				case "-l": {
 					++ i;
 					if (i >= args.length) {
@@ -269,14 +253,8 @@ int main(string[] args) {
 					backendOpts ~= args[i];
 					break;
 				}
-				case "-ka": {
-					keepAssembly = true;
-					break;
-				}
-				case "-al": {
-					assemblyLines = true;
-					break;
-				}
+				case "-ka": keepAssembly = true; break;
+				case "-al": assemblyLines = true; break;
 				case "-os": {
 					++ i;
 					if (i >= args.length) {
@@ -287,10 +265,8 @@ int main(string[] args) {
 					os = args[i];
 					break;
 				}
-				case "-sc": {
-					onlyStackCheck = true;
-					break;
-				}
+				case "-sc":  onlyStackCheck = true; break;
+				case "-nsc": noStackCheck = true; break;
 				case "--help": {
 					writeln(usage.strip());
 					return 0;
@@ -398,20 +374,22 @@ int main(string[] args) {
 		if (!codeRemover.success) return 1;
 	}
 
-	auto stackChecker = new StackChecker();
-	try {
-		stackChecker.Evaluate(nodes);
-	}
-	catch (StackCheckerError) {
-		return 1;
-	}
-
-	if (stackChecker.stack.length > 0) {
+	if (!noStackCheck) {
+		auto stackChecker = new StackChecker();
 		try {
-			stackChecker.StackOverflow(nodes[$ - 1], 0);
+			stackChecker.Evaluate(nodes);
 		}
 		catch (StackCheckerError) {
 			return 1;
+		}
+
+		if (stackChecker.stack.length > 0) {
+			try {
+				stackChecker.StackOverflow(nodes[$ - 1], 0);
+			}
+			catch (StackCheckerError) {
+				return 1;
+			}
 		}
 	}
 

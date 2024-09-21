@@ -594,7 +594,7 @@ class Parser {
 
 		Next();
 
-		while (true) {
+		while (!IsIdentifier("begin")) {
 			Expect(TokenType.Identifier);
 			ret.paramTypes ~= tokens[i].contents;
 			Next();
@@ -602,10 +602,7 @@ class Parser {
 			ret.params ~= tokens[i].contents;
 			Next();
 
-			if (IsIdentifier("begin")) {
-				break;
-			}
-			else if (IsIdentifier("->")) {
+			if (IsIdentifier("->")) {
 				Next();
 				while (!IsIdentifier("begin")) {
 					Next();

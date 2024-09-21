@@ -225,7 +225,6 @@ class StackChecker {
 			Error(node.error, "Unknown function '%s'", node.func);
 		}
 
-
 		auto word = words[node.func];
 
 		assert(!word.unsafe);
