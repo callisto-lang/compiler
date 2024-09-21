@@ -24,10 +24,12 @@ private struct Word {
 	bool     inline;
 	Node[]   inlineNodes;
 	bool     error;
-	Type[]   params;
-	Type[]   ret;
-	string   symbolName;
-	bool     manual;
+
+	// for C words
+	Type[] params;
+	Type   ret;
+	bool   isVoid;
+	string symbolName;
 }
 
 class BackendX86_64 : CompilerBackend {
@@ -510,7 +512,7 @@ class BackendX86_64 : CompilerBackend {
 				
 					output ~= format("call %s\n", ExternSymbol(word.symbolName));
 
-					if (!word.ret.empty()) {
+					if (!word.isVoid) {
 						output ~= "mov [r15], rax\n";
 						output ~= "add r15, 8\n";
 					}
@@ -571,9 +573,6 @@ class BackendX86_64 : CompilerBackend {
 			compiler.CompileNode(consts[node.name].value);
 		}
 		else {
-			foreach (key, value ; words) {
-				writefln("%s", key);
-			}
 			Error(node.error, "Undefined identifier '%s'", node.name);
 		}
 	}
@@ -611,9 +610,10 @@ class BackendX86_64 : CompilerBackend {
 			assert(!inScope);
 			inScope = true;
 
-			Word word = Word(
+			words[node.name] = Word(
 				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors
 			);
+
 			string symbol =
 				node.raw? node.name : format("__func__%s", node.name.Sanitise());
 
@@ -637,10 +637,8 @@ class BackendX86_64 : CompilerBackend {
 				if (GetType(type).isStruct) {
 					Error(node.error, "Structures cannot be used in function parameters");
 				}
-
-				
 			}
-			if ((paramSize > 0) && !node.manual) {
+			if (paramSize > 0) {
 				output ~= format("sub rsp, %d\n", paramSize);
 				foreach (ref var ; variables) {
 					var.offset += paramSize;
@@ -694,8 +692,6 @@ class BackendX86_64 : CompilerBackend {
 			//output    ~= format("__func_end__%s:\n", node.name.Sanitise());
 			inScope    = false;
 			variables  = [];
-
-			words[node.name] = word;
 		}
 	}
 	
@@ -1016,14 +1012,14 @@ class BackendX86_64 : CompilerBackend {
 				}
 
 				if (node.retType == "void") {
-					word.ret = [];
+					word.isVoid = true;
 				}
 				else {
 					if (!TypeExists(node.retType)) {
 						Error(node.error, "Unknown type '%s'", node.retType);
 					}
 
-					word.ret = [GetType(node.retType)];
+					word.ret = GetType(node.retType);
 				}
 
 				word.symbolName = node.func;
@@ -1261,8 +1257,6 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Non-callisto functions can't throw");
 		}
 
-		output ~= "mov r14, r15\n"; // save data sp
-
 		if (word.inline) {
 			foreach (inode ; word.inlineNodes) {
 				compiler.CompileNode(inode);
@@ -1277,7 +1271,6 @@ class BackendX86_64 : CompilerBackend {
 		output ~= format("mov rax, __global_%s\n", Sanitise("_cal_exception"));
 		output ~= "cmp qword [rax], 0\n";
 		output ~= format("je __catch_%d_end\n", blockCounter);
-		output ~= "mov r15, r14\n"; // restore data sp
 
 		// create scope
 		auto oldVars = variables.dup;
