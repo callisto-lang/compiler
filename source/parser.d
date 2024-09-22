@@ -89,7 +89,7 @@ class FuncDefNode : Node {
 	bool     errors;
 	bool     manual;
 	bool     unsafe;
-	size_t   numReturns;
+	string[] returnTypes;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.FuncDef;
@@ -102,7 +102,11 @@ class FuncDefNode : Node {
 		foreach (i, ref param ; params) {
 			ret ~= format(" %s %s", paramTypes[i], param);
 		}
-		ret ~= format(" -> %d begin\n", numReturns);
+		ret ~= " ->";
+
+		foreach (ref type ; returnTypes) {
+			ret ~= format(" %s", type);
+		}
 
 		foreach (ref node ; nodes) {
 			ret ~= "    " ~ node.toString() ~ '\n';
@@ -594,22 +598,24 @@ class Parser {
 
 		Next();
 
-		while (!IsIdentifier("begin")) {
+		while (!IsIdentifier("begin") && !IsIdentifier("->")) {
 			Expect(TokenType.Identifier);
 			ret.paramTypes ~= tokens[i].contents;
 			Next();
 			Expect(TokenType.Identifier);
 			ret.params ~= tokens[i].contents;
 			Next();
+		}
 
-			if (IsIdentifier("->")) {
+		if (IsIdentifier("->")) {
+			Next();
+
+			while (!IsIdentifier("begin")) {
+				Expect(TokenType.Identifier);
+				ret.returnTypes ~= tokens[i].contents; // return type
 				Next();
-				while (!IsIdentifier("begin")) {
-					Next();
-					++ ret.numReturns;
-				}
-
-				break;
+				Expect(TokenType.Identifier); // return name, ignored
+				Next();
 			}
 		}
 

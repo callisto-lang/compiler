@@ -106,12 +106,15 @@ class StackChecker {
 			Push(node, word.effect.push);
 		}
 		else {
+			foreach (key, value ; words) {
+				writeln(key);
+			}
 			Error(node.error, "Unknown word '%s'", node.name);
 		}
 	}
 
 	void EvaluateFuncDef(FuncDefNode node) {
-		words[node.name] = Word(Effect(node.numReturns, node.params.length));
+		words[node.name] = Word(Effect(node.returnTypes.length, node.params.length));
 
 		if (node.unsafe) return;
 
@@ -124,8 +127,8 @@ class StackChecker {
 
 		Evaluate(node.nodes);
 
-		if (stack.length > node.numReturns) {
-			StackOverflow(node, node.numReturns);
+		if (stack.length > node.returnTypes.length) {
+			StackOverflow(node, node.returnTypes.length);
 		}
 
 		stack = oldStack;

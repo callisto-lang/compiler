@@ -24,9 +24,9 @@ private struct Word {
 	bool     inline;
 	Node[]   inlineNodes;
 	bool     error;
+	Type[]   params;
 
 	// for C words
-	Type[] params;
 	Type   ret;
 	bool   isVoid;
 	string symbolName;
@@ -598,20 +598,33 @@ class BackendX86_64 : CompilerBackend {
 
 		thisFunc = node.name;
 
+		Type[] params;
+
+		foreach (ref type ; node.paramTypes) {
+			if (!TypeExists(type)) {
+				Error(node.error, "Type '%s' doesn't exist", type);
+			}
+
+			params ~= GetType(type);
+		}
+
 		if (node.inline) {
 			if (node.errors) {
 				output ~= format("mov rax, __global_%s\n", Sanitise("_cal_exception"));
 				output ~= "mov [rax], 0\n";
 			}
 
-			words[node.name] = Word(WordType.Callisto, true, node.nodes, node.errors);
+			words[node.name] = Word(
+				WordType.Callisto, true, node.nodes, node.errors, params
+			);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
 			words[node.name] = Word(
-				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors
+				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors,
+				params
 			);
 
 			string symbol =
@@ -638,7 +651,7 @@ class BackendX86_64 : CompilerBackend {
 					Error(node.error, "Structures cannot be used in function parameters");
 				}
 			}
-			if (paramSize > 0) {
+			if ((paramSize > 0) && !node.manual) {
 				output ~= format("sub rsp, %d\n", paramSize);
 				foreach (ref var ; variables) {
 					var.offset += paramSize;
@@ -1257,6 +1270,14 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Non-callisto functions can't throw");
 		}
 
+		if (word.params.length > 0) {
+			output ~= format("lea r14, [r15 - %d]\n", word.params.length * 8);
+			output ~= "push r14\n";
+		}
+		else {
+			output ~= "push r15\n";	
+		}
+
 		if (word.inline) {
 			foreach (inode ; word.inlineNodes) {
 				compiler.CompileNode(inode);
@@ -1266,11 +1287,14 @@ class BackendX86_64 : CompilerBackend {
 			output ~= format("call __func__%s\n", node.func.Sanitise());
 		}
 
+		output ~= "pop r14\n";
+
 		++ blockCounter;
 
 		output ~= format("mov rax, __global_%s\n", Sanitise("_cal_exception"));
 		output ~= "cmp qword [rax], 0\n";
 		output ~= format("je __catch_%d_end\n", blockCounter);
+		output ~= "mov r15, r14\n";
 
 		// create scope
 		auto oldVars = variables.dup;
