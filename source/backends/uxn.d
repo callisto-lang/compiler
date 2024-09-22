@@ -16,6 +16,7 @@ private struct Word {
 	bool   inline;
 	Node[] inlineNodes;
 	bool   error;
+	Type[] params;
 }
 
 class BackendUXN : CompilerBackend {
@@ -311,18 +312,28 @@ class BackendUXN : CompilerBackend {
 
 		thisFunc = node.name;
 
+		Type[] params;
+
+		foreach (ref type ; node.paramTypes) {
+			if (!TypeExists(type)) {
+				Error(node.error, "Type '%s' doesn't exist", type);
+			}
+
+			params ~= GetType(type);
+		}
+
 		if (node.inline) {
 			if (node.errors) {
 				output ~= format("#0000 ;global_%s STA2\n", Sanitise("_cal_exception"));
 			}
 
-			words[node.name] = Word(false, true, node.nodes, node.errors);
+			words[node.name] = Word(false, true, node.nodes, node.errors, params);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(node.raw, false, [], node.errors);
+			words[node.name] = Word(node.raw, false, [], node.errors, params);
 
 			string symbol =
 				node.raw? node.name : format("func__%s", node.name.Sanitise());
@@ -343,7 +354,7 @@ class BackendUXN : CompilerBackend {
 					Error(node.error, "Structures cannot be used in function parameters");
 				}
 			}
-			if (paramSize > 0) {
+			if ((paramSize > 0) && !node.manual) {
 				output ~= format(".vsp LDZ2 #%.4x SUB2 .vsp STZ2\n", paramSize);
 				foreach (ref var ; variables) {
 					var.offset += paramSize;
@@ -907,6 +918,15 @@ class BackendUXN : CompilerBackend {
 			Error(node.error, "Non-callisto functions can't throw");
 		}
 
+		if (word.params.length > 0) {
+			output ~= format(
+				"LITr -System/wst DEIr LITr %.2x SUBr\n", word.params.length * 2
+			);
+		}
+		else {
+			output ~= "LITr -System/wst DEIr\n";
+		}
+
 		if (word.inline) {
 			foreach (inode ; word.inlineNodes) {
 				compiler.CompileNode(inode);
@@ -916,10 +936,12 @@ class BackendUXN : CompilerBackend {
 			output ~= format("func__%s\n", node.func.Sanitise());
 		}
 
+
 		++ blockCounter;
 
 		output ~= format(";global_%s LDA2 #0000 EQU2\n", Sanitise("_cal_exception"));
 		output ~= format(";catch_%d_end JCN2\n", blockCounter);
+		output ~= "LITr -System/wst DEOr\n";
 
 		// create scope
 		auto oldVars = variables.dup;
@@ -945,6 +967,7 @@ class BackendUXN : CompilerBackend {
 		variables = oldVars;
 
 		output ~= format("@catch_%d_end\n", blockCounter);
+		output ~= "POPr\n";
 	}
 
 	override void CompileThrow(WordNode node) {

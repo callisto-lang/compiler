@@ -1294,7 +1294,7 @@ class BackendX86_64 : CompilerBackend {
 		output ~= format("mov rax, __global_%s\n", Sanitise("_cal_exception"));
 		output ~= "cmp qword [rax], 0\n";
 		output ~= format("je __catch_%d_end\n", blockCounter);
-		output ~= "mov r15, r14\n";
+		output ~= "mov r15, r14\n"; // NOTE: cant just pop bc of the jump above
 
 		// create scope
 		auto oldVars = variables.dup;

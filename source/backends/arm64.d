@@ -25,9 +25,9 @@ private struct Word {
 	bool     inline;
 	Node[]   inlineNodes;
 	bool     error;
+	Type[]   params;
 
 	// for C words
-	Type[] params;
 	Type   ret;
 	bool   isVoid;
 	string symbolName;
@@ -506,6 +506,16 @@ class BackendARM64 : CompilerBackend {
 
 		thisFunc = node.name;
 
+		Type[] params;
+
+		foreach (ref type ; node.paramTypes) {
+			if (!TypeExists(type)) {
+				Error(node.error, "Type '%s' doesn't exist", type);
+			}
+
+			params ~= GetType(type);
+		}
+
 		if (node.inline) {
 			if (node.errors) {
 				LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
@@ -514,7 +524,7 @@ class BackendARM64 : CompilerBackend {
 			}
 
 			words[node.name] = Word(
-				WordType.Callisto, true, node.nodes
+				WordType.Callisto, true, node.nodes, node.errors, params
 			);
 		}
 		else {
@@ -522,7 +532,8 @@ class BackendARM64 : CompilerBackend {
 			inScope = true;
 
 			words[node.name] = Word(
-				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors
+				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors,
+				params
 			);
 
 			string symbol =
@@ -551,7 +562,7 @@ class BackendARM64 : CompilerBackend {
 					Error(node.error, "Structures cannot be used in function parameters");
 				}
 			}
-			if (paramSize > 0) {
+			if ((paramSize > 0) && !node.manual) {
 				output ~= format("sub x20, x20, #%d\n", paramSize);
 				foreach (ref var ; variables) {
 					var.offset += paramSize;
@@ -1149,6 +1160,14 @@ class BackendARM64 : CompilerBackend {
 			Error(node.error, "Non-callisto functions can't throw");
 		}
 
+		if (word.params.length > 0) {
+			output ~= format("sub x21, x19, #%d\n", word.params.length * 8);
+			output ~= "str x21, [x20, #-8]!\n";
+		}
+		else {
+			output ~= "str x19, [x20, #-8]!\n";
+		}
+
 		if (word.inline) {
 			foreach (inode ; word.inlineNodes) {
 				compiler.CompileNode(inode);
@@ -1158,12 +1177,15 @@ class BackendARM64 : CompilerBackend {
 			output ~= format("bl __func__%s\n", node.func.Sanitise());
 		}
 
+		output ~= "ldr x21, [x20], #8\n";
+
 		++ blockCounter;
 
 		LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
 		output ~= "ldr x9, [x9]\n";
 		output ~= "cmp x9, #0\n";
 		output ~= format("beq __catch_%d_end\n", blockCounter);
+		output ~= "mov x19, x21\n";
 
 		// create scope
 		auto oldVars = variables.dup;
