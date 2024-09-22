@@ -18,6 +18,8 @@ import callisto.backends.rm86;
 import callisto.backends.arm64;
 import callisto.backends.x86_64;
 
+const static string appVersion = "Beta 0.11.0";
+
 const static string usage = "
 Callisto Compiler
 =================
@@ -202,7 +204,8 @@ int main(string[] args) {
 					break;
 				}
 				case "--version": {
-					writeln("Callisto compiler beta 0.10.1");
+					writeln("The Glorious Callisto Compilation System");
+					writeln(appVersion);
 					return 0;
 				}
 				case "-a": {

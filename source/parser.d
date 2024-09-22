@@ -613,8 +613,13 @@ class Parser {
 			while (!IsIdentifier("begin")) {
 				Expect(TokenType.Identifier);
 				ret.returnTypes ~= tokens[i].contents; // return type
+
 				Next();
 				Expect(TokenType.Identifier); // return name, ignored
+
+				if (tokens[i].contents == "begin") {
+					Error("Begin in return type");
+				}
 				Next();
 			}
 		}

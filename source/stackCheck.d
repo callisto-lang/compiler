@@ -4,6 +4,7 @@ import std.conv;
 import std.range;
 import std.stdio;
 import std.format;
+import std.algorithm;
 import callisto.error;
 import callisto.parser;
 
@@ -28,12 +29,20 @@ class StackCheckerError : Exception {
 }
 
 class StackChecker {
-	Word[string] words;
-	StackCell[]  stack;
-	string[]     identifiers;
+	Word[string]     words;
+	StackCell[]      stack;
+	string[]         identifiers;
+	string[][string] structs;
 
 	this() {
-		
+		structs["Array"]     = ["length", "memberSize", "elements"];
+		structs["Exception"] = ["error", "msg"];
+
+		foreach (key, structure ; structs) {
+			foreach (ref member ; structure) {
+				identifiers ~= format("%s.%s", key, member);
+			}
+		}
 	}
 
 	void ErrorNoThrow(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
@@ -105,10 +114,10 @@ class StackChecker {
 			Pop(node, word.effect.pop);
 			Push(node, word.effect.push);
 		}
+		else if (identifiers.canFind(node.name)) {
+			Push(node, 1);
+		}
 		else {
-			foreach (key, value ; words) {
-				writeln(key);
-			}
 			Error(node.error, "Unknown word '%s'", node.name);
 		}
 	}
@@ -120,9 +129,15 @@ class StackChecker {
 
 		auto oldStack = stack;
 		stack = [];
+		auto oldIdentifiers = identifiers.dup;
 
 		if (node.manual) {
 			Push(node, node.params.length);
+		}
+		else {
+			foreach (ref param ; node.params) {
+				identifiers ~= param;
+			}
 		}
 
 		Evaluate(node.nodes);
@@ -131,7 +146,8 @@ class StackChecker {
 			StackOverflow(node, node.returnTypes.length);
 		}
 
-		stack = oldStack;
+		stack       = oldStack;
+		identifiers = oldIdentifiers;
 	}
 
 	void EvaluateIf(IfNode node) {
@@ -260,6 +276,23 @@ class StackChecker {
 		stack = oldStack;
 	}
 
+	void EvaluateStruct(StructNode node) {
+		string[] structure;
+		foreach (ref member ; node.members) {
+			structure ~= member.name;
+		}
+
+		if (node.name in structs) {
+			Error(node.error, "Structure '%s' already exists", node.name);
+		}
+
+		structs[node.name] = structure;
+
+		foreach (ref member ; structure) {
+			identifiers ~= format("%s.%s", node.name, member);
+		}
+	}
+
 	void EvaluateNode(Node node) {
 		switch (node.type) {
 			case NodeType.Word:    EvaluateWord(cast(WordNode) node); break;
@@ -280,6 +313,7 @@ class StackChecker {
 			case NodeType.Implement: EvaluateImplement(cast(ImplementNode) node); break;
 			case NodeType.Set:       Pop(node, 1); break;
 			case NodeType.TryCatch:  EvaluateTryCatch(cast(TryCatchNode) node); break;
+			case NodeType.Struct:    EvaluateStruct(cast(StructNode) node); break;
 			default: break;
 		}
 	}
