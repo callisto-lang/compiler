@@ -156,7 +156,8 @@ class StackChecker {
 		if (node.hasElse) {
 			auto oldStack = stack.dup;
 			Evaluate(node.doElse);
-			stack = oldStack;
+			blockStack = stack.length;
+			stack      = oldStack;
 		}
 
 		foreach (i, ref cond ; node.condition) {
