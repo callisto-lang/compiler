@@ -162,17 +162,25 @@ class StackChecker {
 		foreach (i, ref cond ; node.condition) {
 			auto oldStack = stack.dup;
 
+			Node conditionNode = node.condition.empty()? node : cond[$ - 1];
+
 			Evaluate(cond);
+			Pop(conditionNode, 1);
 			Evaluate(node.doIf[i]);
 
-			if (i == 0) {
+			if ((i == 0) && !node.hasElse) {
 				blockStack = stack.length;
 			}
 			else if (stack.length != blockStack) {
-				ErrorInfo error = node.doIf[i].empty()?
-					node.error : node.doIf[i][$ - 1].error;
+				Node errorNode = node.doIf[i].empty()?
+					node : node.doIf[i][$ - 1];
 
-				Error(error, "If statement has inconsistent stack effects");
+				Note(errorNode.error, "Expected stack length '%d', got '%d'", blockStack, stack.length);
+				Error(errorNode.error, "If statement has inconsistent stack effects");
+
+				if (stack.length > blockStack) {
+					StackOverflow(errorNode, blockStack);
+				}
 			}
 
 			stack = oldStack;
