@@ -426,6 +426,7 @@ class BackendARM64 : CompilerBackend {
 						output ~= format("ldr x%d, [x19, #-8]!\n", reg);
 					}
 				
+					output ~= "and sp, x20, ~0xf\n";
 					output ~= format("bl %s\n", ExternSymbol(word.symbolName));
 
 					if (!word.isVoid) {
