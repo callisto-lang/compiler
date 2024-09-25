@@ -290,6 +290,9 @@ class BackendX86_64 : CompilerBackend {
 		// copy static array constants
 		output ~= "call __copy_arrays\n";
 
+		// jump to main
+		output ~= "jmp __calmain\n";
+
 		// create functions for interop
 		if (exportSymbols) {
 			output ~= "
@@ -304,9 +307,6 @@ class BackendX86_64 : CompilerBackend {
 					ret
 			";
 		}
-
-		// jump to main
-		output ~= "jmp __calmain\n";
 	}
 	
 	override void End() {

@@ -262,6 +262,9 @@ class BackendARM64 : CompilerBackend {
 		output ~= "sub x20, sp, #4096\n"; // 512 cells
 		output ~= "mov x19, x20\n";
 
+		// jump to main
+		output ~= "b __calmain\n";
+
 		// create functions for interop
 		if (exportSymbols) {
 			output ~= "
@@ -275,9 +278,6 @@ class BackendARM64 : CompilerBackend {
 					ret
 			";
 		}
-
-		// jump to main
-		output ~= "b __calmain\n";
 	}
 	
 	override void End() {
@@ -426,6 +426,7 @@ class BackendARM64 : CompilerBackend {
 						output ~= format("ldr x%d, [x19, #-8]!\n", reg);
 					}
 				
+					output ~= "and sp, x20, ~0xf\n";
 					output ~= format("bl %s\n", ExternSymbol(word.symbolName));
 
 					if (!word.isVoid) {
