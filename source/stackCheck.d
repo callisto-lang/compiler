@@ -43,6 +43,8 @@ class StackChecker {
 				identifiers ~= format("%s.%s", key, member);
 			}
 		}
+
+		identifiers ~= ["true", "false"];
 	}
 
 	void ErrorNoThrow(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
@@ -186,6 +188,13 @@ class StackChecker {
 
 			stack = oldStack;
 		}
+
+		if (stack.length > blockStack) {
+			Pop(node, stack.length - blockStack);
+		}
+		else if (stack.length < blockStack) {
+			Push(node, blockStack - stack.length);
+		}
 	}
 
 	void EvaluateWhile(WhileNode node) {
@@ -304,7 +313,20 @@ class StackChecker {
 
 	void EvaluateNode(Node node) {
 		switch (node.type) {
-			case NodeType.Word:    EvaluateWord(cast(WordNode) node); break;
+			case NodeType.Word: {
+				auto wnode = cast(WordNode) node;
+
+				switch (wnode.name) {
+					case "return":   Pop(node, 1); break;
+					case "continue": break;
+					case "break":    break;
+					case "call":     Error(node.error, "Call is unsafe"); break;
+					case "throw":    Pop(node, 1); break;
+					case "error":    Error(node.error, "Error thrown by code"); break;
+					default:         EvaluateWord(wnode);
+				}
+				break;
+			}
 			case NodeType.Integer: Push(node, 1); break;
 			case NodeType.FuncDef: EvaluateFuncDef(cast(FuncDefNode) node); break;
 			case NodeType.Asm: {
@@ -330,6 +352,17 @@ class StackChecker {
 	void Evaluate(Node[] nodes) {
 		foreach (ref node ; nodes) {
 			EvaluateNode(node);
+		}
+	}
+
+	void DumpFunctions() {
+		size_t spaces = words.keys().fold!((a, e) => e.length > a.length? e : a).length;
+
+		foreach (key, value ; words) {
+			writefln(
+				"%s %s= %d -> %d", key, replicate([' '], spaces - key.length),
+				value.effect.pop, value.effect.push
+			);
 		}
 	}
 }

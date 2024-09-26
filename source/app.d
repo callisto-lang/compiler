@@ -47,6 +47,7 @@ Flags:
   -al         - Prints assembly line numbers for Callisto nodes
   -os OS      - Sets the operating system for the backend (see below)
   -sc         - Stop after stack check
+  -scf        - Show functions in stack checker
   --help      - Shows this help text
 
 Backends and their operating systems:
@@ -94,6 +95,7 @@ int main(string[] args) {
 	string          os = "DEFAULT";
 	bool            onlyStackCheck = false;
 	bool            noStackCheck;
+	bool            stackCheckerFunctions = false;
 
 	// choose default backend
 	version (X86_64) {
@@ -299,6 +301,10 @@ int main(string[] args) {
 					noStackCheck = true;
 					break;
 				}
+				case "-scf": {
+					stackCheckerFunctions = true;
+					break;
+				}
 				case "--help": {
 					writeln(usage.strip());
 					return 0;
@@ -411,6 +417,9 @@ int main(string[] args) {
 		if (!noStackCheck) stackChecker.Evaluate(nodes);
 	}
 	catch (StackCheckerError) {
+		if (stackCheckerFunctions) {
+			stackChecker.DumpFunctions();
+		}
 		return 1;
 	}
 
@@ -423,7 +432,12 @@ int main(string[] args) {
 		}
 	}
 
+	if (stackCheckerFunctions) {
+		stackChecker.DumpFunctions();
+	}
+
 	if (onlyStackCheck) {
+		writeln("no errors");
 		return 0;
 	}
 
