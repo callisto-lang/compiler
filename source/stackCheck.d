@@ -33,6 +33,7 @@ class StackChecker {
 	StackCell[]      stack;
 	string[]         identifiers;
 	string[][string] structs;
+	size_t[]         whileStacks;
 
 	this() {
 		structs["Array"]     = ["length", "memberSize", "elements"];
@@ -207,7 +208,8 @@ class StackChecker {
 		Evaluate(node.condition);
 		Pop(node.condition[$ - 1], 1);
 
-		size_t oldSize = stack.length;
+		size_t oldSize  = stack.length;
+		whileStacks    ~= stack.length;
 		Evaluate(node.doWhile);
 
 		if (oldSize != stack.length) {
@@ -222,6 +224,19 @@ class StackChecker {
 		stack = oldStack;
 	}
 
+	void EvaluateBreakContinue(WordNode node) {
+		if (whileStacks.length == 0) {
+			Error(node.error, "Not in while loops");
+		}
+
+		if (stack.length > whileStacks[$ - 1]) {
+			StackOverflow(node, whileStacks[$ - 1]);
+		}
+		else if (stack.length < whileStacks[$ - 1]) {
+			Error(node.error, "Stack underflow");
+		}
+	}
+
 	void EvaluateDef(LetNode node) {
 		identifiers ~= node.name;
 	}
@@ -232,6 +247,10 @@ class StackChecker {
 
 	void EvaluateExtern(ExternNode node) {
 		string name = node.asName == ""? node.func : node.asName;
+
+		if (name in words) {
+			Error(node.error, "Word '%s' already exists", name);
+		}
 
 		if (node.externType == ExternType.C) {
 			words[name] = Word(
@@ -318,8 +337,8 @@ class StackChecker {
 
 				switch (wnode.name) {
 					case "return":   Pop(node, 1); break;
-					case "continue": break;
-					case "break":    break;
+					case "continue": EvaluateBreakContinue(wnode); break;
+					case "break":    EvaluateBreakContinue(wnode); break;
 					case "call":     Error(node.error, "Call is unsafe"); break;
 					case "throw":    Pop(node, 1); break;
 					case "error":    Error(node.error, "Error thrown by code"); break;

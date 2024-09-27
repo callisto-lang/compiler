@@ -108,6 +108,8 @@ class FuncDefNode : Node {
 			ret ~= format(" %s", type);
 		}
 
+		ret ~= " begin\n";
+
 		foreach (ref node ; nodes) {
 			ret ~= "    " ~ node.toString() ~ '\n';
 		}
