@@ -221,12 +221,14 @@ class StackChecker {
 			}
 		}
 
+		whileStacks = whileStacks[0 .. $ - 1];
+
 		stack = oldStack;
 	}
 
 	void EvaluateBreakContinue(WordNode node) {
 		if (whileStacks.length == 0) {
-			Error(node.error, "Not in while loops");
+			Error(node.error, "Not in while loop");
 		}
 
 		if (stack.length > whileStacks[$ - 1]) {

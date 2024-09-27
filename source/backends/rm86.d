@@ -68,11 +68,6 @@ class BackendRM86 : CompilerBackend {
 			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
 		}
 
-		if (!opts.noDos) { // TODO: remove this
-			globals ~= Global("__rm86_argv", GetType("addr"), false, 0);
-			globals ~= Global("__rm86_arglen", GetType("cell"), false, 0);
-		}
-
 		globals ~= Global("_cal_exception", GetType("Exception"), false, 0);
 	}
 
