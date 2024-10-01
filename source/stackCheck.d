@@ -14,6 +14,7 @@ struct Effect {
 }
 
 struct Word {
+	bool   manual;
 	Effect effect;
 	bool   unsafe;
 }
@@ -126,7 +127,9 @@ class StackChecker {
 	}
 
 	void EvaluateFuncDef(FuncDefNode node) {
-		words[node.name] = Word(Effect(node.returnTypes.length, node.params.length));
+		words[node.name] = Word(
+			node.manual, Effect(node.returnTypes.length, node.params.length)
+		);
 
 		if (node.unsafe) return;
 
@@ -154,47 +157,83 @@ class StackChecker {
 	}
 
 	void EvaluateIf(IfNode node) {
-		size_t blockStack;
+		bool   setExpect = false;
+		size_t expectSize;
+		string note;
+		bool   allowCondPop = false;
 
-		if (node.hasElse) {
+		if (!node.hasElse && (node.condition.length == 1)) {
+			allowCondPop = true;
+			note         = "Single if condition must have no stack effect";
+		}
+		else if (node.hasElse) {
 			auto oldStack = stack.dup;
+
 			Evaluate(node.doElse);
-			blockStack = stack.length;
+			expectSize = stack.length;
 			stack      = oldStack;
+			setExpect  = true;
+			note       = "Single if condition must have same stack effect as else block";
+
+			if (node.condition.length == 1) {
+				allowCondPop = true;
+				setExpect    = false;
+			}
+		}
+		else {
+			note = "Inconsistent stack effect in if statement";
 		}
 
 		foreach (i, ref cond ; node.condition) {
-			auto oldStack = stack.dup;
+			if (cond.empty()) {
+				Error(node.error, "Empty condition in if statement");
+			}
 
-			Node conditionNode = node.condition.empty()? node : cond[$ - 1];
+			StackCell[] oldStack;
 
-			Evaluate(cond);
-			Pop(conditionNode, 1);
+			if (allowCondPop) {
+				Evaluate(cond);
+				Pop(node, 1);
+				oldStack = stack.dup;
+
+				if (!setExpect) {
+					expectSize = stack.length;
+				}
+			}
+			else {
+				oldStack = stack.dup;
+				Evaluate(cond);
+				Pop(node, 1);
+			}
+
 			Evaluate(node.doIf[i]);
 
-			if ((i == 0) && !node.hasElse) {
-				blockStack = stack.length;
+			Node errorNode = node.doIf[i].empty()? node : node.doIf[i][$ - 1];
+
+			if (!setExpect) {
+				expectSize = stack.length;
+				setExpect  = true;
 			}
-			else if (stack.length != blockStack) {
-				Node errorNode = node.doIf[i].empty()?
-					node : node.doIf[i][$ - 1];
 
-				Note(errorNode.error, "Expected stack length '%d', got '%d'", blockStack, stack.length);
-				Error(errorNode.error, "If statement has inconsistent stack effects");
-
-				if (stack.length > blockStack) {
-					StackOverflow(errorNode, blockStack);
-				}
+			if (stack.length > expectSize) {
+				Note(errorNode.error, note);
+				Note(errorNode.error, "Expected stack size %d, got %d", expectSize, stack.length);
+				StackOverflow(errorNode, expectSize);
+			}
+			else if (stack.length < expectSize) {
+				Note(errorNode.error, note);
+				Note(errorNode.error, "Expected stack size %d, got %d", expectSize, stack.length);
+				Error(errorNode.error, "Stack underflow");
 			}
 
 			stack = oldStack;
 		}
 
-		if (stack.length > blockStack) {
-			Pop(node, stack.length - blockStack);
+		if (expectSize > stack.length) {
+			Push(node, expectSize - stack.length);
 		}
-		else if (stack.length < blockStack) {
-			Push(node, blockStack - stack.length);
+		else if (expectSize < stack.length) {
+			Pop(node, stack.length - expectSize);
 		}
 	}
 
@@ -256,11 +295,11 @@ class StackChecker {
 
 		if (node.externType == ExternType.C) {
 			words[name] = Word(
-				Effect(node.retType == "void"? 0 : 1, node.types.length)
+				false, Effect(node.retType == "void"? 0 : 1, node.types.length)
 			);
 		}
 		else {
-			words[name] = Word(Effect.init, false);
+			words[name] = Word(false, Effect.init, false);
 		}
 	}
 
@@ -282,7 +321,6 @@ class StackChecker {
 		if (node.func !in words) {
 			Error(node.error, "Unknown function '%s'", node.func);
 		}
-
 
 		auto word = words[node.func];
 
@@ -379,10 +417,14 @@ class StackChecker {
 	void DumpFunctions() {
 		size_t spaces = words.keys().fold!((a, e) => e.length > a.length? e : a).length;
 
-		foreach (key, value ; words) {
+		auto keys = words.keys().sort();
+
+		foreach (key ; keys) {
+			auto value = words[key];
+
 			writefln(
-				"%s %s= %d -> %d", key, replicate([' '], spaces - key.length),
-				value.effect.pop, value.effect.push
+				"%s %s= %d %s-> %d", key, replicate([' '], spaces - key.length),
+				value.effect.pop, value.manual? "m" : "", value.effect.push
 			);
 		}
 	}
