@@ -45,6 +45,20 @@ void WarningBegin(ErrorInfo info) {
 	}
 }
 
+void NoteBegin(ErrorInfo info) {
+	version (Windows) {
+		stderr.writef(
+			"%s:%d:%d: note: ", info.file.FixPath(), info.line + 1, info.col + 1
+		);
+	}
+	else {
+		stderr.writef(
+			"\x1b[1m%s:%d:%d: \x1b[36mnote:\x1b[0m ", info.file.FixPath(),
+			info.line + 1, info.col + 1
+		);
+	}
+}
+
 void WarnNoInfo(Char, A...)(in Char[] fmt, A args) {
 	version (Windows) {
 		stderr.writefln("warning: %s", format(fmt, args));

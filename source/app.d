@@ -9,6 +9,7 @@ import std.algorithm;
 import callisto.error;
 import callisto.compiler;
 import callisto.language;
+import callisto.stackCheck;
 import callisto.codeRemover;
 import callisto.preprocessor;
 import callisto.backends.lua;
@@ -16,6 +17,8 @@ import callisto.backends.uxn;
 import callisto.backends.rm86;
 import callisto.backends.arm64;
 import callisto.backends.x86_64;
+
+const static string appVersion = "Beta 0.11.0";
 
 const static string usage = "
 Callisto Compiler
@@ -43,6 +46,8 @@ Flags:
   -ka         - Keeps the generated assembly
   -al         - Prints assembly line numbers for Callisto nodes
   -os OS      - Sets the operating system for the backend (see below)
+  -sc         - Stop after stack check
+  -scf        - Show functions in stack checker
   --help      - Shows this help text
 
 Backends and their operating systems:
@@ -88,6 +93,9 @@ int main(string[] args) {
 	bool            keepAssembly;
 	bool            assemblyLines;
 	string          os = "DEFAULT";
+	bool            onlyStackCheck = false;
+	bool            noStackCheck;
+	bool            stackCheckerFunctions = false;
 
 	// choose default backend
 	version (X86_64) {
@@ -198,7 +206,8 @@ int main(string[] args) {
 					break;
 				}
 				case "--version": {
-					writeln("Callisto compiler beta 0.10.1");
+					writeln("The Glorious Callisto Compilation System");
+					writeln(appVersion);
 					return 0;
 				}
 				case "-a": {
@@ -282,6 +291,18 @@ int main(string[] args) {
 					}
 
 					os = args[i];
+					break;
+				}
+				case "-sc": {
+					onlyStackCheck = true;
+					break;
+				}
+				case "-nsc": {
+					noStackCheck = true;
+					break;
+				}
+				case "-scf": {
+					stackCheckerFunctions = true;
 					break;
 				}
 				case "--help": {
@@ -389,6 +410,35 @@ int main(string[] args) {
 		codeRemover.Run(nodes);
 		nodes = codeRemover.res;
 		if (!codeRemover.success) return 1;
+	}
+
+	auto stackChecker = new StackChecker();
+	try {
+		if (!noStackCheck) stackChecker.Evaluate(nodes);
+	}
+	catch (StackCheckerError) {
+		if (stackCheckerFunctions) {
+			stackChecker.DumpFunctions();
+		}
+		return 1;
+	}
+
+	if (stackChecker.stack.length > 0) {
+		try {
+			stackChecker.StackOverflow(nodes[$ - 1], 0);
+		}
+		catch (StackCheckerError) {
+			return 1;
+		}
+	}
+
+	if (stackCheckerFunctions) {
+		stackChecker.DumpFunctions();
+	}
+
+	if (onlyStackCheck) {
+		writeln("no errors");
+		return 0;
 	}
 
 	compiler.versions = preproc.versions;

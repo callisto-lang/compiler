@@ -32,18 +32,19 @@ private struct Word {
 	bool     inline;
 	Node[]   inlineNodes;
 	bool     error;
+	Type[]   params;
 }
 
 class BackendLua : CompilerBackend {
-	Word[string]     words;
-	string           thisFunc;
-	bool             inScope;
-	uint             blockCounter;
-	bool             inWhile;
-	uint             currentLoop;
-	bool             useLibc;
-	ulong            globalStack = 524288;
-	ulong            arrayStack = 524287;
+	Word[string] words;
+	string       thisFunc;
+	bool         inScope;
+	uint         blockCounter;
+	bool         inWhile;
+	uint         currentLoop;
+	bool         useLibc;
+	ulong        globalStack = 524288;
+	ulong        arrayStack = 524287;
 
 	this() {
 		// built in integer types
@@ -106,6 +107,7 @@ class BackendLua : CompilerBackend {
 		output ~= "gsp = 524288;\n";
 		output ~= "regA = 0;\n";
 		output ~= "regB = 0;\n";
+		output ~= "dspBackup = 0;\n";
 
 		output ~= "
 			function cal_pop()
@@ -275,17 +277,29 @@ class BackendLua : CompilerBackend {
 
 		thisFunc = node.name;
 
+		Type[] params;
+
+		foreach (ref type ; node.paramTypes) {
+			if (!TypeExists(type)) {
+				Error(node.error, "Type '%s' doesn't exist", type);
+			}
+
+			params ~= GetType(type);
+		}
+
 		if (node.inline) {
 			auto globalExtra = cast(GlobalExtra*) GetGlobal("_cal_exception").extra;
 			output ~= format("mem[%d] = 0\n", globalExtra.addr);
 
-			words[node.name] = Word(WordType.Callisto, true, node.nodes, node.errors);
+			words[node.name] = Word(
+				WordType.Callisto, true, node.nodes, node.errors, params
+			);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(WordType.Callisto, false, [], node.errors);
+			words[node.name] = Word(WordType.Callisto, false, [], node.errors, params);
 
 			output ~= format("function func__%s()\n", node.name.Sanitise());
 
@@ -302,7 +316,7 @@ class BackendLua : CompilerBackend {
 					Error(node.error, "Structures cannot be used in function parameters");
 				}
 			}
-			if (paramSize > 0) {
+			if ((paramSize > 0) && !node.manual) {
 				output ~= format("vsp = vsp - %d\n", paramSize);
 				foreach (ref var ; variables) {
 					var.offset += paramSize;
@@ -849,6 +863,9 @@ class BackendLua : CompilerBackend {
 			Error(node.error, "Non-callisto functions can't throw");
 		}
 
+		output ~= "vsp = vsp - 1\n";
+		output ~= format("mem[vsp] = dsp - %d\n", word.params.length);
+
 		if (word.inline) {
 			foreach (inode ; word.inlineNodes) {
 				compiler.CompileNode(inode);
@@ -858,6 +875,9 @@ class BackendLua : CompilerBackend {
 			output ~= format("func__%s()\n", node.func.Sanitise());
 		}
 
+		output ~= "dspBackup = mem[vsp]\n";
+		output ~= "vsp = vsp + 1\n";
+
 		++ blockCounter;
 
 		auto global      = GetGlobal("_cal_exception");
@@ -866,6 +886,7 @@ class BackendLua : CompilerBackend {
 		output ~= format("if mem[%d] == 0 then\n", globalExtra.addr);
 		output ~= format("goto catch_%d_end\n", blockCounter);
 		output ~= "end\n";
+		output ~= "dsp = dspBackup\n";
 
 		// create scope
 		auto oldVars = variables.dup;

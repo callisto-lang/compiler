@@ -16,6 +16,7 @@ private struct Word {
 	bool   inline;
 	Node[] inlineNodes;
 	bool   error;
+	Type[] params;
 }
 
 private struct RM86Opts {
@@ -65,11 +66,6 @@ class BackendRM86 : CompilerBackend {
 
 		foreach (ref type ; types) {
 			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
-		}
-
-		if (!opts.noDos) { // TODO: remove this
-			globals ~= Global("__rm86_argv", GetType("addr"), false, 0);
-			globals ~= Global("__rm86_arglen", GetType("cell"), false, 0);
 		}
 
 		globals ~= Global("_cal_exception", GetType("Exception"), false, 0);
@@ -359,18 +355,28 @@ class BackendRM86 : CompilerBackend {
 
 		thisFunc = node.name;
 
+		Type[] params;
+
+		foreach (ref type ; node.paramTypes) {
+			if (!TypeExists(type)) {
+				Error(node.error, "Type '%s' doesn't exist", type);
+			}
+
+			params ~= GetType(type);
+		}
+
 		if (node.inline) {
 			if (node.errors) {
 				output ~= format("mov word [__global_%s], 0\n", Sanitise("_cal_exception"));
 			}
 
-			words[node.name] = Word(false, true, node.nodes, node.errors);
+			words[node.name] = Word(false, true, node.nodes, node.errors, params);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(node.raw, false, [], node.errors);
+			words[node.name] = Word(node.raw, false, [], node.errors, params);
 
 			string symbol =
 				node.raw? node.name : format("__func__%s", node.name.Sanitise());
@@ -391,7 +397,7 @@ class BackendRM86 : CompilerBackend {
 					Error(node.error, "Structures cannot be used in function parameters");
 				}
 			}
-			if (paramSize > 0) {
+			if ((paramSize > 0) && !node.manual) {
 				output ~= format("sub sp, %d\n", paramSize);
 				foreach (ref var ; variables) {
 					var.offset += paramSize;
@@ -980,6 +986,16 @@ class BackendRM86 : CompilerBackend {
 			Error(node.error, "Non-callisto functions can't throw");
 		}
 
+		if (word.params.length > 0) {
+			output ~= format("lea di, [si - %d]\n", word.params.length * 2);
+			output ~= "push di\n";
+		}
+		else {
+			output ~= "push si\n";
+		}
+
+		++ blockCounter;
+
 		if (word.inline) {
 			foreach (inode ; word.inlineNodes) {
 				compiler.CompileNode(inode);
@@ -989,11 +1005,12 @@ class BackendRM86 : CompilerBackend {
 			output ~= format("call __func__%s\n", node.func.Sanitise());
 		}
 
-		++ blockCounter;
+		output ~= "pop di\n";
 
 		output ~= format("mov ax, [__global_%s]\n", Sanitise("_cal_exception"));
 		output ~= "cmp ax, 0\n";
 		output ~= format("je __catch_%d_end\n", blockCounter);
+		output ~= "mov si, di\n";
 
 		// create scope
 		auto oldVars = variables.dup;
