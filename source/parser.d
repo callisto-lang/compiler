@@ -33,7 +33,8 @@ enum NodeType {
 	Addr,
 	Implement,
 	Set,
-	TryCatch
+	TryCatch,
+	Unsafe
 }
 
 class Node {
@@ -518,6 +519,27 @@ class TryCatchNode : Node {
 		}
 
 		return ret;
+	}
+}
+
+class UnsafeNode : Node {
+	string[] paramTypes;
+	string[] retTypes;
+	Node[]   nodes;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Unsafe;
+		error = perror;
+	}
+
+	override string toString() {
+		string ret = format("unsafe %d -> %d", paramTypes.length, retTypes.length);
+
+		foreach (ref node ; nodes) {
+			ret ~= node.toString() ~ '\n';
+		}
+
+		return ret ~ "end";
 	}
 }
 
@@ -1228,6 +1250,47 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseUnsafe() {
+		auto ret = new UnsafeNode(GetError());
+		parsing  = NodeType.Unsafe;
+
+		Next();
+
+		while (!IsIdentifier("begin") && !IsIdentifier("->")) {
+			Expect(TokenType.Identifier);
+			ret.paramTypes ~= tokens[i].contents;
+			Next();
+			Expect(TokenType.Identifier);
+			Next();
+		}
+
+		if (IsIdentifier("->")) {
+			Next();
+
+			while (!IsIdentifier("begin")) {
+				Expect(TokenType.Identifier);
+				ret.retTypes ~= tokens[i].contents; // return type
+
+				Next();
+				Expect(TokenType.Identifier); // return name, ignored
+
+				if (tokens[i].contents == "begin") {
+					Error("Begin in return name");
+				}
+				Next();
+			}
+		}
+
+		Next();
+
+		while (!IsIdentifier("end")) {
+			ret.nodes ~= ParseStatement();
+			Next();
+		}
+
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -1255,6 +1318,7 @@ class Parser {
 					case "implement":  return ParseImplement();
 					case "try":        return ParseTryCatch();
 					case "->":         return ParseSet();
+					case "unsafe":     return ParseUnsafe();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

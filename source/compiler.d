@@ -483,6 +483,11 @@ class Compiler {
 			case NodeType.Implement: backend.CompileImplement(cast(ImplementNode) inode); break;
 			case NodeType.Set:       backend.CompileSet(cast(SetNode) inode); break;
 			case NodeType.TryCatch:  backend.CompileTryCatch(cast(TryCatchNode) inode); break;
+			case NodeType.Unsafe: {
+				auto node = cast(UnsafeNode) inode;
+				Compile(node.nodes);
+				break;
+			}
 			default: {
 				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}
