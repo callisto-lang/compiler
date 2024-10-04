@@ -373,6 +373,11 @@ class StackChecker {
 		}
 	}
 
+	void EvaluateUnsafe(UnsafeNode node) {
+		Pop(node, node.paramTypes.length);
+		Push(node, node.retTypes.length);
+	}
+
 	void EvaluateNode(Node node) {
 		switch (node.type) {
 			case NodeType.Word: {
@@ -407,6 +412,7 @@ class StackChecker {
 			case NodeType.Set:       Pop(node, 1); break;
 			case NodeType.TryCatch:  EvaluateTryCatch(cast(TryCatchNode) node); break;
 			case NodeType.Struct:    EvaluateStruct(cast(StructNode) node); break;
+			case NodeType.Unsafe:    EvaluateUnsafe(cast(UnsafeNode) node); break;
 			default: break;
 		}
 	}
