@@ -173,11 +173,14 @@ class StackChecker {
 			expectSize = stack.length;
 			stack      = oldStack;
 			setExpect  = true;
-			note       = "Single if condition must have same stack effect as else block";
 
 			if (node.condition.length == 1) {
 				allowCondPop = true;
 				setExpect    = false;
+				note         = "Single if condition must have same stack effect as else block";
+			}
+			else {
+				note = "If blocks must have same stack effect as else block";
 			}
 		}
 		else {
