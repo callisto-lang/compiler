@@ -755,6 +755,7 @@ class Parser {
 
 					Next();
 					while (true) {
+					parsing = NodeType.If;
 						if (
 							(tokens[i].type == TokenType.Identifier) &&
 							(tokens[i].contents == "end")

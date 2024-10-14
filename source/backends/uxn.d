@@ -81,7 +81,7 @@ class BackendUXN : CompilerBackend {
 
 	override string DefaultHeader() => "
 		|00 @System &vector $2 &expansion $2 &wst $1 &rst $1 &metadata $2 &r $2 &g $2 &b $2 &debug $1 &state $1
-		|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1
+		|10 @Console &vector $2 &read $5 &type $1 &write $1 &error $1
 	";
 
 	override bool HandleOption(string opt, ref string[] versions) => false;
@@ -124,8 +124,7 @@ class BackendUXN : CompilerBackend {
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
 		output ~= "    #ffff .vsp STZ2\n";
-		output ~= "    calmain\n";
-		output ~= "    BRK\n";
+		output ~= "    init\n";
 	}
 
 	override void End() {
@@ -137,6 +136,22 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 
+		// exit program
+		if ("__uxn_program_exit" in words) {
+			CallFunction("__uxn_program_exit");
+		}
+		else {
+			WarnNoInfo("No exit function available, expect bugs");
+		}
+
+		// run init function
+		output ~= "@init\n";
+		if ("__uxn_program_init" in words) {
+			CallFunction("__uxn_program_init");
+		}
+		else {
+			WarnNoInfo("No program init function available");
+		}
 		output ~= "JMP2r\n";
 
 		foreach (var ; globals) {
@@ -174,6 +189,8 @@ class BackendUXN : CompilerBackend {
 		output ~= "&srcAddr 0000\n";
 		output ~= "&dstBank 0000\n";
 		output ~= "&dstAddr 0000\n";
+
+		output ~= "@program_end\n";
 
 		// pad for the stack
 		output ~= "|e0000\n";
@@ -568,6 +585,10 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 		else {
+			if (GlobalExists(node.name)) {
+				Error(node.error, "Global '%s' already exists", node.name);
+			}
+
 			Global global;
 			global.type        = GetType(node.varType);
 			global.array       = node.array;

@@ -868,6 +868,10 @@ class BackendX86_64 : CompilerBackend {
 			}
 		}
 		else {
+			if (GlobalExists(node.name)) {
+				Error(node.error, "Global '%s' already exists", node.name);
+			}
+
 			Global global;
 			global.type        = GetType(node.varType);
 			global.array       = node.array;

@@ -519,6 +519,10 @@ class BackendLua : CompilerBackend {
 			}
 		}
 		else {
+			if (GlobalExists(node.name)) {
+				Error(node.error, "Global '%s' already exists", node.name);
+			}
+
 			GlobalExtra* extra = new GlobalExtra();
 			extra.addr         = globalStack;
 
