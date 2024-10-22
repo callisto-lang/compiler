@@ -582,16 +582,25 @@ class BackendARM64 : CompilerBackend {
 				}
 
 				// copy data to parameters
-				output ~= format("sub x19, x19, #%d\n", paramSize);
-				//output ~= format("sub x9, x19, #%d\n", paramSize);
-				output ~= "mov x9, x19\n";
-				output ~= "mov x10, x20\n";
-				output ~= format("mov x11, #%d\n", paramSize);
-				output ~= "1:\n";
-				output ~= "ldrb w12, [x9], #1\n";
-				output ~= "strb w12, [x10], #1\n";
-				output ~= "subs x11, x11, #1\n";
-				output ~= "bne 1b\n";
+				if (node.params.length > 10) {
+					output ~= format("sub x19, x19, #%d\n", paramSize);
+					//output ~= format("sub x9, x19, #%d\n", paramSize);
+					output ~= "mov x9, x19\n";
+					output ~= "mov x10, x20\n";
+					output ~= format("mov x11, #%d\n", paramSize);
+					output ~= "1:\n";
+					output ~= "ldrb w12, [x9], #1\n";
+					output ~= "strb w12, [x10], #1\n";
+					output ~= "subs x11, x11, #1\n";
+					output ~= "bne 1b\n";
+				}
+				else {
+					foreach_reverse (ref param ; node.params) {
+						auto setNode = new SetNode(node.error);
+						setNode.var  = param;
+						CompileSet(setNode);
+					}
+				}
 			}
 
 			foreach (ref inode ; node.nodes) {
@@ -774,6 +783,10 @@ class BackendARM64 : CompilerBackend {
 			}
 		}
 		else {
+			if (GlobalExists(node.name)) {
+				Error(node.error, "Global '%s' already exists", node.name);
+			}
+
 			Global global;
 			global.type        = GetType(node.varType);
 			global.array       = node.array;

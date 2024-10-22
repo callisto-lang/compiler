@@ -670,11 +670,20 @@ class BackendX86_64 : CompilerBackend {
 				}
 
 				// copy data to parameters
-				output ~= format("sub r15, %d\n", paramSize);
-				output ~= "mov rsi, r15\n";
-				output ~= "mov rdi, rsp\n";
-				output ~= format("mov rcx, %d\n", paramSize);
-				output ~= "rep movsb\n";
+				if (node.params.length > 10) {
+					output ~= format("sub r15, %d\n", paramSize);
+					output ~= "mov rsi, r15\n";
+					output ~= "mov rdi, rsp\n";
+					output ~= format("mov rcx, %d\n", paramSize / 8);
+					output ~= "rep movsq\n";
+				}
+				else {
+					foreach_reverse (ref param ; node.params) {
+						auto setNode = new SetNode(node.error);
+						setNode.var  = param;
+						CompileSet(setNode);
+					}
+				}
 			}
 
 			foreach (ref inode ; node.nodes) {
@@ -868,6 +877,10 @@ class BackendX86_64 : CompilerBackend {
 			}
 		}
 		else {
+			if (GlobalExists(node.name)) {
+				Error(node.error, "Global '%s' already exists", node.name);
+			}
+
 			Global global;
 			global.type        = GetType(node.varType);
 			global.array       = node.array;
