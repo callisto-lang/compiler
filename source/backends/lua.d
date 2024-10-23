@@ -879,7 +879,9 @@ class BackendLua : CompilerBackend {
 			output ~= format("func__%s()\n", node.func.Sanitise());
 		}
 
-		output ~= "dspBackup = mem[vsp]\n";
+		output ~= "dspBackup = mem[vsp]\n"; // TODO:
+		// this is TERRIBLE
+		// if you try/catch a function with a try/catch inside of it then it all breaks
 		output ~= "vsp = vsp + 1\n";
 
 		++ blockCounter;

@@ -1,10 +1,7 @@
 include "cores/select.cal"
 include "std/io.cal"
 
-func fib begin
-	let cell n
-	-> n
-
+func fib cell n -> cell res begin
 	if n 1 <= then
 		n return
 	else
