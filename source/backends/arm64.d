@@ -174,9 +174,11 @@ class BackendARM64 : CompilerBackend {
 				if (!crt1) {
 					stderr.writeln("WARNING: Failed to find crt1.o, program may behave incorrectly");
 				}
-			} else if (os == "osx") {
+			}
+			else if (os == "osx") {
 				linkCommand ~= " -lSystem -syslibroot `xcrun --sdk macosx --show-sdk-path`";
-			} else {
+			}
+			else {
 				WarnNoInfo("Cannot use libc on operating system '%s'", os);
 			}
 		}
@@ -248,10 +250,12 @@ class BackendARM64 : CompilerBackend {
 		if (os == "osx") {
 			output ~= ".global _main\n";
 			output ~= "_main:\n";
-		} else if (useLibc) {
+		}
+		else if (useLibc) {
 			output ~= ".global main\n";
 			output ~= "main:\n";
-		} else {
+		}
+		else {
 			output ~= ".global _start\n";
 			output ~= "_start:\n";
 		}
@@ -1155,7 +1159,8 @@ class BackendARM64 : CompilerBackend {
 		if (offset >= 4096) {
 			output ~= format("mov x9, #%d\n", offset);
 			output ~= format("%s x20, x20, x9\n", sub ? "sub" : "add");
-		} else {
+		}
+		else {
 			output ~= format("%s x20, x20, #%d\n", sub ? "sub" : "add", offset);
 		}
 	}

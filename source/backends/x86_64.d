@@ -194,9 +194,11 @@ class BackendX86_64 : CompilerBackend {
 				if (!crt1) {
 					stderr.writeln("WARNING: Failed to find crt1.o, program may behave incorrectly");
 				}
-			} else if (os == "osx") {
+			}
+			else if (os == "osx") {
 				linkCommand ~= " -syslibroot `xcrun --sdk macosx --show-sdk-path`";
-			} else {
+			}
+			else {
 				WarnNoInfo("Cannot use libc on operating system '%s'", os);
 			}
 		}
@@ -273,10 +275,12 @@ class BackendX86_64 : CompilerBackend {
 			output ~= "default rel\n";
 			output ~= "global _main\n";
 			output ~= "_main:\n";
-		} else if (useLibc) {
+		}
+		else if (useLibc) {
 			output ~= "global main\n";
 			output ~= "main:\n";
-		} else {
+		}
+		else {
 			output ~= "global _start\n";
 			output ~= "_start:\n";
 		}

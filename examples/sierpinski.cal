@@ -1,6 +1,6 @@
 include "cores/select.cal"
 
-func sierpinski begin
+func man sierpinski cell n begin
 	let cell n
 	let cell x
 	let cell y
