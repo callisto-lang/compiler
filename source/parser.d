@@ -545,7 +545,7 @@ class UnsafeNode : Node {
 }
 
 class TypeNode : Node {
-	string type;
+	string typeName;
 	bool   ptr;
 
 	this(ErrorInfo perror) {
@@ -1313,10 +1313,10 @@ class Parser {
 
 			Next();
 			Expect(TokenType.Identifier);
-			ret.type = tokens[i].contents;
+			ret.typeName = tokens[i].contents;
 		}
 		else {
-			ret.type = tokens[i].contents;
+			ret.typeName = tokens[i].contents;
 		}
 
 		return ret;

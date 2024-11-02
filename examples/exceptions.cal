@@ -1,7 +1,7 @@
 include "cores/select.cal"
 include "std/io.cal"
 
-func exception_msg begin
+func exception_msg -> addr msg begin
 	&_cal_exception Exception.msg +
 end
 
