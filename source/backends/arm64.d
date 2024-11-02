@@ -419,23 +419,68 @@ class BackendARM64 : CompilerBackend {
 					output ~= format("bl %s\n", ExternSymbol(node.name));
 				}
 				else if (word.type == WordType.C) {
-					// TODO: support more of the calling convention (especially structs)
+					// Calling convention (simplified):
+					// First 8 parameters in x0-x7
+					// All remaining parameters on the stack
+					//   On Linux, these are extended to 8 bytes
+					// Return value in x0
+					// sp must be 16-byte aligned when used
+
+					output ~= "mov x9, sp\n";
+					output ~= "str x9, [x20, #-8]!\n";
+					output ~= "and sp, x20, ~0xf\n";
+
+					ulong registerParams = min(word.params.length, 8);
+					ulong stackParams = word.params.length - registerParams;
 
 					if (word.params.length > 8) {
-						Error(node.error, "C call has too many parameters");
+						ulong stackSpace = 0;
+						if (os == "osx") {
+							for (auto i = 8; i < word.params.length; i++) {
+								stackSpace += word.params[i].size;
+							}
+						}
+						else {
+							stackSpace = stackParams * 8;
+						}
+						ulong stackOffset = stackSpace;
+
+						// Ensure 16-byte alignment of the stack
+						stackSpace = (stackSpace + 15) & ~15;
+						output ~= format("sub sp, sp, #%d\n", stackSpace);
+
+						for (auto i = 0; i < stackParams; i++) {
+							output ~= "ldr x9, [x19, #-8]!\n";
+							if (os == "osx") {
+								auto size = word.params[i + 8].size;
+								stackOffset -= size;
+								switch (size) {
+									case 1: output ~= format("strb w9, [sp, #%d]\n", stackOffset); break;
+									case 2: output ~= format("strh w9, [sp, #%d]\n", stackOffset); break;
+									case 4: output ~= format("str w9, [sp, #%d]\n", stackOffset); break;
+									case 8: output ~= format("str x9, [sp, #%d]\n", stackOffset); break;
+									default: Error(node.error, "Invalid C function argument size");
+								}
+							}
+							else {
+								stackOffset -= 8;
+								output ~= format("str x9, [sp, #%d]\n", stackOffset);
+							}
+						}
 					}
 
-					for (auto i = 0; i < word.params.length; i++) {
-						auto reg = word.params.length - i - 1;
-						output ~= format("ldr x%d, [x19, #-8]!\n", reg);
+					for (int i = cast(int) registerParams - 1; i >= 0; i--) {
+						output ~= format("ldr x%d, [x19, #-8]!\n", i);
 					}
 				
-					output ~= "and sp, x20, ~0xf\n";
 					output ~= format("bl %s\n", ExternSymbol(word.symbolName));
 
 					if (!word.isVoid) {
 						output ~= "str x0, [x19], #8\n";
 					}
+
+					output ~= "ldr x9, [x20], #8\n";
+					output ~= "mov sp, x9\n";
 				}
 				else {
 					output ~= format("bl __func__%s\n", node.name.Sanitise());
