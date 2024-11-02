@@ -34,7 +34,8 @@ enum NodeType {
 	Implement,
 	Set,
 	TryCatch,
-	Unsafe
+	Unsafe,
+	Type
 }
 
 class Node {
@@ -541,6 +542,18 @@ class UnsafeNode : Node {
 
 		return ret ~ "end";
 	}
+}
+
+class TypeNode : Node {
+	string type;
+	bool   ptr;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Type;
+		error = perror;
+	}
+
+	override string toString() => format("%s%s", ptr? "ptr " : "", type);
 }
 
 class ParserError : Exception {
@@ -1286,6 +1299,24 @@ class Parser {
 		while (!IsIdentifier("end")) {
 			ret.nodes ~= ParseStatement();
 			Next();
+		}
+
+		return ret;
+	}
+
+	Node ParseType() {
+		auto ret = new TypeNode(GetError());
+		Expect(TokenType.Identifier);
+
+		if (IsIdentifier("ptr")) {
+			ret.ptr = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+			ret.type = tokens[i].contents;
+		}
+		else {
+			ret.type = tokens[i].contents;
 		}
 
 		return ret;

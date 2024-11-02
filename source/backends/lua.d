@@ -107,7 +107,6 @@ class BackendLua : CompilerBackend {
 		output ~= "gsp = 524288;\n";
 		output ~= "regA = 0;\n";
 		output ~= "regB = 0;\n";
-		output ~= "dspBackup = 0;\n";
 
 		output ~= "
 			function cal_pop()
@@ -217,7 +216,17 @@ class BackendLua : CompilerBackend {
 				}
 			}
 			else {
+				if (word.error) {
+					output ~= "vsp = vsp - 1\n";
+					output ~= "mem[vsp] = dsp\n";
+				}
+
 				output ~= format("func__%s();\n", node.name.Sanitise());
+
+				if (word.error) {
+					output ~= "dsp = mem[vsp]\n";
+					output ~= "vsp = vsp + 1\n";
+				}
 			}
 
 			if (word.error) {
@@ -879,9 +888,6 @@ class BackendLua : CompilerBackend {
 			output ~= format("func__%s()\n", node.func.Sanitise());
 		}
 
-		output ~= "dspBackup = mem[vsp]\n"; // TODO:
-		// this is TERRIBLE
-		// if you try/catch a function with a try/catch inside of it then it all breaks
 		output ~= "vsp = vsp + 1\n";
 
 		++ blockCounter;
@@ -892,7 +898,6 @@ class BackendLua : CompilerBackend {
 		output ~= format("if mem[%d] == 0 then\n", globalExtra.addr);
 		output ~= format("goto catch_%d_end\n", blockCounter);
 		output ~= "end\n";
-		output ~= "dsp = dspBackup\n";
 
 		// create scope
 		auto oldVars = variables.dup;

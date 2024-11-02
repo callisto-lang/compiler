@@ -438,7 +438,15 @@ class BackendARM64 : CompilerBackend {
 					}
 				}
 				else {
+					if (word.error) {
+						output ~= "str x19, [x20, #-8]!\n";
+					}
+					
 					output ~= format("bl __func__%s\n", node.name.Sanitise());
+
+					if (word.error) {
+						output ~= "ldr x19, [x20], #8\n";
+					}
 				}
 			}
 

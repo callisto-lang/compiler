@@ -522,7 +522,15 @@ class BackendX86_64 : CompilerBackend {
 					}
 				}
 				else {
+					if (word.error) {
+						output ~= "push r15\n";
+					}
+				
 					output ~= format("call __func__%s\n", node.name.Sanitise());
+
+					if (word.error) {
+						output ~= "pop r15\n";
+					}
 				}
 			}
 
