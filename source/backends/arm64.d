@@ -26,6 +26,7 @@ private struct Word {
 	Node[]   inlineNodes;
 	bool     error;
 	Type[]   params;
+	size_t   numReturns;
 
 	// for C words
 	Type   ret;
@@ -582,7 +583,8 @@ class BackendARM64 : CompilerBackend {
 			}
 
 			words[node.name] = Word(
-				WordType.Callisto, true, node.nodes, node.errors, params
+				WordType.Callisto, true, node.nodes, node.errors, params,
+				node.returnTypes.length
 			);
 		}
 		else {
@@ -591,7 +593,7 @@ class BackendARM64 : CompilerBackend {
 
 			words[node.name] = Word(
 				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors,
-				params
+				params, node.returnTypes.length
 			);
 
 			string symbol =
