@@ -25,6 +25,7 @@ private struct Word {
 	Node[]   inlineNodes;
 	bool     error;
 	Type[]   params;
+	uint     numReturns;
 
 	// for C words
 	Type   ret;
@@ -522,8 +523,14 @@ class BackendX86_64 : CompilerBackend {
 					}
 				}
 				else {
-					if (word.error) {
-						output ~= "push r15\n";
+					int stackEffect = (-word.params.length * 8) + (word.numReturns * 8);
+
+					if (stackEffect != 0) {
+						output ~= format("lea r14, [r15 + %d]\n", stackEffect);
+						output ~= "push r14\n";
+					}
+					else {
+						output ~= "push r15\n";	
 					}
 				
 					output ~= format("call __func__%s\n", node.name.Sanitise());
@@ -627,7 +634,7 @@ class BackendX86_64 : CompilerBackend {
 			}
 
 			words[node.name] = Word(
-				WordType.Callisto, true, node.nodes, node.errors, params
+				WordType.Callisto, true, node.nodes, node.errors, params, node.returnTypes.length
 			);
 		}
 		else {
@@ -636,7 +643,7 @@ class BackendX86_64 : CompilerBackend {
 
 			words[node.name] = Word(
 				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors,
-				params
+				params, node.returnTypes.length
 			);
 
 			string symbol =
@@ -1295,8 +1302,10 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Non-callisto functions can't throw");
 		}
 
-		if (word.params.length > 0) {
-			output ~= format("lea r14, [r15 - %d]\n", word.params.length * 8);
+		int stackEffect = (-word.params.length * 8) + (word.numReturns * 8);
+
+		if (stackEffect != 0) {
+			output ~= format("lea r14, [r15 + %d]\n", stackEffect);
 			output ~= "push r14\n";
 		}
 		else {
@@ -1312,14 +1321,16 @@ class BackendX86_64 : CompilerBackend {
 			output ~= format("call __func__%s\n", node.func.Sanitise());
 		}
 
-		output ~= "pop r14\n";
+		output ~= "pop r15\n";
 
 		++ blockCounter;
 
 		output ~= format("mov rax, __global_%s\n", Sanitise("_cal_exception"));
 		output ~= "cmp qword [rax], 0\n";
 		output ~= format("je __catch_%d_end\n", blockCounter);
-		output ~= "mov r15, r14\n"; // NOTE: cant just pop bc of the jump above
+
+		// function errored, assume that all it did was consume parameters
+		output ~= format("lea r15, [r15 - %d]\n", stackEffect);
 
 		// create scope
 		auto oldVars = variables.dup;
