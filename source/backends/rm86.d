@@ -17,6 +17,9 @@ private struct Word {
 	Node[] inlineNodes;
 	bool   error;
 	Type[] params;
+	size_t numReturns;
+
+	int StackEffect() => (-(cast(int) params.length) + (cast(int) numReturns));
 }
 
 private struct RM86Opts {
@@ -279,6 +282,16 @@ class BackendRM86 : CompilerBackend {
 			}
 			else {
 				if (word.raw) {
+					int stackEffect = word.StackEffect() * 8;
+
+					if (stackEffect != 0) {
+						output ~= format("lea ax, [si + %d]\n", stackEffect);
+						output ~= "push ax\n";
+					}
+					else {
+						output ~= "push si\n";
+					}
+
 					output ~= format("call %s\n", node.name);
 				}
 				else {

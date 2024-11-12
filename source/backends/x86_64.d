@@ -525,21 +525,7 @@ class BackendX86_64 : CompilerBackend {
 					}
 				}
 				else {
-					int stackEffect = word.StackEffect() * 8;
-
-					if (stackEffect != 0) {
-						output ~= format("lea r14, [r15 + %d]\n", stackEffect);
-						output ~= "push r14\n";
-					}
-					else {
-						output ~= "push r15\n";	
-					}
-				
 					output ~= format("call __func__%s\n", node.name.Sanitise());
-
-					if (word.error) {
-						output ~= "pop r15\n";
-					}
 				}
 			}
 
