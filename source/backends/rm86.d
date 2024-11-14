@@ -297,7 +297,7 @@ class BackendRM86 : CompilerBackend {
 					output ~= format("call __func__%s\n", node.name.Sanitise());
 
 					if (words[thisFunc].error) {
-						output ~= "pop r15\n";
+						output ~= "pop si\n";
 					}
 				}
 			}
