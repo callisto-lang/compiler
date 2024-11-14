@@ -25,14 +25,11 @@ private struct Word {
 	Node[]   inlineNodes;
 	bool     error;
 	Type[]   params;
-	size_t   numReturns;
 
 	// for C words
 	Type   ret;
 	bool   isVoid;
 	string symbolName;
-
-	int StackEffect() => (-(cast(int) params.length) + (cast(int) numReturns));
 }
 
 class BackendX86_64 : CompilerBackend {
@@ -525,7 +522,23 @@ class BackendX86_64 : CompilerBackend {
 					}
 				}
 				else {
+					if (words[thisFunc].error) {
+						size_t paramSize = word.params.length * 8;
+
+						if (paramSize != 0) {
+							output ~= format("lea r14, [r15 - %d]\n", paramSize);
+							output ~= "push r14\n";
+						}
+						else {
+							output ~= "push r15\n";	
+						}
+					}
+
 					output ~= format("call __func__%s\n", node.name.Sanitise());
+
+					if (words[thisFunc].error) {
+						output ~= "pop r15\n";
+					}
 				}
 			}
 
@@ -622,7 +635,7 @@ class BackendX86_64 : CompilerBackend {
 			}
 
 			words[node.name] = Word(
-				WordType.Callisto, true, node.nodes, node.errors, params, node.returnTypes.length
+				WordType.Callisto, true, node.nodes, node.errors, params
 			);
 		}
 		else {
@@ -631,7 +644,7 @@ class BackendX86_64 : CompilerBackend {
 
 			words[node.name] = Word(
 				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors,
-				params, node.returnTypes.length
+				params
 			);
 
 			string symbol =
@@ -1290,10 +1303,10 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Non-callisto functions can't throw");
 		}
 
-		int stackEffect = word.StackEffect() * 8;
+		size_t paramSize = word.params.length * 8;
 
-		if (stackEffect != 0) {
-			output ~= format("lea r14, [r15 + %d]\n", stackEffect);
+		if (paramSize != 0) {
+			output ~= format("lea r14, [r15 - %d]\n", paramSize);
 			output ~= "push r14\n";
 		}
 		else {
@@ -1309,7 +1322,7 @@ class BackendX86_64 : CompilerBackend {
 			output ~= format("call __func__%s\n", node.func.Sanitise());
 		}
 
-		output ~= "pop r15\n";
+		output ~= "pop r14\n";
 
 		++ blockCounter;
 
@@ -1318,7 +1331,7 @@ class BackendX86_64 : CompilerBackend {
 		output ~= format("je __catch_%d_end\n", blockCounter);
 
 		// function errored, assume that all it did was consume parameters
-		output ~= format("lea r15, [r15 - %d]\n", stackEffect);
+		output ~= "mov r15, r14\n";
 
 		// create scope
 		auto oldVars = variables.dup;

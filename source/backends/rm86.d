@@ -17,9 +17,6 @@ private struct Word {
 	Node[] inlineNodes;
 	bool   error;
 	Type[] params;
-	size_t numReturns;
-
-	int StackEffect() => (-(cast(int) params.length) + (cast(int) numReturns));
 }
 
 private struct RM86Opts {
@@ -282,20 +279,26 @@ class BackendRM86 : CompilerBackend {
 			}
 			else {
 				if (word.raw) {
-					int stackEffect = word.StackEffect() * 8;
-
-					if (stackEffect != 0) {
-						output ~= format("lea ax, [si + %d]\n", stackEffect);
-						output ~= "push ax\n";
-					}
-					else {
-						output ~= "push si\n";
-					}
-
 					output ~= format("call %s\n", node.name);
 				}
 				else {
+					if (words[thisFunc].error) {
+						size_t paramSize = word.params.length * 2;
+
+						if (paramSize != 0) {
+							output ~= format("lea ax, [si - %d]\n", paramSize);
+							output ~= "push ax\n";
+						}
+						else {
+							output ~= "push si\n";	
+						}
+					}
+					
 					output ~= format("call __func__%s\n", node.name.Sanitise());
+
+					if (words[thisFunc].error) {
+						output ~= "pop r15\n";
+					}
 				}
 			}
 
@@ -1022,7 +1025,7 @@ class BackendRM86 : CompilerBackend {
 			output ~= format("call __func__%s\n", node.func.Sanitise());
 		}
 
-		output ~= "pop di\n";
+		output ~= "pop si\n";
 
 		output ~= format("mov ax, [__global_%s]\n", Sanitise("_cal_exception"));
 		output ~= "cmp ax, 0\n";

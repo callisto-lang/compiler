@@ -26,8 +26,7 @@ private struct Word {
 	Node[]   inlineNodes;
 	bool     error;
 	Type[]   params;
-	size_t   numReturns;
-
+	
 	// for C words
 	Type   ret;
 	bool   isVoid;
@@ -583,8 +582,7 @@ class BackendARM64 : CompilerBackend {
 			}
 
 			words[node.name] = Word(
-				WordType.Callisto, true, node.nodes, node.errors, params,
-				node.returnTypes.length
+				WordType.Callisto, true, node.nodes, node.errors, params
 			);
 		}
 		else {
@@ -593,7 +591,7 @@ class BackendARM64 : CompilerBackend {
 
 			words[node.name] = Word(
 				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors,
-				params, node.returnTypes.length
+				params,
 			);
 
 			string symbol =
@@ -1234,8 +1232,10 @@ class BackendARM64 : CompilerBackend {
 			Error(node.error, "Non-callisto functions can't throw");
 		}
 
-		if (word.params.length > 0) {
-			output ~= format("sub x21, x19, #%d\n", word.params.length * 8);
+		size_t paramSize = word.params.length * 8;
+
+		if (paramSize != 0) {
+			output ~= format("sub x21, x19, #%d\n", paramSize);
 			output ~= "str x21, [x20, #-8]!\n";
 		}
 		else {
@@ -1251,7 +1251,7 @@ class BackendARM64 : CompilerBackend {
 			output ~= format("bl __func__%s\n", node.func.Sanitise());
 		}
 
-		output ~= "ldr x21, [x20], #8\n";
+		output ~= "ldr x19, [x20], #8\n";
 
 		++ blockCounter;
 
