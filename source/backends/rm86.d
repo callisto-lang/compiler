@@ -1025,7 +1025,7 @@ class BackendRM86 : CompilerBackend {
 			output ~= format("call __func__%s\n", node.func.Sanitise());
 		}
 
-		output ~= "pop si\n";
+		output ~= "pop di\n";
 
 		output ~= format("mov ax, [__global_%s]\n", Sanitise("_cal_exception"));
 		output ~= "cmp ax, 0\n";
