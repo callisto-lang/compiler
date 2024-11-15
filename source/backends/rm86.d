@@ -297,7 +297,7 @@ class BackendRM86 : CompilerBackend {
 					output ~= format("call __func__%s\n", node.name.Sanitise());
 
 					if (word.error && words[thisFunc].error) {
-						output ~= "pop si\n";
+						output ~= "pop di\n";
 					}
 				}
 			}
@@ -320,6 +320,7 @@ class BackendRM86 : CompilerBackend {
 						output ~= format("jne __func__%s\n", Sanitise("__rm86_exception"));
 					}
 					else {
+                        output ~= "mov si, di\n";
 						CompileReturn(node);
 					}
 				}

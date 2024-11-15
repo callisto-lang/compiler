@@ -253,7 +253,7 @@ class BackendUXN : CompilerBackend {
 					output ~= format("func__%s\n", node.name.Sanitise());
 
 					if (word.error && words[thisFunc].error) {
-						output ~= "LITr -System/wst DEOr\n";
+						output ~= "LITr -temp STZr\n";
 					}
 				}
 			}
@@ -275,6 +275,7 @@ class BackendUXN : CompilerBackend {
 						output ~= format(";func__%s JCN2\n", Sanitise("__uxn_exception"));
 					}
 					else {
+                        output ~= ".temp LDZ .System/wst DEO\n";
 						CompileReturn(node);
 					}
 				}
