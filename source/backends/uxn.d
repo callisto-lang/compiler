@@ -120,7 +120,7 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void Init() {
-		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2\n";
+		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2 @temp $2\n";
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
 		output ~= "    #ffff .vsp STZ2\n";
@@ -237,7 +237,24 @@ class BackendUXN : CompilerBackend {
 					output ~= format("%s\n", node.name);
 				}
 				else {
+					if (word.error && words[thisFunc].error) {
+						size_t paramSize = word.params.length * 2;
+
+						if (paramSize != 0) {
+							output ~= format(
+								"LITr -System/wst DEIr LITr %.2x SUBr\n", paramSize
+							);
+						}
+						else {
+							output ~= "LITr -System/wst DEIr\n";
+						}
+					}
+				
 					output ~= format("func__%s\n", node.name.Sanitise());
+
+					if (word.error && words[thisFunc].error) {
+						output ~= "LITr -System/wst DEOr\n";
+					}
 				}
 			}
 
@@ -918,6 +935,8 @@ class BackendUXN : CompilerBackend {
 			Error(node.error, "Non-callisto functions can't throw");
 		}
 
+		size_t paramSize = word.params.length * 2;
+
 		if (word.params.length > 0) {
 			output ~= format(
 				"LITr -System/wst DEIr LITr %.2x SUBr\n", word.params.length * 2
@@ -936,12 +955,15 @@ class BackendUXN : CompilerBackend {
 			output ~= format("func__%s\n", node.func.Sanitise());
 		}
 
+		output ~= "LITr -temp STZr\n";
 
 		++ blockCounter;
 
 		output ~= format(";global_%s LDA2 #0000 EQU2\n", Sanitise("_cal_exception"));
 		output ~= format(";catch_%d_end JCN2\n", blockCounter);
-		output ~= "LITr -System/wst DEOr\n";
+
+		// function errored, assume that all it did was consume parameters
+		output ~= ".temp LDZ .System/wst DEO\n";
 
 		// create scope
 		auto oldVars = variables.dup;

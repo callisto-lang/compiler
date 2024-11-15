@@ -522,7 +522,7 @@ class BackendX86_64 : CompilerBackend {
 					}
 				}
 				else {
-					if (words[thisFunc].error) {
+					if (word.error && words[thisFunc].error) {
 						size_t paramSize = word.params.length * 8;
 
 						if (paramSize != 0) {
@@ -536,8 +536,8 @@ class BackendX86_64 : CompilerBackend {
 
 					output ~= format("call __func__%s\n", node.name.Sanitise());
 
-					if (words[thisFunc].error) {
-						output ~= "pop r15\n";
+					if (word.error && words[thisFunc].error) {
+						output ~= "pop r14\n";
 					}
 				}
 			}
@@ -559,6 +559,7 @@ class BackendX86_64 : CompilerBackend {
 						output ~= format("jne __func__%s\n", Sanitise("__x86_64_exception"));
 					}
 					else {
+						output ~= "mov r15, r14\n";
 						CompileReturn(node);
 					}
 				}

@@ -216,14 +216,14 @@ class BackendLua : CompilerBackend {
 				}
 			}
 			else {
-				if (word.error) {
+				if (word.error && words[thisFunc].error) {
 					output ~= "vsp = vsp - 1\n";
-					output ~= "mem[vsp] = dsp\n";
+					output ~= format("mem[vsp] = dsp - %d\n", word.params.length);
 				}
 
 				output ~= format("func__%s();\n", node.name.Sanitise());
 
-				if (word.error) {
+				if (word.error && words[thisFunc].error) {
 					output ~= "dsp = mem[vsp]\n";
 					output ~= "vsp = vsp + 1\n";
 				}
@@ -888,6 +888,7 @@ class BackendLua : CompilerBackend {
 			output ~= format("func__%s()\n", node.func.Sanitise());
 		}
 
+		output ~= "regA = mem[vsp]\n";
 		output ~= "vsp = vsp + 1\n";
 
 		++ blockCounter;
@@ -898,6 +899,9 @@ class BackendLua : CompilerBackend {
 		output ~= format("if mem[%d] == 0 then\n", globalExtra.addr);
 		output ~= format("goto catch_%d_end\n", blockCounter);
 		output ~= "end\n";
+
+		// function errored, assume that all it did was consume parameters
+		output ~= "dsp = regA\n";
 
 		// create scope
 		auto oldVars = variables.dup;

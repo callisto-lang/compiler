@@ -483,14 +483,22 @@ class BackendARM64 : CompilerBackend {
 					output ~= "mov sp, x9\n";
 				}
 				else {
-					if (word.error) {
-						output ~= "str x19, [x20, #-8]!\n";
+					if (word.error && words[thisFunc].error) {
+						size_t paramSize = word.params.length * 8;
+
+						if (paramSize != 0) {
+							output ~= format("sub x15, x19, #%d", paramSize);
+							output ~= "str x15, [x20, #-8]!\n";
+						}
+						else {
+							output ~= "str x19, [x20, #-8]!\n";
+						}
 					}
 					
 					output ~= format("bl __func__%s\n", node.name.Sanitise());
 
-					if (word.error) {
-						output ~= "ldr x19, [x20], #8\n";
+					if (word.error && words[thisFunc].error) {
+						output ~= "ldr x15, [x20], #8\n";
 					}
 				}
 			}
@@ -513,6 +521,7 @@ class BackendARM64 : CompilerBackend {
 						output ~= format("bne __func__%s\n", Sanitise("__arm64_exception"));
 					}
 					else {
+						output ~= "mov x19, x15\n";
 						CompileReturn(node);
 					}
 				}
@@ -1235,8 +1244,8 @@ class BackendARM64 : CompilerBackend {
 		size_t paramSize = word.params.length * 8;
 
 		if (paramSize != 0) {
-			output ~= format("sub x21, x19, #%d\n", paramSize);
-			output ~= "str x21, [x20, #-8]!\n";
+			output ~= format("sub x15, x19, #%d\n", paramSize);
+			output ~= "str x15, [x20, #-8]!\n";
 		}
 		else {
 			output ~= "str x19, [x20, #-8]!\n";
@@ -1251,7 +1260,7 @@ class BackendARM64 : CompilerBackend {
 			output ~= format("bl __func__%s\n", node.func.Sanitise());
 		}
 
-		output ~= "ldr x19, [x20], #8\n";
+		output ~= "ldr x15, [x20], #8\n";
 
 		++ blockCounter;
 
@@ -1259,7 +1268,9 @@ class BackendARM64 : CompilerBackend {
 		output ~= "ldr x9, [x9]\n";
 		output ~= "cmp x9, #0\n";
 		output ~= format("beq __catch_%d_end\n", blockCounter);
-		output ~= "mov x19, x21\n";
+
+		// function errored, assume that all it did was consume parameters
+		output ~= "mov x19, x15\n";
 
 		// create scope
 		auto oldVars = variables.dup;

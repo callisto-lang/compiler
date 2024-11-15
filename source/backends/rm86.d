@@ -282,7 +282,7 @@ class BackendRM86 : CompilerBackend {
 					output ~= format("call %s\n", node.name);
 				}
 				else {
-					if (words[thisFunc].error) {
+					if (word.error && words[thisFunc].error) {
 						size_t paramSize = word.params.length * 2;
 
 						if (paramSize != 0) {
@@ -296,7 +296,7 @@ class BackendRM86 : CompilerBackend {
 					
 					output ~= format("call __func__%s\n", node.name.Sanitise());
 
-					if (words[thisFunc].error) {
+					if (word.error && words[thisFunc].error) {
 						output ~= "pop si\n";
 					}
 				}
