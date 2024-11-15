@@ -353,7 +353,12 @@ class StackChecker {
 			}
 		}
 
+		size_t newLength = stack.length;
 		stack = oldStack;
+
+		foreach (i ; 0 .. newLength) {
+			stack ~= StackCell(node);
+		}
 	}
 
 	void EvaluateStruct(StructNode node) {

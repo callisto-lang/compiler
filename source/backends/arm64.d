@@ -487,7 +487,7 @@ class BackendARM64 : CompilerBackend {
 						size_t paramSize = word.params.length * 8;
 
 						if (paramSize != 0) {
-							output ~= format("sub x15, x19, #%d", paramSize);
+							output ~= format("sub x15, x19, #%d\n", paramSize);
 							output ~= "str x15, [x20, #-8]!\n";
 						}
 						else {
