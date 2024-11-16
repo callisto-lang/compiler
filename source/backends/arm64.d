@@ -586,7 +586,7 @@ class BackendARM64 : CompilerBackend {
 		if (node.inline) {
 			if (node.errors) {
 				LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
-				output ~= "ldr x10, #0\n";
+				output ~= "mov x10, #0\n";
 				output ~= "str x10, [x9]\n";
 			}
 
@@ -615,7 +615,7 @@ class BackendARM64 : CompilerBackend {
 
 			if (node.errors) {
 				LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
-				output ~= "ldr x10, #0\n";
+				output ~= "mov x10, #0\n";
 				output ~= "str x10, [x9]\n";
 			}
 
