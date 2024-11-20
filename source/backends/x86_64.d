@@ -510,11 +510,24 @@ class BackendX86_64 : CompilerBackend {
 							"mov r9, [r15 - %d]\n", (word.params.length - 5) * 8
 						);
 					}
-					output ~= format("sub r15, %d\n", word.params.length * 8);
 
-					// TODO: support more than 6 parameters
+					// align stack pointer
+					output ~= "mov rbp, rsp\n";
+					output ~= "and rsp, 0xFFFFFFFFFFFFFFF0\n";
+
+					if (word.params.length > 6) {
+						// push parameters
+						foreach_reverse (i ; 6 .. word.params.length) {
+							output ~= format(
+								"push qword [r15 - %d]\n", (word.params.length - i) * 8
+							);
+						}
+					}
+					// remove parameters
+					output ~= format("sub r15, %d\n", word.params.length * 8);
 				
 					output ~= format("call %s\n", ExternSymbol(word.symbolName));
+					output ~= "mov rsp, rbp\n";
 
 					if (!word.isVoid) {
 						output ~= "mov [r15], rax\n";

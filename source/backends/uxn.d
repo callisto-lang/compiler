@@ -275,7 +275,7 @@ class BackendUXN : CompilerBackend {
 						output ~= format(";func__%s JCN2\n", Sanitise("__uxn_exception"));
 					}
 					else {
-                        output ~= ".temp LDZ .System/wst DEO\n";
+						output ~= ".temp LDZ .System/wst DEO\n";
 						CompileReturn(node);
 					}
 				}

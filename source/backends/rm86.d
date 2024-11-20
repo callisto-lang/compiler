@@ -320,7 +320,7 @@ class BackendRM86 : CompilerBackend {
 						output ~= format("jne __func__%s\n", Sanitise("__rm86_exception"));
 					}
 					else {
-                        output ~= "mov si, di\n";
+						output ~= "mov si, di\n";
 						CompileReturn(node);
 					}
 				}
