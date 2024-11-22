@@ -515,6 +515,17 @@ class BackendX86_64 : CompilerBackend {
 					output ~= "mov rbp, rsp\n";
 					output ~= "and rsp, 0xFFFFFFFFFFFFFFF0\n";
 
+					size_t alignSize = word.params.length * 8;
+
+					while (alignSize % 16 != 0) {
+						alignSize += 8;
+					}
+					alignSize -= word.params.length * 8;
+
+					if (alignSize > 0) {
+						output ~= format("sub rsp, %d\n", alignSize);
+					}
+
 					if (word.params.length > 6) {
 						// push parameters
 						foreach_reverse (i ; 6 .. word.params.length) {
