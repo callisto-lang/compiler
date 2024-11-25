@@ -3,11 +3,11 @@ include "std/io.cal"
 
 func fib cell n -> cell res begin
 	if n 1 <= then
-		n return
+		n
 	else
 		n 1 - fib
 		n 2 - fib
-		+ return
+		+
 	end
 end
 
