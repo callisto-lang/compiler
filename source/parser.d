@@ -10,6 +10,7 @@ import callisto.lexer;
 
 enum NodeType {
 	Null,
+	Type,
 	Word,
 	Integer,
 	FuncDef,
@@ -34,8 +35,7 @@ enum NodeType {
 	Implement,
 	Set,
 	TryCatch,
-	Unsafe,
-	Type
+	Unsafe
 }
 
 class Node {
@@ -45,6 +45,25 @@ class Node {
 	this() {
 
 	}
+}
+
+class TypeNode : Node {
+	string name;
+	bool   ptr;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Type;
+		error = perror;
+	}
+
+	this(ErrorInfo perror, string pname, bool pptr) {
+		type  = NodeType.Type;
+		name  = pname;
+		ptr   = pptr;
+		error = perror;
+	}
+
+	override string toString() => format("%s%s", ptr? "ptr " : "", name);
 }
 
 class WordNode : Node {
@@ -82,16 +101,16 @@ class IntegerNode : Node {
 }
 
 class FuncDefNode : Node {
-	string   name;
-	Node[]   nodes;
-	bool     inline;
-	bool     raw;
-	string[] paramTypes;
-	string[] params;
-	bool     errors;
-	bool     manual;
-	bool     unsafe;
-	string[] returnTypes;
+	string     name;
+	Node[]     nodes;
+	bool       inline;
+	bool       raw;
+	TypeNode[] paramTypes;
+	string[]   params;
+	bool       errors;
+	bool       manual;
+	bool       unsafe;
+	TypeNode[] returnTypes;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.FuncDef;
@@ -217,10 +236,10 @@ class WhileNode : Node {
 }
 
 class LetNode : Node {
-	string varType;
-	string name;
-	bool   array;
-	size_t arraySize;
+	TypeNode varType;
+	string   name;
+	bool     array;
+	size_t   arraySize;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Let;
@@ -276,9 +295,9 @@ class VersionNode : Node {
 }
 
 class ArrayNode : Node {
-	string arrayType;
-	Node[] elements;
-	bool   constant;
+	TypeNode arrayType;
+	Node[]   elements;
+	bool     constant;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Array;
@@ -309,10 +328,10 @@ class StringNode : Node {
 }
 
 struct StructMember {
-	string type;
-	string name;
-	bool   array;
-	size_t size;
+	TypeNode type;
+	string   name;
+	bool     array;
+	size_t   size;
 
 	string toString() {
 		return array?
@@ -435,8 +454,8 @@ class ExternNode : Node {
 	string     asName;
 
 	// for C extern
-	string[] types;
-	string   retType;
+	TypeNode[] types;
+	TypeNode   retType;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Extern;
@@ -544,18 +563,6 @@ class UnsafeNode : Node {
 	}
 }
 
-class TypeNode : Node {
-	string typeName;
-	bool   ptr;
-
-	this(ErrorInfo perror) {
-		type  = NodeType.Type;
-		error = perror;
-	}
-
-	override string toString() => format("%s%s", ptr? "ptr " : "", type);
-}
-
 class ParserError : Exception {
 	this() {
 		super("", "", 0);
@@ -612,6 +619,24 @@ class Parser {
 			(tokens[i].contents == identifier);
 	}
 
+	Node ParseType() {
+		auto ret = new TypeNode(GetError());
+		Expect(TokenType.Identifier);
+
+		if (IsIdentifier("ptr")) {
+			ret.ptr = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+			ret.name = tokens[i].contents;
+		}
+		else {
+			ret.name = tokens[i].contents;
+		}
+
+		return ret;
+	}
+
 	Node ParseFuncDef(bool inline) {
 		auto ret   = new FuncDefNode(GetError());
 		ret.inline = inline;
@@ -636,8 +661,7 @@ class Parser {
 		Next();
 
 		while (!IsIdentifier("begin") && !IsIdentifier("->")) {
-			Expect(TokenType.Identifier);
-			ret.paramTypes ~= tokens[i].contents;
+			ret.paramTypes ~= cast(TypeNode) ParseType();
 			Next();
 			Expect(TokenType.Identifier);
 			ret.params ~= tokens[i].contents;
@@ -648,8 +672,7 @@ class Parser {
 			Next();
 
 			while (!IsIdentifier("begin")) {
-				Expect(TokenType.Identifier);
-				ret.returnTypes ~= tokens[i].contents; // return type
+				ret.returnTypes ~= cast(TypeNode) ParseType(); // return type
 
 				Next();
 				Expect(TokenType.Identifier); // return name, ignored
@@ -848,7 +871,7 @@ class Parser {
 			Expect(TokenType.Identifier);
 		}
 
-		ret.varType = tokens[i].contents;
+		ret.varType = cast(TypeNode) ParseType();
 		Next();
 		Expect(TokenType.Identifier);
 		ret.name = tokens[i].contents;
@@ -899,7 +922,7 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
-		ret.arrayType = tokens[i].contents;
+		ret.arrayType = cast(TypeNode) ParseType();
 		Next();
 
 		while (tokens[i].type != TokenType.RSquare) {
@@ -976,7 +999,7 @@ class Parser {
 				Expect(TokenType.Identifier);
 			}
 			
-			member.type = tokens[i].contents;
+			member.type = cast(TypeNode) ParseType();
 			Next();
 			Expect(TokenType.Identifier);
 			member.name = tokens[i].contents;
@@ -1155,7 +1178,7 @@ class Parser {
 
 			Next();
 			Expect(TokenType.Identifier);
-			ret.retType = tokens[i].contents;
+			ret.retType = cast(TypeNode) ParseType();
 
 			Next();
 			Expect(TokenType.Identifier);
@@ -1176,7 +1199,7 @@ class Parser {
 					break;
 				}
 
-				ret.types ~= tokens[i].contents;
+				ret.types ~= cast(TypeNode) ParseType();
 			}
 		}
 		else {
@@ -1299,24 +1322,6 @@ class Parser {
 		while (!IsIdentifier("end")) {
 			ret.nodes ~= ParseStatement();
 			Next();
-		}
-
-		return ret;
-	}
-
-	Node ParseType() {
-		auto ret = new TypeNode(GetError());
-		Expect(TokenType.Identifier);
-
-		if (IsIdentifier("ptr")) {
-			ret.ptr = true;
-
-			Next();
-			Expect(TokenType.Identifier);
-			ret.typeName = tokens[i].contents;
-		}
-		else {
-			ret.typeName = tokens[i].contents;
 		}
 
 		return ret;

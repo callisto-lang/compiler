@@ -11,12 +11,14 @@ import callisto.error;
 import callisto.parser;
 import callisto.language;
 
+ubyte addrSize; // in bytes, set by backend
+
 struct StructEntry {
-	Type   type;
-	string name;
-	bool   array;
-	size_t size;
-	size_t offset;
+	UsedType type;
+	string   name;
+	bool     array;
+	size_t   size;
+	size_t   offset;
 }
 
 struct StructVariable {
@@ -33,24 +35,33 @@ struct Type {
 	bool          hasDeinit;
 }
 
-struct Variable {
-	string name;
-	Type   type;
-	uint   offset; // SP + offset to access
-	bool   array;
-	ulong  arraySize;
+struct UsedType {
+	Type type;
+	bool ptr;
 
-	size_t Size() => array? arraySize * type.size : type.size;
+	alias type this;
+
+	size_t Size() => ptr? addrSize : type.size;
+}
+
+struct Variable {
+	string   name;
+	UsedType type;
+	uint     offset; // SP + offset to access
+	bool     array;
+	ulong    arraySize;
+
+	size_t Size() => array? arraySize * type.Size() : type.Size();
 }
 
 struct Global {
-	string name;
-	Type   type;
-	bool   array;
-	ulong  arraySize;
-	void*  extra;
+	string   name;
+	UsedType type;
+	bool     array;
+	ulong    arraySize;
+	void*    extra;
 
-	size_t Size() => array? arraySize * type.size : type.size;
+	size_t Size() => array? arraySize * type.Size() : type.Size();
 }
 
 struct Constant {
@@ -59,11 +70,11 @@ struct Constant {
 
 struct Array {
 	string[] values;
-	Type     type;
+	UsedType type;
 	bool     global;
 	void*    extra;
 
-	size_t Size() => type.size * values.length;
+	size_t Size() => type.Size() * values.length;
 }
 
 class CompilerBackend {
@@ -140,15 +151,18 @@ class CompilerBackend {
 		}
 
 		foreach (ref member ; node.members) {
-			if (!TypeExists(member.type)) {
-				Error(node.error, "Type '%s' doesn't exist", member.type);
+			if (!TypeExists(member.type.name)) {
+				Error(node.error, "Type '%s' doesn't exist", member.type.name);
 			}
 			if (members.canFind(member.name)) {
 				Error(node.error, "Duplicate member '%s'", member.name);
 			}
 
+			UsedType memberType = UsedType(GetType(member.type.name), member.type.ptr);
+			memberType.ptr      = member.type.ptr;
+
 			auto newMember = StructEntry(
-				GetType(member.type), member.name, member.array, member.size, offset
+				memberType, member.name, member.array, member.size, offset
 			);
 			entries ~= newMember;
 			members ~= member.name;
@@ -161,7 +175,7 @@ class CompilerBackend {
 			NewConst(format("%s.%s", node.name, member.name), member.offset);
 		}
 
-		NewConst(format("%s.sizeof", node.name), offset);
+		NewConst(format("%s.sizeOf", node.name), offset);
 		types ~= Type(node.name, offset, true, entries);
 	}
 
@@ -183,7 +197,7 @@ class CompilerBackend {
 
 		NewConst(format("%s.min", node.name), node.values.minElement());
 		NewConst(format("%s.max", node.name), node.values.maxElement());
-		NewConst(format("%s.sizeof", node.name), GetType(node.name).size);
+		NewConst(format("%s.sizeOf", node.name), GetType(node.name).size);
 	}
 
 	void CompileConst(ConstNode node) {
@@ -505,6 +519,7 @@ class Compiler {
 
 	void Compile(Node[] nodes) {
 		assert(backend !is null);
+		assert(addrSize != 0);
 
 		backend.compiler = this;
 		backend.Init();

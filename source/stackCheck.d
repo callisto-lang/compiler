@@ -298,7 +298,10 @@ class StackChecker {
 
 		if (node.externType == ExternType.C) {
 			words[name] = Word(
-				false, Effect(node.retType == "void"? 0 : 1, node.types.length)
+				false, Effect(
+					((node.retType.name == "void") && !node.retType.ptr)? 0 : 1,
+					node.types.length
+				)
 			);
 		}
 		else {

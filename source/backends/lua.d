@@ -28,11 +28,11 @@ private enum WordType {
 }
 
 private struct Word {
-	WordType type;
-	bool     inline;
-	Node[]   inlineNodes;
-	bool     error;
-	Type[]   params;
+	WordType   type;
+	bool       inline;
+	Node[]     inlineNodes;
+	bool       error;
+	UsedType[] params;
 }
 
 class BackendLua : CompilerBackend {
@@ -56,9 +56,9 @@ class BackendLua : CompilerBackend {
 
 		// built in structs
 		types ~= Type("Array", 3, true, [
-			StructEntry(GetType("usize"), "length"),
-			StructEntry(GetType("usize"), "memberSize"),
-			StructEntry(GetType("addr"),  "elements")
+			StructEntry(UsedType(GetType("usize"), false), "length"),
+			StructEntry(UsedType(GetType("usize"), false), "memberSize"),
+			StructEntry(UsedType(GetType("addr"), false),  "elements")
 		]);
 		NewConst("Array.length",     0);
 		NewConst("Array.memberSize", 1);
@@ -66,8 +66,8 @@ class BackendLua : CompilerBackend {
 		NewConst("Array.sizeof",     3);
 
 		types ~= Type("Exception", 3 + 1, true, [
-			StructEntry(GetType("bool"),  "error"),
-			StructEntry(GetType("Array"), "msg")
+			StructEntry(UsedType(GetType("bool"), false),  "error"),
+			StructEntry(UsedType(GetType("Array"), false), "msg")
 		]);
 		NewConst("Exception.bool",   0);
 		NewConst("Exception.msg",    1);
@@ -78,7 +78,8 @@ class BackendLua : CompilerBackend {
 		}
 
 		globals ~= Global(
-			"_cal_exception", GetType("Exception"), false, 0, new GlobalExtra(globalStack)
+			"_cal_exception", UsedType(GetType("Exception"), false), false, 0,
+			new GlobalExtra(globalStack)
 		);
 		globalStack += globals[$ - 1].Size();
 	}
@@ -286,14 +287,14 @@ class BackendLua : CompilerBackend {
 
 		thisFunc = node.name;
 
-		Type[] params;
+		UsedType[] params;
 
 		foreach (ref type ; node.paramTypes) {
-			if (!TypeExists(type)) {
-				Error(node.error, "Type '%s' doesn't exist", type);
+			if (!TypeExists(type.name)) {
+				Error(node.error, "Type '%s' doesn't exist", type.name);
 			}
 
-			params ~= GetType(type);
+			params ~= UsedType(GetType(type.name), type.ptr);
 		}
 
 		if (node.inline) {
@@ -317,14 +318,16 @@ class BackendLua : CompilerBackend {
 
 			// allocate parameters
 			size_t paramSize = node.params.length;
+
 			foreach (ref type ; node.paramTypes) {
-				if (!TypeExists(type)) {
-					Error(node.error, "Type '%s' doesn't exist", type);
+				if (!TypeExists(type.name)) {
+					Error(node.error, "Type '%s' doesn't exist", type.name);
 				}
-				if (GetType(type).isStruct) {
+				if (GetType(type.name).isStruct && !type.ptr) {
 					Error(node.error, "Structures cannot be used in function parameters");
 				}
 			}
+
 			if ((paramSize > 0) && !node.manual) {
 				output ~= format("vsp = vsp - %d\n", paramSize);
 				foreach (ref var ; variables) {
@@ -337,7 +340,8 @@ class BackendLua : CompilerBackend {
 					Variable var;
 
 					var.name      = param;
-					var.type      = GetType(type);
+					var.type.type = GetType(type.name);
+					var.type.ptr  = type.ptr;
 					var.offset    = cast(uint) offset;
 					offset       += var.Size();
 					variables    ~= var;
@@ -491,8 +495,8 @@ class BackendLua : CompilerBackend {
 	}
 
 	override void CompileLet(LetNode node) {
-		if (!TypeExists(node.varType)) {
-			Error(node.error, "Undefined type '%s'", node.varType);
+		if (!TypeExists(node.varType.name)) {
+			Error(node.error, "Undefined type '%s'", node.varType.name);
 		}
 		if (VariableExists(node.name) || (node.name in words)) {
 			Error(node.error, "Variable name '%s' already used", node.name);
@@ -504,7 +508,8 @@ class BackendLua : CompilerBackend {
 		if (inScope) {
 			Variable var;
 			var.name      = node.name;
-			var.type      = GetType(node.varType);
+			var.type.type = GetType(node.varType.name);
+			var.type.ptr  = node.varType.ptr;
 			var.offset    = 0;
 			var.array     = node.array;
 			var.arraySize = node.arraySize;
@@ -537,7 +542,8 @@ class BackendLua : CompilerBackend {
 
 			Global global;
 			global.name       = node.name;
-			global.type       = GetType(node.varType);
+			global.type.type  = GetType(node.varType.name);
+			global.type.ptr   = node.varType.ptr;
 			global.array      = node.array;
 			global.arraySize  = node.arraySize;
 			global.extra      = extra;
@@ -571,12 +577,13 @@ class BackendLua : CompilerBackend {
 			}
 		}
 
-		if (!TypeExists(node.arrayType)) {
-			Error(node.error, "Type '%s' doesn't exist", node.arrayType);
+		if (!TypeExists(node.arrayType.name)) {
+			Error(node.error, "Type '%s' doesn't exist", node.arrayType.name);
 		}
 
-		array.type    = GetType(node.arrayType);
-		array.global  = !inScope || node.constant;
+		array.type.type = GetType(node.arrayType.name);
+		array.type.ptr  = node.arrayType.ptr;
+		array.global    = !inScope || node.constant;
 
 		if (!inScope || node.constant) {
 			arrayStack     -= array.Size();
@@ -622,7 +629,7 @@ class BackendLua : CompilerBackend {
 			variables ~= var;
 
 			// create metadata variable
-			var.type   = GetType("Array");
+			var.type   = UsedType(GetType("Array"), false);
 			var.offset = 0;
 			var.array  = false;
 
@@ -649,7 +656,7 @@ class BackendLua : CompilerBackend {
 	override void CompileString(StringNode node) {
 		auto arrayNode = new ArrayNode(node.error);
 
-		arrayNode.arrayType = "cell";
+		arrayNode.arrayType = new TypeNode(node.error, "cell", false);
 		arrayNode.constant  = node.constant;
 
 		foreach (ref ch ; node.value) {

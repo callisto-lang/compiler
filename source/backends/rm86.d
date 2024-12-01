@@ -12,11 +12,11 @@ import callisto.compiler;
 import callisto.language;
 
 private struct Word {
-	bool   raw;
-	bool   inline;
-	Node[] inlineNodes;
-	bool   error;
-	Type[] params;
+	bool       raw;
+	bool       inline;
+	Node[]     inlineNodes;
+	bool       error;
+	UsedType[] params;
 }
 
 private struct RM86Opts {
@@ -47,9 +47,9 @@ class BackendRM86 : CompilerBackend {
 
 		// built in structs
 		types ~= Type("Array", 6, true, [
-			StructEntry(GetType("usize"), "length"),
-			StructEntry(GetType("usize"), "memberSize"),
-			StructEntry(GetType("addr"),  "elements")
+			StructEntry(UsedType(GetType("usize"), false), "length"),
+			StructEntry(UsedType(GetType("usize"), false), "memberSize"),
+			StructEntry(UsedType(GetType("addr"), false),  "elements")
 		]);
 		NewConst("Array.length",     0);
 		NewConst("Array.memberSize", 2);
@@ -57,8 +57,8 @@ class BackendRM86 : CompilerBackend {
 		NewConst("Array.sizeof",     2 * 3);
 
 		types ~= Type("Exception", 6 + 2, true, [
-			StructEntry(GetType("bool"),  "error"),
-			StructEntry(GetType("Array"), "msg")
+			StructEntry(UsedType(GetType("bool"), false),  "error"),
+			StructEntry(UsedType(GetType("Array"), false), "msg")
 		]);
 		NewConst("Exception.bool",   0);
 		NewConst("Exception.msg",    2);
@@ -68,7 +68,9 @@ class BackendRM86 : CompilerBackend {
 			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
 		}
 
-		globals ~= Global("_cal_exception", GetType("Exception"), false, 0);
+		globals ~= Global(
+			"_cal_exception", UsedType(GetType("Exception"), false), false, 0
+		);
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
@@ -372,14 +374,14 @@ class BackendRM86 : CompilerBackend {
 
 		thisFunc = node.name;
 
-		Type[] params;
+		UsedType[] params;
 
 		foreach (ref type ; node.paramTypes) {
-			if (!TypeExists(type)) {
-				Error(node.error, "Type '%s' doesn't exist", type);
+			if (!TypeExists(type.name)) {
+				Error(node.error, "Type '%s' doesn't exist", type.name);
 			}
 
-			params ~= GetType(type);
+			params ~= UsedType(GetType(type.name), type.ptr);
 		}
 
 		if (node.inline) {
@@ -407,10 +409,10 @@ class BackendRM86 : CompilerBackend {
 			// allocate parameters
 			size_t paramSize = node.params.length * 2;
 			foreach (ref type ; node.paramTypes) {
-				if (!TypeExists(type)) {
-					Error(node.error, "Type '%s' doesn't exist", type);
+				if (!TypeExists(type.name)) {
+					Error(node.error, "Type '%s' doesn't exist", type.name);
 				}
-				if (GetType(type).isStruct) {
+				if (GetType(type.name).isStruct && !type.ptr) {
 					Error(node.error, "Structures cannot be used in function parameters");
 				}
 			}
@@ -426,7 +428,8 @@ class BackendRM86 : CompilerBackend {
 					Variable var;
 
 					var.name      = param;
-					var.type      = GetType(type);
+					var.type.type = GetType(type.name);
+					var.type.ptr  = type.ptr;
 					var.offset    = cast(uint) offset;
 					offset       += var.Size();
 					variables    ~= var;
@@ -594,8 +597,8 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override void CompileLet(LetNode node) {
-		if (!TypeExists(node.varType)) {
-			Error(node.error, "Undefined type '%s'", node.varType);
+		if (!TypeExists(node.varType.name)) {
+			Error(node.error, "Undefined type '%s'", node.varType.name);
 		}
 		if (VariableExists(node.name) || (node.name in words)) {
 			Error(node.error, "Variable name '%s' already used", node.name);
@@ -607,7 +610,7 @@ class BackendRM86 : CompilerBackend {
 		if (inScope) {
 			Variable var;
 			var.name      = node.name;
-			var.type      = GetType(node.varType);
+			var.type      = UsedType(GetType(node.varType.name), node.varType.ptr);
 			var.offset    = 0;
 			var.array     = node.array;
 			var.arraySize = node.arraySize;
@@ -637,7 +640,7 @@ class BackendRM86 : CompilerBackend {
 			}
 
 			Global global;
-			global.type        = GetType(node.varType);
+			global.type        = UsedType(GetType(node.varType.name), node.varType.ptr);
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
 			global.name        = node.name;
@@ -665,11 +668,11 @@ class BackendRM86 : CompilerBackend {
 			}
 		}
 
-		if (!TypeExists(node.arrayType)) {
-			Error(node.error, "Type '%s' doesn't exist", node.arrayType);
+		if (!TypeExists(node.arrayType.name)) {
+			Error(node.error, "Type '%s' doesn't exist", node.arrayType.name);
 		}
 
-		array.type    = GetType(node.arrayType);
+		array.type    = UsedType(GetType(node.arrayType.name), node.arrayType.ptr);
 		array.global  = !inScope || node.constant;
 		arrays       ~= array;
 
@@ -707,7 +710,7 @@ class BackendRM86 : CompilerBackend {
 			variables ~= var;
 
 			// create metadata variable
-			var.type   = GetType("Array");
+			var.type   = UsedType(GetType("Array"), false);
 			var.offset = 0;
 			var.array  = false;
 
@@ -733,7 +736,7 @@ class BackendRM86 : CompilerBackend {
 	override void CompileString(StringNode node) {
 		auto arrayNode = new ArrayNode(node.error);
 
-		arrayNode.arrayType = "u8";
+		arrayNode.arrayType = new TypeNode(node.error, "u8", false);
 		arrayNode.constant  = node.constant;
 
 		foreach (ref ch ; node.value) {
