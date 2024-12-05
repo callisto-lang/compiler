@@ -118,7 +118,10 @@ class StackChecker {
 			Pop(node, word.effect.pop);
 			Push(node, word.effect.push);
 		}
-		else if (identifiers.canFind(node.name)) {
+		else if (
+			identifiers.canFind(node.name) ||
+			identifiers.canFind(node.name.split('.')[0])
+		) {
 			Push(node, 1);
 		}
 		else {
