@@ -350,9 +350,21 @@ class BackendRM86 : CompilerBackend {
 			}
 		}
 		else if (VariableExists(node.name)) {
+			auto var = GetVariable(node.name);
+
+			if (var.type.isStruct && !var.type.ptr) {
+				Error(node.error, "Can't push value of structures");
+			}
+
 			PushVariableValue(node, GetVariable(node.name));
 		}
 		else if (GlobalExists(node.name)) {
+			auto var = GetGlobal(node.name);
+
+			if (var.type.isStruct && !var.type.ptr) {
+				Error(node.error, "Can't push value of structures");
+			}
+
 			PushGlobalValue(node, GetGlobal(node.name));
 		}
 		else if (IsStructMember(node.name)) {
