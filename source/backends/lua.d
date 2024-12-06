@@ -65,7 +65,7 @@ class BackendLua : CompilerBackend {
 		NewConst("Array.length",     0);
 		NewConst("Array.memberSize", 1);
 		NewConst("Array.elements",   2);
-		NewConst("Array.sizeof",     3);
+		NewConst("Array.sizeOf",     3);
 
 		types ~= Type("Exception", 3 + 1, true, [
 			StructEntry(UsedType(GetType("bool"), false),  "error"),
@@ -73,10 +73,10 @@ class BackendLua : CompilerBackend {
 		]);
 		NewConst("Exception.bool",   0);
 		NewConst("Exception.msg",    1);
-		NewConst("Exception.sizeof", 3 + 1);
+		NewConst("Exception.sizeOf", 3 + 1);
 
 		foreach (ref type ; types) {
-			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
+			NewConst(format("%s.sizeOf", type.name), cast(long) type.size);
 		}
 
 		globals ~= Global(

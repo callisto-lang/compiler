@@ -233,7 +233,7 @@ class CompilerBackend {
 		}
 
 		types ~= Type(node.name, maxSize);
-		NewConst(format("%s.sizeof", node.name), cast(long) maxSize);
+		NewConst(format("%s.sizeOf", node.name), cast(long) maxSize);
 	}
 
 	void CompileAlias(AliasNode node) {
@@ -248,7 +248,7 @@ class CompilerBackend {
 		baseType.name  = node.to;
 		types         ~= baseType;
 
-		NewConst(format("%s.sizeof", node.to), cast(long) GetType(node.to).size);
+		NewConst(format("%s.sizeOf", node.to), cast(long) GetType(node.to).size);
 	}
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {

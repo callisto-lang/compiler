@@ -55,7 +55,7 @@ class BackendRM86 : CompilerBackend {
 		NewConst("Array.length",     0);
 		NewConst("Array.memberSize", 2);
 		NewConst("Array.elements",   4);
-		NewConst("Array.sizeof",     2 * 3);
+		NewConst("Array.sizeOf",     2 * 3);
 
 		types ~= Type("Exception", 6 + 2, true, [
 			StructEntry(UsedType(GetType("bool"), false),  "error"),
@@ -63,10 +63,10 @@ class BackendRM86 : CompilerBackend {
 		]);
 		NewConst("Exception.bool",   0);
 		NewConst("Exception.msg",    2);
-		NewConst("Exception.sizeof", 6 + 2);
+		NewConst("Exception.sizeOf", 6 + 2);
 
 		foreach (ref type ; types) {
-			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
+			NewConst(format("%s.sizeOf", type.name), cast(long) type.size);
 		}
 
 		globals ~= Global(
