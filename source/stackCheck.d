@@ -118,7 +118,10 @@ class StackChecker {
 			Pop(node, word.effect.pop);
 			Push(node, word.effect.push);
 		}
-		else if (identifiers.canFind(node.name)) {
+		else if (
+			identifiers.canFind(node.name) ||
+			identifiers.canFind(node.name.split('.')[0])
+		) {
 			Push(node, 1);
 		}
 		else {
@@ -298,7 +301,10 @@ class StackChecker {
 
 		if (node.externType == ExternType.C) {
 			words[name] = Word(
-				false, Effect(node.retType == "void"? 0 : 1, node.types.length)
+				false, Effect(
+					((node.retType.name == "void") && !node.retType.ptr)? 0 : 1,
+					node.types.length
+				)
 			);
 		}
 		else {

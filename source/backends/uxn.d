@@ -12,11 +12,11 @@ import callisto.compiler;
 import callisto.language;
 
 private struct Word {
-	bool   raw;
-	bool   inline;
-	Node[] inlineNodes;
-	bool   error;
-	Type[] params;
+	bool       raw;
+	bool       inline;
+	Node[]     inlineNodes;
+	bool       error;
+	UsedType[] params;
 }
 
 class BackendUXN : CompilerBackend {
@@ -28,6 +28,8 @@ class BackendUXN : CompilerBackend {
 	uint             currentLoop;
 
 	this() {
+		addrSize = 2;
+
 		types ~= Type("u8",    1);
 		types ~= Type("i8",    1);
 		types ~= Type("u16",   2);
@@ -40,9 +42,9 @@ class BackendUXN : CompilerBackend {
 
 		// built in structs
 		types ~= Type("Array", 6, true, [
-			StructEntry(GetType("usize"), "length"),
-			StructEntry(GetType("usize"), "memberSize"),
-			StructEntry(GetType("addr"),  "elements")
+			StructEntry(UsedType(GetType("usize"), false), "length"),
+			StructEntry(UsedType(GetType("usize"), false), "memberSize"),
+			StructEntry(UsedType(GetType("addr"), false),  "elements")
 		]);
 		NewConst("Array.length",     0);
 		NewConst("Array.memberSize", 2);
@@ -50,8 +52,8 @@ class BackendUXN : CompilerBackend {
 		NewConst("Array.sizeof",     2 * 3);
 
 		types ~= Type("Exception", 6 + 2, true, [
-			StructEntry(GetType("bool"),  "error"),
-			StructEntry(GetType("Array"), "msg")
+			StructEntry(UsedType(GetType("bool"), false),  "error"),
+			StructEntry(UsedType(GetType("Array"), false), "msg")
 		]);
 		NewConst("Exception.bool",   0);
 		NewConst("Exception.msg",    2);
@@ -61,7 +63,9 @@ class BackendUXN : CompilerBackend {
 			NewConst(format("%s.sizeof", type.name), cast(long) type.size);
 		}
 
-		globals ~= Global("_cal_exception", GetType("Exception"), false, 0);
+		globals ~= Global(
+			"_cal_exception", UsedType(GetType("Exception"), false), false, 0
+		);
 	}
 
 	override string[] GetVersions() => [
@@ -180,23 +184,37 @@ class BackendUXN : CompilerBackend {
 	}
 
 	void PushVariableValue(
-		Node node, Variable var, size_t size = 0, size_t offset = 0, bool member = false
+		Node node, Variable var, size_t size = 0, size_t offset = 0, bool member = false,
+		bool deref = false
 	) {
 		if (size == 0) {
-			size = var.type.size;
-		}
-		if (var.type.isStruct && !member) {
-			Error(node.error, "Can't push value of struct");
+			size = var.type.Size();
 		}
 
-		if (var.offset == 0) {
-			output ~= ".vsp LDZ2\n";
+		if (deref) {
+			if (var.offset == 0) {
+				output ~= ".vsp LDZ2\n";
+			}
+			else {
+				output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
+			}
+
+			output ~= "LDA2\n";
+
+			if (offset != 0) {
+				output ~= format("#%.4x ADD2\n", offset);
+			}
 		}
 		else {
-			output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset);
+			if (var.offset + offset == 0) {
+				output ~= ".vsp LDZ2\n";
+			}
+			else {
+				output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset + offset);
+			}
 		}
 
-		switch (var.type.size) {
+		switch (size) {
 			case 1: output ~= "LDA NIP\n"; break;
 			case 2: output ~= "LDA2\n"; break;
 			default: Error(node.error, "Bad variable type size");
@@ -204,19 +222,24 @@ class BackendUXN : CompilerBackend {
 	}
 
 	void PushGlobalValue(
-		Node node, Global var, size_t size = 0, size_t offset = 0, bool member = false
+		Node node, Global var, size_t size = 0, size_t offset = 0, bool member = false,
+		bool deref = false
 	) {
 		if (size == 0) {
-			size = var.type.size;
+			size = var.type.Size();
 		}
 
 		output ~= format(";global_%s\n", var.name.Sanitise());
 
-		if (var.type.isStruct && !member) {
-			Error(node.error, "Can't push value of struct");
+		if (deref) {
+			output ~= "LDA2\n";
 		}
 
-		switch (var.type.size) {
+		if (offset != 0) {
+			output ~= format("#%.4x ADD2\n", offset);
+		}
+
+		switch (size) {
 			case 1: output ~= "LDA NIP\n"; break;
 			case 2: output ~= "LDA2\n"; break;
 			default: Error(node.error, "Bad variable type size");
@@ -285,9 +308,21 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 		else if (VariableExists(node.name)) {
+			auto var = GetVariable(node.name);
+
+			if (var.type.isStruct && !var.type.ptr) {
+				Error(node.error, "Can't push value of structures");
+			}
+
 			PushVariableValue(node, GetVariable(node.name));
 		}
 		else if (GlobalExists(node.name)) {
+			auto var = GetGlobal(node.name);
+
+			if (var.type.isStruct && !var.type.ptr) {
+				Error(node.error, "Can't push value of structures");
+			}
+
 			PushGlobalValue(node, GetGlobal(node.name));
 		}
 		else if (IsStructMember(node.name)) {
@@ -295,10 +330,18 @@ class BackendUXN : CompilerBackend {
 			auto structVar = GetStructVariable(node, node.name);
 
 			if (GlobalExists(name)) {
-				PushGlobalValue(node, GetGlobal(name), structVar.size, structVar.offset, true);
+				auto var = GetGlobal(name);
+
+				PushGlobalValue(
+					node, var, structVar.size, structVar.offset, true, var.type.ptr
+				);
 			}
 			else if (VariableExists(name)) {
-				PushVariableValue(node, GetVariable(name), structVar.size, structVar.offset, true);
+				auto var = GetVariable(name);
+
+				PushVariableValue(
+					node, var, structVar.size, structVar.offset, true, var.type.ptr
+				);
 			}
 		}
 		else if (node.name in consts) {
@@ -330,14 +373,14 @@ class BackendUXN : CompilerBackend {
 
 		thisFunc = node.name;
 
-		Type[] params;
+		UsedType[] params;
 
 		foreach (ref type ; node.paramTypes) {
-			if (!TypeExists(type)) {
-				Error(node.error, "Type '%s' doesn't exist", type);
+			if (!TypeExists(type.name)) {
+				Error(node.error, "Type '%s' doesn't exist", type.name);
 			}
 
-			params ~= GetType(type);
+			params ~= UsedType(GetType(type.name), type.ptr);
 		}
 
 		if (node.inline) {
@@ -365,10 +408,10 @@ class BackendUXN : CompilerBackend {
 			// allocate parameters
 			size_t paramSize = node.params.length * 2;
 			foreach (ref type ; node.paramTypes) {
-				if (!TypeExists(type)) {
-					Error(node.error, "Type '%s' doesn't exist", type);
+				if (!TypeExists(type.name)) {
+					Error(node.error, "Type '%s' doesn't exist", type.name);
 				}
-				if (GetType(type).isStruct) {
+				if (GetType(type.name).isStruct && !type.ptr) {
 					Error(node.error, "Structures cannot be used in function parameters");
 				}
 			}
@@ -384,7 +427,7 @@ class BackendUXN : CompilerBackend {
 					Variable var;
 
 					var.name      = param;
-					var.type      = GetType(type);
+					var.type      = UsedType(GetType(type.name), type.ptr);
 					var.offset    = cast(uint) offset;
 					offset       += var.Size();
 					variables    ~= var;
@@ -548,8 +591,8 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileLet(LetNode node) {
-		if (!TypeExists(node.varType)) {
-			Error(node.error, "Undefined type '%s'", node.varType);
+		if (!TypeExists(node.varType.name)) {
+			Error(node.error, "Undefined type '%s'", node.varType.name);
 		}
 		if (VariableExists(node.name) || (node.name in words)) {
 			Error(node.error, "Variable name '%s' already used", node.name);
@@ -561,7 +604,7 @@ class BackendUXN : CompilerBackend {
 		if (inScope) {
 			Variable var;
 			var.name      = node.name;
-			var.type      = GetType(node.varType);
+			var.type      = UsedType(GetType(node.varType.name), node.varType.ptr);
 			var.offset    = 0;
 			var.array     = node.array;
 			var.arraySize = node.arraySize;
@@ -587,7 +630,7 @@ class BackendUXN : CompilerBackend {
 		}
 		else {
 			Global global;
-			global.type        = GetType(node.varType);
+			global.type        = UsedType(GetType(node.varType.name), node.varType.ptr);
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
 			global.name        = node.name;
@@ -598,11 +641,11 @@ class BackendUXN : CompilerBackend {
 	override void CompileArray(ArrayNode node) {
 		Array array;
 
-		if (!TypeExists(node.arrayType)) {
-			Error(node.error, "Type '%s' doesn't exist", node.arrayType);
+		if (!TypeExists(node.arrayType.name)) {
+			Error(node.error, "Type '%s' doesn't exist", node.arrayType.name);
 		}
 
-		array.type = GetType(node.arrayType);
+		array.type = UsedType(GetType(node.arrayType.name), node.arrayType.ptr);
 
 		foreach (ref elem ; node.elements) {
 			switch (elem.type) {
@@ -618,6 +661,7 @@ class BackendUXN : CompilerBackend {
 				}
 				default: {
 					Error(elem.error, "Type '%s' can't be used in array literal");
+					// TODO: orphan format specifier
 				}
 			}
 		}
@@ -652,7 +696,7 @@ class BackendUXN : CompilerBackend {
 			variables ~= var;
 
 			// create metadata variable
-			var.type   = GetType("Array");
+			var.type   = UsedType(GetType("Array"), false);
 			var.offset = 0;
 			var.array  = false;
 
@@ -681,7 +725,7 @@ class BackendUXN : CompilerBackend {
 	override void CompileString(StringNode node) {
 		auto arrayNode = new ArrayNode(node.error);
 
-		arrayNode.arrayType = "u8";
+		arrayNode.arrayType = new TypeNode(node.error, "u8", false);
 		arrayNode.constant  = node.constant;
 
 		foreach (ref ch ; node.value) {
@@ -849,50 +893,50 @@ class BackendUXN : CompilerBackend {
 	}
 
 	void SetVariable(
-		Node node, Variable var, size_t size = 0, size_t offset = 0, bool member = false
+		Node node, Variable var, size_t size = 0, size_t offset = 0, bool member = false,
+		bool deref = false
 	) {
 		if (size == 0) {
-			size = var.type.size;
-		}
-		if (var.type.isStruct && !member) {
-			Error(node.error, "Can't set struct value");
+			size = var.type.Size();
 		}
 
-		if (var.offset == 0) {
-			switch (var.type.size) {
-				case 1: output ~= "NIP .vsp LDZ2 STA\n"; break;
-				case 2: output ~= ".vsp LDZ2 STA2\n"; break;
-				default: Error(node.error, "Bad variable type size");
-			}
+		string where = ".vsp LDZ2";
+
+		if (var.offset != 0) {
+			where ~= format(" #%.4x ADD2", var.offset);
 		}
-		else {
-			switch (var.type.size) {
-				case 1: {
-					output ~= format("NIP .vsp LDZ2 #%.4X ADD2 STA\n", var.offset);
-					break;
-				}
-				case 2: {
-					output ~= format(".vsp LDZ2 #%.4X ADD2 STA2\n", var.offset);
-					break;
-				}
-				default: Error(node.error, "Bad variable type size");
-			}
+		if (deref) {
+			where ~= " LDA2";
+		}
+		if (offset != 0) {
+			where ~= format(" #%.4x ADD2", offset);
+		}
+
+		switch (size) {
+			case 1: output ~= format("NIP %s STA\n", where); break;
+			case 2: output ~= format("%s STA2\n", where); break;
+			default: Error(node.error, "Bad variable type size");
 		}
 	}
 
 	void SetGlobal(
-		Node node, Global global, size_t size = 0, size_t offset = 0, bool member = false
+		Node node, Global global, size_t size = 0, size_t offset = 0, bool member = false,
+		bool deref = false
 	) {
 		if (size == 0) {
-			size = global.type.size;
-		}
-		if (global.type.isStruct && !member) {
-			Error(node.error, "Can't set struct value");
+			size = global.type.Size();
 		}
 
 		string symbol = format("global_%s", global.name.Sanitise());
 
-		switch (global.type.size) {
+		if (deref) {
+			symbol ~= format(" LDA2");
+		}
+		if (offset != 0) {
+			symbol ~= format(" #%.4x ADD2", offset);
+		}
+
+		switch (size) {
 			case 1: output ~= format("NIP ;%s STA\n", symbol); break;
 			case 2: output ~= format(";%s STA2\n", symbol); break;
 			default: Error(node.error, "Bad variable type size");
@@ -901,9 +945,21 @@ class BackendUXN : CompilerBackend {
 
 	override void CompileSet(SetNode node) {
 		if (VariableExists(node.var)) {
-			SetVariable(node, GetVariable(node.var));
+			auto var = GetVariable(node.var);
+
+			if (var.type.isStruct && !var.type.ptr) {
+				Error(node.error, "Can't set struct value");
+			}
+
+			SetVariable(node, var);
 		}
 		else if (GlobalExists(node.var)) {
+			auto var = GetGlobal(node.var);
+
+			if (var.type.isStruct && !var.type.ptr) {
+				Error(node.error, "Can't set struct value");
+			}
+
 			SetGlobal(node, GetGlobal(node.var));
 		}
 		else if (IsStructMember(node.var)) {
@@ -911,10 +967,18 @@ class BackendUXN : CompilerBackend {
 			auto structVar = GetStructVariable(node, node.var);
 
 			if (VariableExists(name)) {
-				SetVariable(node, GetVariable(name), structVar.size, structVar.offset, true);
+				auto var = GetVariable(name);
+
+				SetVariable(
+					node, var, structVar.size, structVar.offset, true, var.type.ptr
+				);
 			}
 			else if (GlobalExists(name)) {
-				SetGlobal(node, GetGlobal(name), structVar.size, structVar.offset, true);
+				auto var = GetGlobal(name);
+
+				SetGlobal(
+					node, var, structVar.size, structVar.offset, true, var.type.ptr
+				);
 			}
 		}
 		else {

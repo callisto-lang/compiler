@@ -10,7 +10,7 @@ struct Building : Thing
 end
 
 "Thing.name          = " printstr Thing.name printdec new_line
-"Thing.sizeof        = " printstr Thing.sizeof printdec new_line
+"Thing.sizeof        = " printstr Thing.sizeOf printdec new_line
 "Building.name       = " printstr Building.name printdec new_line
 "Building.numWindows = " printstr Building.numWindows printdec new_line
-"Building.sizeof     = " printstr Building.sizeof printdec new_line
+"Building.sizeof     = " printstr Building.sizeOf printdec new_line
