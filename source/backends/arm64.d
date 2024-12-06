@@ -217,7 +217,7 @@ class BackendARM64 : CompilerBackend {
 
 		// call constructors
 		foreach (global ; globals) {
-			if (global.type.hasInit) {
+			if (global.type.hasInit && !global.type.ptr) {
 				LoadAddress("x9", format("__global_%s", global.name.Sanitise()));
 				output ~= "str x9, [x19], #8\n";
 				output ~= format("bl __type_init_%s\n", global.type.name.Sanitise());
@@ -291,7 +291,7 @@ class BackendARM64 : CompilerBackend {
 	override void End() {
 		// call destructors
 		foreach (global ; globals) {
-			if (global.type.hasDeinit) {
+			if (global.type.hasDeinit && !global.type.ptr) {
 				LoadAddress("x9", format("__global_%s", global.name.Sanitise()));
 				output ~= "str x9, [x19], #8\n";
 				output ~= format("bl __type_deinit_%s\n", global.type.name.Sanitise());
@@ -705,7 +705,7 @@ class BackendARM64 : CompilerBackend {
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
 
-				if (var.type.hasDeinit) {
+				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format("add x9, x20, #%d\n", var.offset);
 					output ~= "str x9, [x19], #8\n";
 					output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
@@ -746,7 +746,7 @@ class BackendARM64 : CompilerBackend {
 			// remove scope
 			foreach (ref var ; variables) {
 				if (oldVars.canFind(var)) continue;
-				if (!var.type.hasDeinit)  continue;
+				if (!var.type.hasDeinit || var.type.ptr) continue;
 
 				output ~= format("add x9, x20, #%d\n", var.offset);
 				output ~= "str x9, [x19], #8\n";
@@ -775,7 +775,7 @@ class BackendARM64 : CompilerBackend {
 			// remove scope
 			foreach (ref var ; variables) {
 				if (oldVars.canFind(var)) continue;
-				if (!var.type.hasDeinit)  continue;
+				if (!var.type.hasDeinit || var.type.ptr) continue;
 
 				output ~= format("add x9, x20, #%d\n", var.offset);
 				output ~= "str x9, [x19], #8\n";
@@ -813,7 +813,7 @@ class BackendARM64 : CompilerBackend {
 		output ~= format("__while_%d_next:\n", blockNum);
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
-			if (!var.type.hasDeinit)  continue;
+			if (!var.type.hasDeinit || var.type.ptr) continue;
 
 			output ~= format("add x9, x20, #%d\n", var.offset);
 			output ~= "str x9, [x19], #8\n";
@@ -993,7 +993,7 @@ class BackendARM64 : CompilerBackend {
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
 
-			if (var.type.hasDeinit) {
+			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format("add x9, x20, #%d\n", var.offset);
 				output ~= "str x9, [x19], #8\n";
 				output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
@@ -1166,7 +1166,7 @@ class BackendARM64 : CompilerBackend {
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
 
-			if (var.type.hasDeinit) {
+			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format("add x9, x20, #%d\n", var.offset);
 				output ~= "str x9, [x19], #8\n";
 				output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
@@ -1334,7 +1334,7 @@ class BackendARM64 : CompilerBackend {
 		// remove scope
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
-			if (!var.type.hasDeinit)  continue;
+			if (!var.type.hasDeinit || var.type.ptr) continue;
 
 			output ~= format("add x9, x20, #%d\n", var.offset);
 			output ~= "str x9, [x19], #8\n";

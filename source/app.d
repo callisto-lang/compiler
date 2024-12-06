@@ -18,7 +18,7 @@ import callisto.backends.rm86;
 import callisto.backends.arm64;
 import callisto.backends.x86_64;
 
-const static string appVersion = "Beta 0.12.1";
+const static string appVersion = "Beta 0.12.2";
 
 const static string usage = "
 Callisto Compiler

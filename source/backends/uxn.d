@@ -98,7 +98,7 @@ class BackendUXN : CompilerBackend {
 		output ~= "@calmain\n";
 
 		foreach (global ; globals) {
-			if (global.type.hasInit) {
+			if (global.type.hasInit && !global.type.ptr) {
 				output ~= format(";global_%s\n", global.name.Sanitise());
 				output ~= format("type_init_%s\n", global.type.name.Sanitise());
 			}
@@ -135,7 +135,7 @@ class BackendUXN : CompilerBackend {
 	override void End() {
 		// call destructors
 		foreach (global ; globals) {
-			if (global.type.hasDeinit) {
+			if (global.type.hasDeinit && !global.type.ptr) {
 				output ~= format(";global_%s\n", global.name.Sanitise());
 				output ~= format("type_deinit_%s\n", global.type.name.Sanitise());
 			}
@@ -449,7 +449,7 @@ class BackendUXN : CompilerBackend {
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
 				
-				if (var.type.hasDeinit) {
+				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
 					output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
 				}
@@ -496,7 +496,7 @@ class BackendUXN : CompilerBackend {
 			// remove scope
 			foreach (ref var ; variables) {
 				if (oldVars.canFind(var)) continue;
-				if (!var.type.hasDeinit)  continue;
+				if (!var.type.hasDeinit || var.type.ptr) continue;
 
 				output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
 				output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
@@ -526,7 +526,7 @@ class BackendUXN : CompilerBackend {
 			// remove scope
 			foreach (ref var ; variables) {
 				if (oldVars.canFind(var)) continue;
-				if (!var.type.hasDeinit)  continue;
+				if (!var.type.hasDeinit || var.type.ptr) continue;
 
 				output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
 				output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
@@ -565,7 +565,7 @@ class BackendUXN : CompilerBackend {
 		output ~= format("@while_%d_next\n", blockNum);
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
-			if (!var.type.hasDeinit)  continue;
+			if (!var.type.hasDeinit || var.type.ptr) continue;
 
 			output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
 			output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
@@ -624,7 +624,7 @@ class BackendUXN : CompilerBackend {
 				output ~= format("#0000 .vsp LDZ2 STA2\n");
 			}
 
-			if (var.type.hasInit) {
+			if (var.type.hasInit && !var.type.ptr) {
 				output ~= format(".vsp LDZ2 type_init_%s\n", Sanitise(var.type.name));
 			}
 		}
@@ -744,7 +744,7 @@ class BackendUXN : CompilerBackend {
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
 
-			if (var.type.hasDeinit) {
+			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
 				output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
 			}
@@ -869,7 +869,7 @@ class BackendUXN : CompilerBackend {
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
 
-			if (var.type.hasDeinit) {
+			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
 				output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
 			}
@@ -1041,7 +1041,7 @@ class BackendUXN : CompilerBackend {
 		// remove scope
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
-			if (!var.type.hasDeinit)  continue;
+			if (!var.type.hasDeinit || var.type.ptr) continue;
 
 			output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
 			output ~= format("type_deinit_%s\n", Sanitise(var.type.name));

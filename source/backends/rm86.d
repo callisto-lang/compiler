@@ -111,7 +111,7 @@ class BackendRM86 : CompilerBackend {
 		// call globals
 		// what?
 		foreach (global ; globals) {
-			if (global.type.hasInit) {
+			if (global.type.hasInit && !global.type.ptr) {
 				output ~= format(
 					"mov word [si], word __global_%s\n", global.name.Sanitise()
 				);
@@ -162,7 +162,7 @@ class BackendRM86 : CompilerBackend {
 
 	override void End() {
 		foreach (global ; globals) {
-			if (global.type.hasDeinit) {
+			if (global.type.hasDeinit && !global.type.ptr) {
 				output ~= format("mov word [si], word __global_%s\n", Sanitise(global.name));
 				output ~= "add si, 2\n";
 				output ~= format("call __type_deinit_%s\n", Sanitise(global.type.name));
@@ -492,7 +492,7 @@ class BackendRM86 : CompilerBackend {
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
 
-				if (var.type.hasDeinit) {
+				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format("lea ax, [sp + %d\n]", var.offset);
 					output ~= "mov [si], ax\n";
 					output ~= "add si, 2\n";
@@ -538,7 +538,7 @@ class BackendRM86 : CompilerBackend {
 			// remove scope
 			foreach (ref var ; variables) {
 				if (oldVars.canFind(var)) continue;
-				if (!var.type.hasDeinit)  continue;
+				if (!var.type.hasDeinit || var.type.ptr) continue;
 
 				output ~= format("lea ax, [sp + %d\n]", var.offset);
 				output ~= "mov [si], ax\n";
@@ -568,7 +568,7 @@ class BackendRM86 : CompilerBackend {
 			// remove scope
 			foreach (ref var ; variables) {
 				if (oldVars.canFind(var)) continue;
-				if (!var.type.hasDeinit)  continue;
+				if (!var.type.hasDeinit || var.type.ptr) continue;
 
 				output ~= format("lea ax, [sp + %d\n]", var.offset);
 				output ~= "mov [si], ax\n";
@@ -607,7 +607,7 @@ class BackendRM86 : CompilerBackend {
 		output ~= format("__while_%d_next:\n", blockNum);
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
-			if (!var.type.hasDeinit)  continue;
+			if (!var.type.hasDeinit || var.type.ptr) continue;
 
 			output ~= format("lea ax, [sp + %d\n]", var.offset);
 			output ~= "mov [si], ax\n";
@@ -666,7 +666,7 @@ class BackendRM86 : CompilerBackend {
 				output ~= format("sub sp, %d\n", var.Size());
 			}
 
-			if (var.type.hasInit) { // call constructor
+			if (var.type.hasInit && !var.type.ptr) { // call constructor
 				output ~= "mov [si], sp\n";
 				output ~= "add si, 2\n";
 				output ~= format("call __type_init_%s\n", Sanitise(var.type.name));
@@ -793,7 +793,7 @@ class BackendRM86 : CompilerBackend {
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
 
-			if (var.type.hasDeinit) {
+			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format("lea ax, [sp + %d\n]", var.offset);
 				output ~= "mov [si], ax\n";
 				output ~= "add si, 2\n";
@@ -1118,7 +1118,7 @@ class BackendRM86 : CompilerBackend {
 		// remove scope
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
-			if (!var.type.hasDeinit)  continue;
+			if (!var.type.hasDeinit || var.type.ptr) continue;
 
 			output ~= format("lea ax, [sp + %d\n]", var.offset);
 			output ~= "mov [si], ax\n";

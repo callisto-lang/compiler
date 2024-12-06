@@ -237,7 +237,7 @@ class BackendX86_64 : CompilerBackend {
 
 		// call constructors
 		foreach (global ; globals) {
-			if (global.type.hasInit) {
+			if (global.type.hasInit && !global.type.ptr) {
 				output ~= format(
 					"lea rax, qword [__global_%s]\n", global.name.Sanitise()
 				);
@@ -320,7 +320,7 @@ class BackendX86_64 : CompilerBackend {
 	override void End() {
 		// call destructors
 		foreach (global ; globals) {
-			if (global.type.hasDeinit) {
+			if (global.type.hasDeinit && !global.type.ptr) {
 				output ~= format("lea rax, qword [__global_%s]\n", Sanitise(global.name));
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
@@ -778,8 +778,8 @@ class BackendX86_64 : CompilerBackend {
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
 
-				if (var.type.hasDeinit) {
-					output ~= format("lea rax, [rsp + %d\n]", var.offset);
+				if (var.type.hasDeinit && !var.type.ptr) {
+					output ~= format("lea rax, [rsp + %d]\n", var.offset);
 					output ~= "mov [r15], rax\n";
 					output ~= "add r15, 8\n";
 					output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
@@ -824,9 +824,9 @@ class BackendX86_64 : CompilerBackend {
 			// remove scope
 			foreach (ref var ; variables) {
 				if (oldVars.canFind(var)) continue;
-				if (!var.type.hasDeinit)  continue;
+				if (!var.type.hasDeinit || var.type.ptr) continue;
 
-				output ~= format("lea rax, [rsp + %d\n]", var.offset);
+				output ~= format("lea rax, [rsp + %d]\n", var.offset);
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
@@ -854,9 +854,9 @@ class BackendX86_64 : CompilerBackend {
 			// remove scope
 			foreach (ref var ; variables) {
 				if (oldVars.canFind(var)) continue;
-				if (!var.type.hasDeinit)  continue;
+				if (!var.type.hasDeinit || var.type.ptr) continue;
 
-				output ~= format("lea rax, [rsp + %d\n]", var.offset);
+				output ~= format("lea rax, [rsp + %d]\n", var.offset);
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
@@ -893,9 +893,9 @@ class BackendX86_64 : CompilerBackend {
 		output ~= format("__while_%d_next:\n", blockNum);
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
-			if (!var.type.hasDeinit)  continue;
+			if (!var.type.hasDeinit || var.type.ptr) continue;
 
-			output ~= format("lea rax, [rsp + %d\n]", var.offset);
+			output ~= format("lea rax, [rsp + %d]\n", var.offset);
 			output ~= "mov [r15], rax\n";
 			output ~= "add r15, 8\n";
 			output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
@@ -953,7 +953,7 @@ class BackendX86_64 : CompilerBackend {
 				output ~= format("sub rsp, %d\n", var.Size());
 			}
 
-			if (var.type.hasInit) { // call constructor
+			if (var.type.hasInit && !var.type.ptr) { // call constructor
 				output ~= "mov [r15], rsp\n";
 				output ~= "add r15, 8\n";
 				output ~= format("call __type_init_%s\n", Sanitise(var.type.name));
@@ -1070,7 +1070,7 @@ class BackendX86_64 : CompilerBackend {
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
 
-			if (var.type.hasDeinit) {
+			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format("lea rax, [rsp + %d\n]", var.offset);
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
@@ -1260,8 +1260,8 @@ class BackendX86_64 : CompilerBackend {
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
 
-			if (var.type.hasDeinit) {
-				output ~= format("lea rax, [rsp + %d\n]", var.offset);
+			if (var.type.hasDeinit && !var.type.ptr) {
+				output ~= format("lea rax, [rsp + %d]\n", var.offset);
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
@@ -1445,9 +1445,9 @@ class BackendX86_64 : CompilerBackend {
 		// remove scope
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
-			if (!var.type.hasDeinit)  continue;
+			if (!var.type.hasDeinit || var.type.ptr) continue;
 
-			output ~= format("lea rax, [rsp + %d\n]", var.offset);
+			output ~= format("lea rax, [rsp + %d]\n", var.offset);
 			output ~= "mov [r15], rax\n";
 			output ~= "add r15, 8\n";
 			output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));

@@ -35,10 +35,22 @@ class StackChecker {
 	string[]         identifiers;
 	string[][string] structs;
 	size_t[]         whileStacks;
+	string[]         types;
 
 	this() {
 		structs["Array"]     = ["length", "memberSize", "elements"];
 		structs["Exception"] = ["error", "msg"];
+
+		types = [
+			"cell", "bool", "addr", "size", "usize",
+			"u8", "u16", "u32", "u64",
+			"i8", "i16", "i32", "i64",
+			"Array", "Exception"
+		];
+
+		foreach (ref type ; types) {
+			identifiers ~= format("%s.sizeOf", type);
+		}
 
 		foreach (key, structure ; structs) {
 			foreach (ref member ; structure) {

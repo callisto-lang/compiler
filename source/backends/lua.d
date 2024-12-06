@@ -122,7 +122,7 @@ class BackendLua : CompilerBackend {
 	override void End() {
 		// call destructors
 		foreach (name, global ; globals) {
-			if (!global.type.hasDeinit) continue;
+			if (!global.type.hasDeinit && global.type.ptr) continue;
 			auto globalExtra = cast(GlobalExtra*) global.extra;
 
 			output ~= format("mem[dsp] = %d\n", globalExtra.addr);
@@ -389,7 +389,7 @@ class BackendLua : CompilerBackend {
 			foreach (ref var ; variables) {
 				scopeSize += var.Size();
 
-				if (var.type.hasDeinit) {
+				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 					output ~= "dsp = dsp + 1\n";
 					output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
@@ -428,7 +428,7 @@ class BackendLua : CompilerBackend {
 			// remove scope
 			foreach (ref var ; variables) {
 				if (oldVars.canFind(var)) continue;
-				if (!var.type.hasDeinit)  continue;
+				if (!var.type.hasDeinit || var.type.ptr) continue;
 
 				output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 				output ~= "dsp = dsp + 1\n";
@@ -457,7 +457,7 @@ class BackendLua : CompilerBackend {
 			// remove scope
 			foreach (ref var ; variables) {
 				if (oldVars.canFind(var)) continue;
-				if (!var.type.hasDeinit)  continue;
+				if (!var.type.hasDeinit || var.type.ptr) continue;
 
 				output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 				output ~= "dsp = dsp + 1\n";
@@ -495,7 +495,7 @@ class BackendLua : CompilerBackend {
 		output ~= format("::while_%d_next::\n", blockNum);
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
-			if (!var.type.hasDeinit)  continue;
+			if (!var.type.hasDeinit || var.type.ptr) continue;
 
 			output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 			output ~= "dsp = dsp + 1\n";
@@ -551,7 +551,7 @@ class BackendLua : CompilerBackend {
 				output ~= "mem[vsp] = 0\n";
 			}
 
-			if (var.type.hasInit) { // call constructor
+			if (var.type.hasInit && !var.type.ptr) { // call constructor
 				output ~= "mem[dsp] = vsp\n";
 				output ~= "dsp = dsp + 1\n";
 				output ~= format("type_init_%s()\n", var.type.name.Sanitise());
@@ -576,7 +576,7 @@ class BackendLua : CompilerBackend {
 
 			globalStack += global.Size();
 
-			if (global.type.hasInit) { // call constructor
+			if (global.type.hasInit && !global.type.ptr) { // call constructor
 				output ~= format("mem[dsp] = %d\n", extra.addr);
 				output ~= "dsp = dsp + 1\n";
 				output ~= format("type_init_%s()\n", global.type.name.Sanitise());
@@ -700,7 +700,7 @@ class BackendLua : CompilerBackend {
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
 
-			if (var.type.hasDeinit) {
+			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 				output ~= "dsp = dsp + 1\n";
 				output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
@@ -831,7 +831,7 @@ class BackendLua : CompilerBackend {
 		foreach (ref var ; variables) {
 			scopeSize += var.Size();
 
-			if (var.type.hasDeinit) {
+			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 				output ~= "dsp = dsp + 1\n";
 				output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
@@ -981,7 +981,7 @@ class BackendLua : CompilerBackend {
 		// remove scope
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
-			if (!var.type.hasDeinit)  continue;
+			if (!var.type.hasDeinit || var.type.ptr) continue;
 
 			output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 			output ~= "dsp = dsp + 1\n";
