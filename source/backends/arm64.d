@@ -43,6 +43,8 @@ class BackendARM64 : CompilerBackend {
 	bool             useLibc;
 
 	this() {
+		addrSize = 8;
+
 		version (linux) {
 			defaultOS = "linux";
 		}
@@ -363,16 +365,19 @@ class BackendARM64 : CompilerBackend {
 		}
 	}
 
-	void PushGlobalValue(Node node, Global var, size_t size = 0, size_t offset = 0, bool member = false) {
+	void PushGlobalValue(
+		Node node, Global var, size_t size = 0, size_t offset = 0,
+		bool member = false, bool deref = false
+	) {
 		if (size == 0) {
-			size = var.type.size;
-		}
-
-		if (var.type.isStruct && !member) {
-			Error(node.error, "Can't push value of struct");
+			size = var.type.Size();
 		}
 
 		LoadAddress("x9", format("__global_%s", var.name.Sanitise()));
+
+		if (deref) {
+			output ~= "ldr x9, [x9]\n";
+		}
 
 		switch (size) {
 			case 1: output ~= format("ldrb w9, [x9, #%d]\n", offset); break;
@@ -385,22 +390,32 @@ class BackendARM64 : CompilerBackend {
 		output ~= "str x9, [x19], #8\n";
 	}
 
-	void PushVariableValue(Node node, Variable var, size_t size = 0, size_t offset = 0, bool member = false) {
+	void PushVariableValue(
+		Node node, Variable var, size_t size = 0, size_t offset = 0,
+		bool member = false, bool deref = false
+	) {
 		if (size == 0) {
-			size = var.type.size;
+			size = var.type.Size();
 		}
 
 		if (var.type.isStruct && !member) {
 			Error(node.error, "Can't push value of struct");
 		}
 
-		offset += var.offset;
+		string base;
+		if (deref) {
+			output ~= format("ldr x9, [x20, #%d]\n", var.offset);
+			base = "x9";
+		} else {
+			offset += var.offset;
+			base = "x20";
+		}
 
 		switch (size) {
-			case 1: output ~= format("ldrb w9, [x20, #%d]\n", offset); break;
-			case 2: output ~= format("ldrh w9, [x20, #%d]\n", offset); break;
-			case 4: output ~= format("ldr w9, [x20, #%d]\n", offset); break;
-			case 8: output ~= format("ldr x9, [x20, #%d]\n", offset); break;
+			case 1: output ~= format("ldrb w9, [%s, #%d]\n", base, offset); break;
+			case 2: output ~= format("ldrh w9, [%s, #%d]\n", base, offset); break;
+			case 4: output ~= format("ldr w9, [%s, #%d]\n", base, offset); break;
+			case 8: output ~= format("ldr x9, [%s, #%d]\n", base, offset); break;
 			default: Error(node.error, "Bad variable type size");
 		}
 
@@ -533,20 +548,30 @@ class BackendARM64 : CompilerBackend {
 			}
 		}
 		else if (VariableExists(node.name)) {
-			PushVariableValue(node, GetVariable(node.name));
+			auto var = GetVariable(node.name);
+			if (var.type.isStruct && !var.type.ptr) {
+				Error(node.error, "Can't push struct value");
+			}
+			PushVariableValue(node, var);
 		}
 		else if (GlobalExists(node.name)) {
-			PushGlobalValue(node, GetGlobal(node.name));
+			auto var = GetGlobal(node.name);
+			if (var.type.isStruct && !var.type.ptr) {
+				Error(node.error, "Can't push struct value");
+			}
+			PushGlobalValue(node, var);
 		}
 		else if (IsStructMember(node.name)) {
 			string name    = node.name[0 .. node.name.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.name);
 
 			if (GlobalExists(name)) {
-				PushGlobalValue(node, GetGlobal(name), structVar.size, structVar.offset, true);
+				auto var = GetGlobal(name);
+				PushGlobalValue(node, var, structVar.size, structVar.offset, true, var.type.ptr);
 			}
 			else if (VariableExists(name)) {
-				PushVariableValue(node, GetVariable(name), structVar.size, structVar.offset, true);
+				auto var = GetVariable(name);
+				PushVariableValue(node, var, structVar.size, structVar.offset, true, var.type.ptr);
 			}
 		}
 		else if (node.name in consts) {
@@ -1157,40 +1182,49 @@ class BackendARM64 : CompilerBackend {
 		variables  = [];
 	}
 
-	void SetVariable(Node node, Variable var, size_t size = 0, size_t offset = 0, bool member = false) {
+	void SetVariable(
+		Node node, Variable var, size_t size = 0, size_t offset = 0,
+		bool member = false, bool deref = false
+	) {
 		if (size == 0) {
-			size = var.type.size;
+			size = var.type.Size();
 		}
 
 		output ~= "ldr x9, [x19, #-8]!\n";
 
-		if (var.type.isStruct && !member) {
-			Error(node.error, "Can't set struct value");
+		string base;
+		if (deref) {
+			output ~= format("ldr x10, [x20, #%d]\n", var.offset);
+			base = "x10";
+		} else {
+			offset += var.offset;
+			base = "x20";
 		}
 
-		offset += var.offset;
-
 		switch (size) {
-			case 1: output ~= format("strb w9, [x20, #%d]\n", offset); break;
-			case 2: output ~= format("strh w9, [x20, #%d]\n", offset); break;
-			case 4: output ~= format("str w9, [x20, #%d]\n", offset); break;
-			case 8: output ~= format("str x9, [x20, #%d]\n", offset); break;
+			case 1: output ~= format("strb w9, [%s, #%d]\n", base, offset); break;
+			case 2: output ~= format("strh w9, [%s, #%d]\n", base, offset); break;
+			case 4: output ~= format("str w9, [%s, #%d]\n", base, offset); break;
+			case 8: output ~= format("str x9, [%s, #%d]\n", base, offset); break;
 			default: Error(node.error, "Bad variable type size");
 		}
 	}
 
-	void SetGlobal(Node node, Global global, size_t size = 0, size_t offset = 0, bool member = false) {
+	void SetGlobal(
+		Node node, Global global, size_t size = 0, size_t offset = 0,
+		bool member = false, bool deref = false
+	) {
 		if (size == 0) {
-			size = global.type.size;
+			size = global.type.Size();
 		}
 
 		output ~= "ldr x9, [x19, #-8]!\n";
 
-		if (global.type.isStruct && !member) {
-			Error(node.error, "Can't set struct value");
-		}
-
 		LoadAddress("x10", format("__global_%s", global.name.Sanitise()));
+
+		if (deref) {
+			output ~= "ldr x10, [x10]\n";
+		}
 
 		switch (size) {
 			case 1: output ~= format("strb w9, [x10, #%d]\n", offset); break;
@@ -1203,20 +1237,30 @@ class BackendARM64 : CompilerBackend {
 
 	override void CompileSet(SetNode node) {
 		if (VariableExists(node.var)) {
-			SetVariable(node, GetVariable(node.var));
+			auto var = GetVariable(node.var);
+			if (var.type.isStruct && !var.type.ptr) {
+				Error(node.error, "Can't set struct value");
+			}
+			SetVariable(node, var);
 		}
 		else if (GlobalExists(node.var)) {
-			SetGlobal(node, GetGlobal(node.var));
+			auto var = GetGlobal(node.var);
+			if (var.type.isStruct && !var.type.ptr) {
+				Error(node.error, "Can't set struct value");
+			}
+			SetGlobal(node, var);
 		}
 		else if (IsStructMember(node.var)) {
 			string name    = node.var[0 .. node.var.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.var);
 
 			if (VariableExists(name)) {
-				SetVariable(node, GetVariable(name), structVar.size, structVar.offset, true);
+				auto var = GetVariable(name);
+				SetVariable(node, var, structVar.size, structVar.offset, true, var.type.ptr);
 			}
 			else if (GlobalExists(name)) {
-				SetGlobal(node, GetGlobal(name), structVar.size, structVar. offset, true);
+				auto var = GetGlobal(name);
+				SetGlobal(node, var, structVar.size, structVar. offset, true, var.type.ptr);
 			}
 		}
 		else {
