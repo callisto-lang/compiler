@@ -14,7 +14,7 @@ struct ErrorInfo {
 	size_t col;
 	size_t length;
 
-	string toString() => format("%s:%d:%d", file, line, col);
+	string toString() => format("%s:%d:%d", file, line + 1, col + 1);
 }
 
 private string FixPath(string path) => path.asRelativePath(getcwd()).array;
