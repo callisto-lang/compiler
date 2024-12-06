@@ -574,6 +574,7 @@ class Parser {
 	size_t   i;
 	Node[]   nodes;
 	NodeType parsing;
+	Token    parseStart;
 
 	this() {
 		
@@ -597,7 +598,7 @@ class Parser {
 
 		if (i >= tokens.length) {
 			-- i;
-			Error("Unexpected EOF while parsing %s", parsing);
+			Error("Unexpected EOF while parsing %s at %s", parsing, parseStart.GetError());
 		}
 	}
 
@@ -641,6 +642,7 @@ class Parser {
 		auto ret   = new FuncDefNode(GetError());
 		ret.inline = inline;
 		parsing    = NodeType.FuncDef;
+		parseStart = tokens[i];
 
 		bool readingAttr = true;
 		while (readingAttr) {
@@ -709,6 +711,7 @@ class Parser {
 	Node ParseInclude() {
 		auto ret = new IncludeNode(GetError());
 		parsing  = NodeType.Include;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.String);
@@ -720,6 +723,7 @@ class Parser {
 	Node ParseAsm() {
 		auto ret = new AsmNode(GetError());
 		parsing  = NodeType.Asm;
+		parseStart = tokens[i];
 		Next();
 
 		while (true) {
@@ -751,6 +755,7 @@ class Parser {
 		ret.condition ~= new Node[](0);
 		ret.doIf      ~= new Node[](0);
 		parsing        = NodeType.If;
+		parseStart     = tokens[i];
 		Next();
 
 		while (true) {
@@ -820,6 +825,7 @@ class Parser {
 	Node ParseWhile() {
 		auto ret = new WhileNode(GetError());
 		parsing  = NodeType.While;
+		parseStart = tokens[i];
 		Next();
 
 		while (true) {
@@ -857,6 +863,7 @@ class Parser {
 	Node ParseLet() {
 		auto ret = new LetNode(GetError());
 		parsing  = NodeType.Let;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -882,6 +889,7 @@ class Parser {
 	Node ParseEnable() {
 		auto ret = new EnableNode(GetError());
 		parsing  = NodeType.Enable;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -893,6 +901,7 @@ class Parser {
 	Node ParseRequires() {
 		auto ret = new RequiresNode(GetError());
 		parsing  = NodeType.Requires;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -904,6 +913,7 @@ class Parser {
 	Node ParseArray() {
 		auto ret = new ArrayNode(GetError());
 		parsing  = NodeType.Array;
+		parseStart = tokens[i];
 
 		switch (tokens[i].contents) {
 			case "c": {
@@ -937,6 +947,7 @@ class Parser {
 	Node ParseString() {
 		auto ret = new StringNode(GetError());
 		parsing  = NodeType.String;
+		parseStart = tokens[i];
 
 		switch (tokens[i].extra) {
 			case "c": {
@@ -956,6 +967,7 @@ class Parser {
 	Node ParseStruct() {
 		auto ret = new StructNode(GetError());
 		parsing  = NodeType.Struct;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1016,6 +1028,7 @@ class Parser {
 	Node ParseVersion() {
 		auto ret = new VersionNode(GetError());
 		parsing  = NodeType.Version;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1047,6 +1060,7 @@ class Parser {
 	Node ParseConst() {
 		auto ret = new ConstNode(GetError());
 		parsing  = NodeType.Const;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1062,6 +1076,7 @@ class Parser {
 	Node ParseEnum() {
 		auto ret = new EnumNode(GetError());
 		parsing  = NodeType.Enum;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1106,6 +1121,7 @@ class Parser {
 	Node ParseRestrict() {
 		auto ret = new RestrictNode(GetError());
 		parsing  = NodeType.Restrict;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1117,6 +1133,7 @@ class Parser {
 	Node ParseUnion() {
 		auto ret = new UnionNode(GetError());
 		parsing  = NodeType.Union;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1140,6 +1157,7 @@ class Parser {
 	Node ParseAlias() {
 		auto ret = new AliasNode(GetError());
 		parsing  = NodeType.Alias;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1162,6 +1180,7 @@ class Parser {
 	Node ParseExtern() {
 		auto ret = new ExternNode(GetError());
 		parsing  = NodeType.Extern;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1213,6 +1232,7 @@ class Parser {
 	Node ParseAddr() {
 		auto ret = new AddrNode(GetError());
 		parsing  = NodeType.Addr;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1224,6 +1244,7 @@ class Parser {
 	Node ParseImplement() {
 		auto ret = new ImplementNode(GetError());
 		parsing  = NodeType.Implement;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1257,6 +1278,7 @@ class Parser {
 	Node ParseSet() {
 		auto ret = new SetNode(GetError());
 		parsing  = NodeType.Set;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1268,6 +1290,7 @@ class Parser {
 	Node ParseTryCatch() {
 		auto ret = new TryCatchNode(GetError());
 		parsing  = NodeType.TryCatch;
+		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
@@ -1289,6 +1312,7 @@ class Parser {
 	Node ParseUnsafe() {
 		auto ret = new UnsafeNode(GetError());
 		parsing  = NodeType.Unsafe;
+		parseStart = tokens[i];
 
 		Next();
 
