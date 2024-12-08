@@ -85,7 +85,7 @@ class BackendUXN : CompilerBackend {
 
 	override string DefaultHeader() => "
 		|00 @System &vector $2 &expansion $2 &wst $1 &rst $1 &metadata $2 &r $2 &g $2 &b $2 &debug $1 &state $1
-		|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1
+		|10 @Console &vector $2 &read $5 &type $1 &write $1 &error $1
 	";
 
 	override bool HandleOption(string opt, ref string[] versions) => false;

@@ -499,7 +499,10 @@ class Compiler {
 			case NodeType.TryCatch:  backend.CompileTryCatch(cast(TryCatchNode) inode); break;
 			case NodeType.Unsafe: {
 				auto node = cast(UnsafeNode) inode;
-				Compile(node.nodes);
+
+				foreach (ref inode2 ; node.nodes) {
+					CompileNode(inode2);
+				}
 				break;
 			}
 			default: {
