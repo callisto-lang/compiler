@@ -122,7 +122,7 @@ class BackendLua : CompilerBackend {
 	override void End() {
 		// call destructors
 		foreach (name, global ; globals) {
-			if (!global.type.hasDeinit && global.type.ptr) continue;
+			if (!global.type.hasDeinit || global.type.ptr) continue;
 			auto globalExtra = cast(GlobalExtra*) global.extra;
 
 			output ~= format("mem[dsp] = %d\n", globalExtra.addr);
