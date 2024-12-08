@@ -148,6 +148,8 @@ class CompilerBackend {
 			foreach (ref member ; GetType(node.inheritsFrom).structure) {
 				members ~= member.name;
 			}
+
+			offset = GetType(node.inheritsFrom).size;
 		}
 
 		foreach (ref member ; node.members) {
@@ -162,7 +164,7 @@ class CompilerBackend {
 			memberType.ptr      = member.type.ptr;
 
 			auto newMember = StructEntry(
-				memberType, member.name, member.array, member.size, offset
+				memberType, member.name, member.array, memberType.Size(), offset
 			);
 			entries ~= newMember;
 			members ~= member.name;
@@ -177,6 +179,12 @@ class CompilerBackend {
 
 		NewConst(format("%s.sizeOf", node.name), offset);
 		types ~= Type(node.name, offset, true, entries);
+
+		if (node.name == "Vector") {
+			foreach (ref entry ; entries) {
+				writeln(entry);
+			}
+		}
 	}
 
 	void CompileEnum(EnumNode node) {
