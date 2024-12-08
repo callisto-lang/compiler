@@ -179,12 +179,6 @@ class CompilerBackend {
 
 		NewConst(format("%s.sizeOf", node.name), offset);
 		types ~= Type(node.name, offset, true, entries);
-
-		if (node.name == "Vector") {
-			foreach (ref entry ; entries) {
-				writeln(entry);
-			}
-		}
 	}
 
 	void CompileEnum(EnumNode node) {
