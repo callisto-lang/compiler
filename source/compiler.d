@@ -362,7 +362,7 @@ class CompilerBackend {
 		}
 
 		offset += structure[index].offset;
-		size_t size = structure[index].type.size;
+		size_t size = structure[index].type.Size();
 
 		return StructVariable(size, offset);
 	}

@@ -75,9 +75,9 @@ class BackendX86_64 : CompilerBackend {
 
 		// built in structs
 		types ~= Type("Array", 24, true, [
-			StructEntry(UsedType(GetType("usize"), false), "length"),
-			StructEntry(UsedType(GetType("usize"), false), "memberSize"),
-			StructEntry(UsedType(GetType("addr"), false), "elements")
+			StructEntry(UsedType(GetType("usize"), false), "length", false, 8, 0),
+			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 8, 8),
+			StructEntry(UsedType(GetType("addr"), false), "elements", false, 8, 16)
 		]);
 		NewConst("Array.length",     0);
 		NewConst("Array.memberSize", 8);
@@ -85,8 +85,8 @@ class BackendX86_64 : CompilerBackend {
 		NewConst("Array.sizeOf",     8 * 3);
 
 		types ~= Type("Exception", 24 + 8, true, [
-			StructEntry(UsedType(GetType("bool"), false),  "error"),
-			StructEntry(UsedType(GetType("Array"), false), "msg")
+			StructEntry(UsedType(GetType("bool"), false),  "error", false, 8, 0),
+			StructEntry(UsedType(GetType("Array"), false), "msg", false, 24, 8)
 		]);
 		NewConst("Exception.error",  0);
 		NewConst("Exception.msg",    8);
