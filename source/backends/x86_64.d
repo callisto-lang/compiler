@@ -40,6 +40,7 @@ class BackendX86_64 : CompilerBackend {
 	bool             inWhile;
 	uint             currentLoop;
 	bool             useLibc;
+	uint             tempLabelNum;
 
 	this() {
 		addrSize = 8;
@@ -99,6 +100,11 @@ class BackendX86_64 : CompilerBackend {
 		globals ~= Global(
 			"_cal_exception", UsedType(GetType("Exception"), false), false, 0
 		);
+	}
+
+	string TempLabel() {
+		++ tempLabelNum;
+		return format("__temp_%d", tempLabelNum);
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
@@ -600,8 +606,13 @@ class BackendX86_64 : CompilerBackend {
 						output ~= format("jne __func__%s\n", Sanitise("__x86_64_exception"));
 					}
 					else {
+						string temp = TempLabel();
+						
+						output ~= format("cmp qword [__global_%s], 0\n", Sanitise("_cal_exception"));
+						output ~= format("je %s\n", temp);
 						output ~= "mov r15, r14\n";
 						CompileReturn(node);
+						output ~= format("%s:\n", temp);
 					}
 				}
 				else {

@@ -527,15 +527,17 @@ class BackendARM64 : CompilerBackend {
 						crash = true;
 					}
 
+					LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
+					output ~= "ldr x9, [x9]\n";
+					output ~= "cmp x9, #0\n";
 					if (crash) {
-						LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
-						output ~= "ldr x9, [x9]\n";
-						output ~= "cmp x9, #0\n";
 						output ~= format("bne __func__%s\n", Sanitise("__arm64_exception"));
 					}
 					else {
+						output ~= "beq 1f\n";
 						output ~= "mov x19, x15\n";
 						CompileReturn(node);
+						output ~= "1:\n";
 					}
 				}
 				else {
@@ -868,7 +870,7 @@ class BackendARM64 : CompilerBackend {
 				default: OffsetLocalsStack(var.Size(), true);
 			}
 
-			if (var.type.hasInit) { // call constructor
+			if (var.type.hasInit && !var.type.ptr) { // call constructor
 				output ~= "str x20, [x19], #8\n";
 				output ~= format("bl __type_init_%s\n", var.type.name.Sanitise());
 			}

@@ -1,0 +1,40 @@
+include "cores/select.cal"
+include "std/io.cal"
+include "std/vector.cal"
+
+let Vector vec
+cell.sizeOf &vec init_vec
+
+func vec_info begin
+	"Capacity: " printstr vec.capacity printdec new_line
+	"Length: " printstr vec.length printdec new_line
+
+	"Contents: " printstr
+
+	0
+	while dup vec.length < do
+		dup &vec a@ printdec ' ' printch
+		1 +	
+	end
+	drop
+
+	new_line new_line
+end
+
+"=== vec_push 1" printstr new_line
+1 &vec vec_push
+&vec vec_top printdec new_line
+vec_info
+
+"=== vec_push 2, 3" printstr new_line
+2 &vec vec_push
+3 &vec vec_push
+vec_info
+
+"=== vec_remove 1" printstr new_line
+1 &vec vec_remove
+vec_info
+
+"=== vec_insert 1, 5" printstr new_line
+5 1 &vec vec_insert
+vec_info

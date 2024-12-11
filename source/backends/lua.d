@@ -110,6 +110,7 @@ class BackendLua : CompilerBackend {
 		output ~= "gsp = 524288;\n";
 		output ~= "regA = 0;\n";
 		output ~= "regB = 0;\n";
+		output ~= "dspRestore = 0;\n";
 
 		output ~= "
 			function cal_pop()
@@ -230,19 +231,35 @@ class BackendLua : CompilerBackend {
 				output ~= format("func__%s();\n", node.name.Sanitise());
 
 				if (word.error && words[thisFunc].error) {
-					output ~= "dsp = mem[vsp]\n";
+					output ~= "dspRestore = mem[vsp]\n";
 					output ~= "vsp = vsp + 1\n";
 				}
 			}
 
 			if (word.error) {
 				if ("__lua_exception" in words) {
+					bool crash;
 					auto exception = GetGlobal("_cal_exception");
 					auto extra     = cast(GlobalExtra*) exception.extra;
 
-					output ~= format("if mem[%d] ~= 0 then\n", extra.addr);
-					output ~= format("func__%s()\n", Sanitise("__lua_exception"));
-					output ~= "end\n";
+					if (inScope) {
+						crash = !words[thisFunc].error;
+					}
+					else {
+						crash = true;
+					}
+
+					if (crash) {
+						output ~= format("if mem[%d] ~= 0 then\n", extra.addr);
+						output ~= format("func__%s()\n", Sanitise("__lua_exception"));
+						output ~= "end\n";
+					}
+					else {
+						output ~= format("if mem[%d] ~= 0 then\n", extra.addr);
+						output ~= "dsp = dspRestore\n";
+						CompileReturn(node);
+						output ~= "end\n";
+					}
 				}
 				else {
 					Warn(node.error, "No exception handler");

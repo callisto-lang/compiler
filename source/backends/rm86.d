@@ -31,6 +31,7 @@ class BackendRM86 : CompilerBackend {
 	bool             inWhile;
 	uint             currentLoop;
 	RM86Opts         opts;
+	uint             tempLabelNum;
 
 	this() {
 		addrSize  = 2;
@@ -72,6 +73,11 @@ class BackendRM86 : CompilerBackend {
 		globals ~= Global(
 			"_cal_exception", UsedType(GetType("Exception"), false), false, 0
 		);
+	}
+
+	string TempLabel() {
+		++ tempLabelNum;
+		return format("__temp_%d", tempLabelNum);
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
@@ -340,8 +346,13 @@ class BackendRM86 : CompilerBackend {
 						output ~= format("jne __func__%s\n", Sanitise("__rm86_exception"));
 					}
 					else {
+						string temp = TempLabel();
+
+						output ~= format("cmp word [__global_%s], 0\n", Sanitise("_cal_exception"));
+						output ~= format("je %s\n", temp);
 						output ~= "mov si, di\n";
 						CompileReturn(node);
+						output ~= format("%s:\n", temp);
 					}
 				}
 				else {

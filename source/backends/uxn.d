@@ -26,6 +26,7 @@ class BackendUXN : CompilerBackend {
 	string           thisFunc;
 	bool             inWhile;
 	uint             currentLoop;
+	uint             tempLabelNum;
 
 	this() {
 		addrSize = 2;
@@ -66,6 +67,11 @@ class BackendUXN : CompilerBackend {
 		globals ~= Global(
 			"_cal_exception", UsedType(GetType("Exception"), false), false, 0
 		);
+	}
+
+	string TempLabel() {
+		++ tempLabelNum;
+		return format("__temp_%d", tempLabelNum);
 	}
 
 	override string[] GetVersions() => [
@@ -295,11 +301,16 @@ class BackendUXN : CompilerBackend {
 					if (crash) {
 						output ~= format(";global_%s LDA2\n", Sanitise("_cal_exception"));
 						output ~= "#0000 NEQ2\n";
-						output ~= format(";func__%s JCN2\n", Sanitise("__uxn_exception"));
+						output ~= format("?func__%s\n", Sanitise("__uxn_exception"));
 					}
 					else {
+						string temp = TempLabel();
+
+						output ~= format(";global_%s LDA2\n", Sanitise("_cal_exception"));
+						output ~= format("#0000 EQU2 ?%s\n", temp);
 						output ~= ".temp LDZ .System/wst DEO\n";
 						CompileReturn(node);
+						output ~= format("@%s\n", temp);
 					}
 				}
 				else {

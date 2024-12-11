@@ -36,6 +36,7 @@ class StackChecker {
 	string[][string] structs;
 	size_t[]         whileStacks;
 	string[]         types;
+	string           thisFunc;
 
 	this() {
 		structs["Array"]     = ["length", "memberSize", "elements"];
@@ -161,6 +162,7 @@ class StackChecker {
 			}
 		}
 
+		thisFunc = node.name;
 		Evaluate(node.nodes);
 
 		if (stack.length > node.returnTypes.length) {
@@ -407,7 +409,7 @@ class StackChecker {
 				auto wnode = cast(WordNode) node;
 
 				switch (wnode.name) {
-					case "return":   Pop(node, 1); break;
+					case "return":   Pop(node, words[thisFunc].effect.push); break;
 					case "continue": EvaluateBreakContinue(wnode); break;
 					case "break":    EvaluateBreakContinue(wnode); break;
 					case "call":     Error(node.error, "Call is unsafe"); break;
