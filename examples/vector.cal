@@ -38,3 +38,8 @@ vec_info
 "=== vec_insert 1, 5" printstr new_line
 5 1 &vec vec_insert
 vec_info
+
+"=== to_vec [1, 2, 3, 4, 5]" printstr new_line
+&vec free_vec
+[cell 1 2 3 4 5] &vec to_vec
+vec_info
