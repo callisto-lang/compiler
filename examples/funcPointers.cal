@@ -2,7 +2,7 @@ include "cores/select.cal"
 include "std/io.cal"
 
 func sayHello begin
-	"Hello!\n" printstr
+	"Hello!\n" print_str
 end
 
 &sayHello call

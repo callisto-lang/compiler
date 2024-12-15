@@ -2,9 +2,9 @@ include "cores/select.cal"
 include "std/io.cal"
 
 # This is a single line comment
-"hi\n" printstr
+"hi\n" print_str
 
 (
 	This is a multi line comment
 )
-"hello\n" printstr
+"hello\n" print_str

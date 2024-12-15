@@ -2,8 +2,8 @@ include "cores/select.cal"
 include "std/io.cal"
 
 alias int cell
-"int.sizeof = " printstr int.sizeOf printdec new_line
+"int.sizeof = " print_str int.sizeOf print_dec new_line
 
 let int myInt
 65 -> myInt
-myInt printdec new_line
+myInt print_dec new_line

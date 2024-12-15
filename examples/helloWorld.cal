@@ -1,4 +1,4 @@
 include "cores/select.cal"
 include "std/io.cal"
 
-"Hello, world!\n" printstr
+"Hello, world!\n" print_str

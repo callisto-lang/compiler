@@ -4,12 +4,12 @@ include "std/conv.cal"
 include "std/io.cal"
 
 if get_args_length 3 < then
-	"Required parameters: a b\n" printstr
+	"Required parameters: a b\n" print_str
 	1 exit
 end
 
 let Array arg
 1 &arg get_arg &arg parse_int
 2 &arg get_arg &arg parse_int
-+ printdec new_line
++ print_dec new_line
 

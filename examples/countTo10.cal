@@ -4,6 +4,6 @@ include "std/io.cal"
 let cell i
 0 -> i
 while i 10 < do
-	i 1 + printdec new_line
+	i 1 + print_dec new_line
 	i 1 + -> i
 end

@@ -8,8 +8,8 @@ let Array arg
 
 while i get_args_length < do
 	i &arg get_arg
-	&arg printstr
-	' ' printch
+	&arg print_str
+	' ' print_ch
 	i 1 + -> i
 end
 

@@ -9,8 +9,8 @@ struct Building : Thing
 	cell numWindows
 end
 
-"Thing.name          = " printstr Thing.name printdec new_line
-"Thing.sizeof        = " printstr Thing.sizeOf printdec new_line
-"Building.name       = " printstr Building.name printdec new_line
-"Building.numWindows = " printstr Building.numWindows printdec new_line
-"Building.sizeof     = " printstr Building.sizeOf printdec new_line
+"Thing.name          = " print_str Thing.name print_dec new_line
+"Thing.sizeof        = " print_str Thing.sizeOf print_dec new_line
+"Building.name       = " print_str Building.name print_dec new_line
+"Building.numWindows = " print_str Building.numWindows print_dec new_line
+"Building.sizeof     = " print_str Building.sizeOf print_dec new_line
