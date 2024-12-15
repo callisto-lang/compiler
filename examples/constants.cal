@@ -3,4 +3,4 @@ include "std/io.cal"
 
 const myConst 5
 
-myConst printdec new_line
+myConst print_dec new_line

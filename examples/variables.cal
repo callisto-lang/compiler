@@ -5,12 +5,12 @@ let cell myGlobal
 func myFunc begin
 	let cell myVar
 	'A' -> myVar
-	myVar printch
+	myVar print_ch
 end
 
 myFunc
 
 'B' -> myGlobal
-myGlobal printch
+myGlobal print_ch
 
-'\n' printch
+'\n' print_ch

@@ -6,13 +6,13 @@ struct meow
 end
 
 implement meow init
-	"meow init\n" printstr
+	"meow init\n" print_str
 	5 swap !
 end
 
 implement meow deinit
-	"meow end\n" printstr
+	"meow end\n" print_str
 end
 
 let meow myMeow
-&myMeow @ printdec new_line
+&myMeow @ print_dec new_line

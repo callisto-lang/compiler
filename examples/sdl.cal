@@ -24,22 +24,22 @@ end
 let addr window
 let addr renderer
 
-"Init " printstr
-SDL_INIT_VIDEO SDL_Init printdec new_line
+"Init " print_str
+SDL_INIT_VIDEO SDL_Init print_dec new_line
 
-"Window " printstr
+"Window " print_str
 "Callisto\0" Array.elements + @ 0 0 320 240 0 SDL_CreateWindow -> window
-window printdec new_line
+window print_dec new_line
 
-"Renderer " printstr
+"Renderer " print_str
 window -1 SDL_RENDERER_PRESENTVSYNC SDL_RENDERER_ACCELERATED or SDL_CreateRenderer -> renderer
-renderer printdec new_line
+renderer print_dec new_line
 
 while true do
 	let SDL_Event e
 	while &e SDL_PollEvent do
 		if &e d@ SDL_QUIT = then
-			"Bye!\n" printstr
+			"Bye!\n" print_str
 			renderer SDL_DestroyRenderer
 			window SDL_DestroyWindow
 			SDL_Quit

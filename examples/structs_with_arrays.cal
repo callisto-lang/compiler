@@ -7,6 +7,6 @@ struct MyStruct
 	cell baz
 end
 
-MyStruct.foo printdec new_line
-MyStruct.bar printdec new_line
-MyStruct.baz printdec new_line
+MyStruct.foo print_dec new_line
+MyStruct.bar print_dec new_line
+MyStruct.baz print_dec new_line

@@ -7,4 +7,4 @@ version x86_64
 	error
 end
 
-"Hello, world!" printstr
+"Hello, world!" print_str

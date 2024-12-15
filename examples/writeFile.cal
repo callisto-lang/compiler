@@ -5,7 +5,7 @@ let File file
 "test" FILE_WRITE open_file &file file<
 
 if &file @ -2 = then
-	"Failed to open file\n" printstr
+	"Failed to open file\n" print_str
 	1 exit
 end
 

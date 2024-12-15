@@ -2,16 +2,16 @@ include "cores/select.cal"
 include "std/io.cal"
 
 let addr meow
-8 malloc -> meow
+8 alloc -> meow
 
-"Address: " printstr
-meow printdec new_line
+"Address: " print_str
+meow print_dec new_line
 
 64 meow !
-meow @ printdec new_line
+meow @ print_dec new_line
 
-"New address: " printstr
-meow 16 realloc printdec new_line
+"New address: " print_str
+meow 16 realloc print_dec new_line
 
 128 meow 8 + !
-meow 8 + @ printdec new_line
+meow 8 + @ print_dec new_line

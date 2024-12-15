@@ -2,4 +2,4 @@ include "cores/select.cal"
 include "std/io.cal"
 include "std/common.cal"
 
-2 2 + 3 * 4 / 10 % printdec
+2 2 + 3 * 4 / 10 % print_dec

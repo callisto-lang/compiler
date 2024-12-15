@@ -3,4 +3,4 @@ include "std/io.cal"
 
 requires Time
 
-get_epoch_time printdec new_line
+get_epoch_time print_dec new_line

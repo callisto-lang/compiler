@@ -6,6 +6,6 @@ let cell i
 0 -> i
 
 while i 10 < do
-	rand printdec new_line
+	rand print_dec new_line
 	i 1 + -> i
 end

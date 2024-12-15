@@ -3,7 +3,7 @@ include "std/io.cal"
 include "std/args.cal"
 
 if get_args_length 2 < then
-	"Required parameter: path\n" printstr
+	"Required parameter: path\n" print_str
 	0 exit
 end
 
@@ -14,7 +14,7 @@ let File file
 &path FILE_READ open_file &file file<
 
 if &file @ -2 = then
-	"Failed to open file\n" printstr
+	"Failed to open file\n" print_str
 	1 exit
 end
 
@@ -32,4 +32,4 @@ fileSize &fileArray Array.length + !
 
 &file &fileContents fileSize file@ 
 
-&fileArray printstr new_line
+&fileArray print_str new_line

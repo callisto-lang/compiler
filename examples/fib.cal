@@ -11,4 +11,4 @@ func fib cell n -> cell res begin
 	end
 end
 
-9 fib printdec new_line
+9 fib print_dec new_line

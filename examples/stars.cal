@@ -8,14 +8,14 @@ let cell y
 while y 20 < do
 	while x 40 < do
 		if x 1 + y 1 + % 0 = then
-			'*' printch
+			'*' print_ch
 		else
-			' ' printch
+			' ' print_ch
 		end
 
 		x 1 + -> x
 	end
-	13 printch 10 printch
+	13 print_ch 10 print_ch
 	y 1 + -> y
 	0 -> x
 end
