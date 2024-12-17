@@ -2,10 +2,10 @@ include "cores/select.cal"
 include "std/io.cal"
 
 # Hexadecimal - prints 16
-0x10 printdec new_line
+0x10 print_dec new_line
 
 # Binary - prints 16
-0b00010000 printdec new_line
+0b00010000 print_dec new_line
 
 # Octal - prints 16
-0o20 printdec new_line
+0o20 print_dec new_line

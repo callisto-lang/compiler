@@ -11,7 +11,7 @@ end
 
 try foo
 catch
-	exception_msg printstr new_line
+	exception_msg print_str new_line
 end
 
 foo

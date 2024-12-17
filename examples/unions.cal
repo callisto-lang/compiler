@@ -6,12 +6,12 @@ union MyUnion
 	Array
 end
 
-"MyUnion.sizeof = " printstr MyUnion.sizeOf printdec new_line
+"MyUnion.sizeof = " print_str MyUnion.sizeOf print_dec new_line
 
 let MyUnion foo
 
 65 &foo !
-&foo @ printdec new_line
+&foo @ print_dec new_line
 
 "Hello, world!\n" &foo a<
-&foo printstr
+&foo print_str

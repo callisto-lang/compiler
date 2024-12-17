@@ -14,7 +14,7 @@ func man sierpinski cell n begin
 		0 -> x
 
 		while x pad < do
-			' ' printch
+			' ' print_ch
 			x 1 + -> x
 		end
 
@@ -22,18 +22,18 @@ func man sierpinski cell n begin
 
 		while x n 2 / < do
 			if x n y 1 + - and then
-				' ' printch
+				' ' print_ch
 			else
-				'*' printch
+				'*' print_ch
 			end
-			' ' printch
+			' ' print_ch
 
 			x 1 + -> x
 		end
 
 		y 1 + -> y
 		pad 1 - -> pad
-		13 printch 10 printch
+		13 print_ch 10 print_ch
 	end
 end
 

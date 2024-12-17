@@ -6,7 +6,7 @@ let cell i
 
 while 1 do
 	i 1 + -> i
-	i printdec new_line
+	i print_dec new_line
 
 	if i 5 = then
 		break
