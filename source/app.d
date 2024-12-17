@@ -16,6 +16,7 @@ import callisto.backends.lua;
 import callisto.backends.uxn;
 import callisto.backends.rm86;
 import callisto.backends.arm64;
+import callisto.backends.fox32;
 import callisto.backends.x86_64;
 
 const static string appVersion = "Beta 0.12.4";
@@ -196,6 +197,10 @@ int main(string[] args) {
 						case "lua": {
 							writeln("Language subset 'CallistoScript' in use");
 							backend = new BackendLua();
+							break;
+						}
+						case "fox32": {
+							backend = new BackendFox32();
 							break;
 						}
 						default: {

@@ -23,3 +23,5 @@ out
 out.o
 out.exe
 out*
+fox32os.def
+fox32rom.def
