@@ -34,7 +34,7 @@ class BackendFox32 : CompilerBackend {
 	bool         inWhile;
 
 	this() {
-		addrSize = 8;
+		addrSize = 4;
 
 		version (linux) {
 			defaultOS = "linux";
