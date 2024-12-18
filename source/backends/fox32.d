@@ -160,7 +160,7 @@ class BackendFox32 : CompilerBackend {
 
 		// allocate data stack
 		output ~= "sub rsp, 2048\n"; // 512 cells
-		output ~= "mov r31, rsp\n";
+		output ~= "mov r30, rsp\n";
 
 		// jump to main
 		output ~= "jmp __calmain\n";
@@ -231,8 +231,8 @@ class BackendFox32 : CompilerBackend {
 			}
 		}
 
-		output ~= "mov [r31], r0\n";
-		output ~= "inc r31, 4\n";
+		output ~= "mov [r30], r0\n";
+		output ~= "inc r30, 4\n";
 	}
 
 	void PushVariableValue(
@@ -266,8 +266,8 @@ class BackendFox32 : CompilerBackend {
 			}
 		}
 
-		output ~= "mov [r31], r0\n";
-		output ~= "add r31, 4\n";
+		output ~= "mov [r30], r0\n";
+		output ~= "add r30, 4\n";
 	}
 
 	override void CompileWord(WordNode node) {
@@ -301,14 +301,39 @@ class BackendFox32 : CompilerBackend {
 
 			PushGlobalValue(node, GetGlobal(node.name));
 		}
+		else if (IsStructMember(node.name)) {
+			string name    = node.name[0 .. node.name.countUntil(".")];
+			auto structVar = GetStructVariable(node, node.name);
+
+			if (GlobalExists(name)) {
+				auto var = GetGlobal(name);
+
+				PushGlobalValue(
+					node, var, structVar.size, structVar.offset, true, var.type.ptr
+				);
+			}
+			else if (VariableExists(name)) {
+				auto var = GetVariable(name);
+
+				PushVariableValue(
+					node, var, structVar.size, structVar.offset, true, var.type.ptr
+				);
+			}
+		}
+		else if (node.name in consts) {
+			auto value  = consts[node.name].value;
+			value.error = node.error;
+
+			compiler.CompileNode(consts[node.name].value);
+		}
 		else {
 			Error(node.error, "Undefined identifier '%s'", node.name);
 		}
 	}
 
 	override void CompileInteger(IntegerNode node) {
-		output ~= format("mov.32 [r31], %d\n", node.value);
-		output ~= "add r31, 4\n";
+		output ~= format("mov.32 [r30], %d\n", node.value);
+		output ~= "add r30, 4\n";
 	}
 
 	override void CompileFuncDef(FuncDefNode node) {
@@ -334,6 +359,52 @@ class BackendFox32 : CompilerBackend {
 				node.raw? node.name : format("__func__%s", node.name.Sanitise());
 
 			output ~= format("%s:\n", symbol);
+
+			// allocate parameters
+			size_t paramSize = node.params.length * 4;
+			foreach (ref type ; node.paramTypes) {
+				if (!TypeExists(type.name)) {
+					Error(node.error, "Type '%s' doesn't exist", type.name);
+				}
+				if (GetType(type.name).isStruct && !type.ptr) {
+					Error(node.error, "Structures cannot be used in function parameters");
+				}
+			}
+			if ((paramSize > 0) && !node.manual) {
+				output ~= format("sub rsp, %d\n", paramSize);
+				foreach (ref var ; variables) {
+					var.offset += paramSize;
+				}
+
+				size_t offset;
+				foreach (i, ref type ; node.paramTypes) {
+					auto     param = node.params[i];
+					Variable var;
+
+					var.name      = param;
+					var.type.type = GetType(type.name);
+					var.type.ptr  = type.ptr;
+					var.offset    = cast(uint) offset;
+					offset       += var.Size();
+					variables    ~= var;
+				}
+
+				// copy data to parameters
+				if (node.params.length > 10) {
+					output ~= format("sub r30, %d\n", paramSize);
+					output ~= "mov r0, r30\n";
+					output ~= "mov r1, rsp\n";
+					output ~= format("mov r2, %d\n", paramSize / 4);
+					output ~= "call copy_memory_bytes\n";
+				}
+				else {
+					foreach_reverse (ref param ; node.params) {
+						auto setNode = new SetNode(node.error);
+						setNode.var  = param;
+						CompileSet(setNode);
+					}
+				}
+			}
 
 			foreach (ref inode ; node.nodes) {
 				compiler.CompileNode(inode);
@@ -367,8 +438,8 @@ class BackendFox32 : CompilerBackend {
 				compiler.CompileNode(inode);
 			}
 
-			output ~= "sub r31, 4\n";
-			output ~= "cmp [r31], 0\n";
+			output ~= "sub r30, 4\n";
+			output ~= "cmp [r30], 0\n";
 			output ~= format("ifz jmp __if_%d_%d\n", blockNum, condCounter + 1);
 
 			// create scope
@@ -428,9 +499,9 @@ class BackendFox32 : CompilerBackend {
 
 			currentLoop = blockNum;
 
-			output ~= "push r31\n";
+			output ~= "push r30\n";
 			output ~= "call save_state_and_yield_task\n";
-			output ~= "pop r31\n";
+			output ~= "pop r30\n";
 		}
 
 		// restore scope
@@ -448,8 +519,8 @@ class BackendFox32 : CompilerBackend {
 			compiler.CompileNode(inode);
 		}
 
-		output ~= "sub r31, 4\n";
-		output ~= "mov r0, [r31]\n";
+		output ~= "sub r30, 4\n";
+		output ~= "mov r0, [r30]\n";
 		output ~= "cmp r0, 0\n";
 		output ~= format("ifnz jmp __while_%d\n", blockNum);
 		output ~= format("__while_%d_end:\n", blockNum);
@@ -507,11 +578,41 @@ class BackendFox32 : CompilerBackend {
 
 	override void CompileString(StringNode node) {}
 
-	override void CompileReturn(WordNode node) {}
+	override void CompileReturn(WordNode node) {
+		if (!inScope) {
+			Error(node.error, "Return used outside of function");
+		}
 
-	override void CompileBreak(WordNode node) {}
+		size_t scopeSize;
+		foreach (ref var ; variables) {
+			scopeSize += var.Size();
+		}
 
-	override void CompileContinue(WordNode node) {}
+		switch (scopeSize) {
+			case 1:  output ~= "inc rsp\n"; break;
+			case 2:  output ~= "inc rsp, 2\n"; break;
+			case 4:  output ~= "inc rsp, 4\n"; break;
+			default: output ~= format("add rsp, %d\n", scopeSize);
+		}
+
+		output ~= "ret\n";
+	}
+
+	override void CompileBreak(WordNode node) {
+		if (!inWhile) {
+			Error(node.error, "Not in while loop");
+		}
+
+		output ~= format("jmp __while_%d_end\n", currentLoop);
+	}
+
+	override void CompileContinue(WordNode node) {
+		if (!inWhile) {
+			Error(node.error, "Not in while loop");
+		}
+
+		output ~= format("jmp __while_%d_next\n", currentLoop);
+	}
 
 	override void CompileExtern(ExternNode node) {}
 
@@ -529,8 +630,8 @@ class BackendFox32 : CompilerBackend {
 			size = var.type.Size();
 		}
 
-		output ~= "dec r31, 4\n";
-		output ~= "mov r0, [r31]\n";
+		output ~= "dec r30, 4\n";
+		output ~= "mov r0, [r30]\n";
 
 		if (deref) {
 			output ~= format("mov r1, [rsp + %d]\n", var.offset);
@@ -560,8 +661,8 @@ class BackendFox32 : CompilerBackend {
 			size = global.type.Size();
 		}
 
-		output ~= "dec r31, 4\n";
-		output ~= "mov r0, [r31]\n";
+		output ~= "dec r30, 4\n";
+		output ~= "mov r0, [r30]\n";
 
 		string symbol = format("__global_%s", global.name.Sanitise());
 
