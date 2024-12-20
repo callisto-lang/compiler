@@ -346,14 +346,29 @@ class BackendFox32 : CompilerBackend {
 
 		thisFunc = node.name;
 
+		UsedType[] params;
+
+		foreach (ref type ; node.paramTypes) {
+			if (!TypeExists(type.name)) {
+				Error(node.error, "Type '%s' doesn't exist", type.name);
+			}
+
+			params ~= UsedType(GetType(type.name), type.ptr);
+		}
+
 		if (node.inline) {
-			words[node.name] = Word(WordType.Callisto, true, node.nodes);
+			words[node.name] = Word(
+				WordType.Callisto, true, node.nodes, node.errors, params
+			);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(node.raw? WordType.Raw : WordType.Callisto , false, []);
+			words[node.name] = Word(
+				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors,
+				params
+			);
 
 			string symbol =
 				node.raw? node.name : format("__func__%s", node.name.Sanitise());
@@ -394,7 +409,7 @@ class BackendFox32 : CompilerBackend {
 					output ~= format("sub r30, %d\n", paramSize);
 					output ~= "mov r0, r30\n";
 					output ~= "mov r1, rsp\n";
-					output ~= format("mov r2, %d\n", paramSize / 4);
+					output ~= format("mov r2, %d\n", paramSize);
 					output ~= "call copy_memory_bytes\n";
 				}
 				else {
@@ -614,11 +629,69 @@ class BackendFox32 : CompilerBackend {
 		output ~= format("jmp __while_%d_next\n", currentLoop);
 	}
 
-	override void CompileExtern(ExternNode node) {}
+	override void CompileExtern(ExternNode node) {
+		if (node.externType == ExternType.C) {
+			Error(node.error, "This backend doesn't support C externs");
+		}
 
-	override void CompileCall(WordNode node) {}
+		Word word;
+		word.raw         = node.externType == ExternType.Raw;
+		words[node.func] = word;
+	}
 
-	override void CompileAddr(AddrNode node) {}
+	override void CompileCall(WordNode node) {
+		output ~= "dec r30, 4\n";
+		output ~= "call [r30]\n";
+	}
+
+	override void CompileAddr(AddrNode node) {
+		if (node.func in words) {
+			auto   word   = words[node.func];
+			string symbol = word.type == WordType.Callisto?
+				format("__func__%s", node.func.Sanitise()) : ExternSymbol(node.func);
+
+			output ~= format("mov.32 [r30], %s", symbol);
+			output ~= "inc r30, 4\n";
+		}
+		else if (GlobalExists(node.func)) {
+			auto var = GetGlobal(node.func);
+
+			output ~= format("mov.32 [r30], __global_%s\n", node.func.Sanitise());
+			output ~= "inc r30, 4\n";
+		}
+		else if (VariableExists(node.func)) {
+			auto var = GetVariable(node.func);
+
+			output ~= "mov r0, rsp\n";
+			output ~= format("add r0, %d\n", var.offset);
+			output ~= "mov [r30], r0\n";
+			output ~= "inc r30, 4\n";
+		}
+		else if (IsStructMember(node.func)) {
+			string name      = node.func[0 .. node.func.countUntil(".")];
+			auto   structVar = GetStructVariable(node, node.func);
+			size_t offset    = structVar.offset;
+
+			if (GlobalExists(name)) {
+				auto var = GetGlobal(name);
+
+				output ~= format("mov [r30], __global_%s_%d", name.Sanitise(), offset);
+				output ~= "inc r30, 4\n";
+			}
+			else if (VariableExists(node.func)) {
+				auto var = GetVariable(name);
+
+				output ~= "mov r0, rsp\n";
+				output ~= format("add r0, %d\n", var.offset + offset);
+				output ~= "mov [r30], r0\n";
+				output ~= "add r30, 4\n";
+			}
+			else assert(0);
+		}
+		else {
+			Error(node.error, "Undefined identifier '%s'", node.func);
+		}
+	}
 
 	override void CompileImplement(ImplementNode node) {}
 
