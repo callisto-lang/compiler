@@ -37,4 +37,4 @@ func man sierpinski cell n begin
 	end
 end
 
-16 sierpinski
+32 sierpinski
