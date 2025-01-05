@@ -171,7 +171,6 @@ class Lexer {
 						AddReading();
 						break;
 					}
-					case '\r': break;
 					case '"': {
 						extra    = reading;
 						reading  = "";
