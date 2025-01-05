@@ -166,6 +166,7 @@ class Lexer {
 				switch (code[i]) {
 					case ' ':
 					case '\t':
+					case '\r':
 					case '\n': {
 						AddReading();
 						break;
@@ -237,5 +238,10 @@ class Lexer {
 		}
 		// TODO: here
 		// what??
+		// 2025: i know what this is for
+
+		if (reading.strip() != "") {
+			AddReading();
+		}
 	}
 }
