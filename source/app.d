@@ -417,9 +417,7 @@ int main(string[] args) {
 		if (!noStackCheck) stackChecker.Evaluate(nodes);
 	}
 	catch (StackCheckerError) {
-		if (stackCheckerFunctions) {
-			stackChecker.DumpFunctions();
-		}
+		stderr.writeln("Error occured during stack checker stage");
 		return 1;
 	}
 

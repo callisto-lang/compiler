@@ -178,7 +178,6 @@ class CompilerBackend {
 		}
 
 		NewConst(format("%s.sizeOf", node.name), offset);
-		writeln(node.name);
 		types ~= Type(node.name, offset, true, entries);
 	}
 

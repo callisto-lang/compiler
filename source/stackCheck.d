@@ -396,6 +396,26 @@ class StackChecker {
 		foreach (ref member ; structure) {
 			identifiers ~= format("%s.%s", node.name, member);
 		}
+
+		identifiers ~= format("%s.sizeOf", node.name);
+	}
+
+	void EvaluateEnum(EnumNode node) {
+		identifiers ~= format("%s.sizeOf", node.name);
+		identifiers ~= format("%s.min", node.name);
+		identifiers ~= format("%s.max", node.name);
+
+		foreach (ref value ; node.names) {
+			identifiers ~= format("%s.%s", node.name, value);
+		}
+	}
+
+	void EvaluateUnion(UnionNode node) {
+		identifiers ~= format("%s.sizeOf", node.name);
+	}
+
+	void EvaluateAlias(AliasNode node) {
+		identifiers ~= format("%s.sizeOf", node.to);
 	}
 
 	void EvaluateUnsafe(UnsafeNode node) {
@@ -437,6 +457,9 @@ class StackChecker {
 			case NodeType.Set:       Pop(node, 1); break;
 			case NodeType.TryCatch:  EvaluateTryCatch(cast(TryCatchNode) node); break;
 			case NodeType.Struct:    EvaluateStruct(cast(StructNode) node); break;
+			case NodeType.Enum:      EvaluateEnum(cast(EnumNode) node); break;
+			case NodeType.Union:     EvaluateUnion(cast(UnionNode) node); break;
+			case NodeType.Alias:     EvaluateAlias(cast(AliasNode) node); break;
 			case NodeType.Unsafe:    EvaluateUnsafe(cast(UnsafeNode) node); break;
 			default: break;
 		}
