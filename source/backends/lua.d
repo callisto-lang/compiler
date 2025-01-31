@@ -788,13 +788,15 @@ class BackendLua : CompilerBackend {
 				output ~= format("mem[dsp] = %d\n", extra.addr + offset);
 				output ~= "dsp = dsp + 1\n";
 			}
-			else if (VariableExists(node.func)) {
+			else if (VariableExists(name)) {
 				auto var = GetVariable(name);
 
 				output ~= format("mem[dsp] = vsp + %d\n", var.offset + offset);
 				output ~= "dsp = dsp + 1";
 			}
-			else assert(0);
+			else {
+				Error(node.error, "Variable '%s' does not exist", name);
+			}
 		}
 		else {
 			Error(node.error, "Undefined identifier '%s'", node.func);

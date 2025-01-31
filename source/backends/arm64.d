@@ -1105,13 +1105,15 @@ class BackendARM64 : CompilerBackend {
 				output ~= format("add x9, x9, #%d\n", offset);
 				output ~= "str x9, [x19], #8\n";
 			}
-			else if (VariableExists(node.func)) {
+			else if (VariableExists(name)) {
 				auto var = GetVariable(name);
 
 				output ~= format("add x9, x20, #%d\n", var.offset + offset);
 				output ~= "str x9, [x19], #8\n";
 			}
-			else assert(0);
+			else {
+				Error(node.error, "Variable '%s' does not exist", name);
+			}
 		}
 		else {
 			Error(node.error, "Undefined identifier '%s'", node.func);

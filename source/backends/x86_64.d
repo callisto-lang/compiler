@@ -1209,7 +1209,7 @@ class BackendX86_64 : CompilerBackend {
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 			}
-			else if (VariableExists(node.func)) {
+			else if (VariableExists(name)) {
 				auto var = GetVariable(name);
 
 				output ~= "mov rdi, rsp\n";
@@ -1219,7 +1219,9 @@ class BackendX86_64 : CompilerBackend {
 				output ~= "mov [r15], rdi\n";
 				output ~= "add r15, 8\n";
 			}
-			else assert(0);
+			else {
+				Error(node.error, "Variable '%s' does not exist", name);
+			}
 		}
 		else {
 			Error(node.error, "Undefined identifier '%s'", node.func);
