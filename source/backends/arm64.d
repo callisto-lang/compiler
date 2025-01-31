@@ -1101,14 +1101,23 @@ class BackendARM64 : CompilerBackend {
 			if (GlobalExists(name)) {
 				auto var = GetGlobal(name);
 
-				LoadAddress("x9", format("__global_%s", node.func.Sanitise()));
+				LoadAddress("x9", format("__global_%s", name.Sanitise()));
+				if (var.type.ptr) {
+					output ~= "ldr x9, [x9]\n";
+				}
 				output ~= format("add x9, x9, #%d\n", offset);
 				output ~= "str x9, [x19], #8\n";
 			}
 			else if (VariableExists(name)) {
 				auto var = GetVariable(name);
 
-				output ~= format("add x9, x20, #%d\n", var.offset + offset);
+				if (var.type.ptr) {
+					output ~= format("add x9, x20, #%d\n", var.offset);
+					output ~= "ldr x9, [x9]\n";
+					output ~= format("add x9, x9, #%d\n", offset);
+				} else {
+					output ~= format("add x9, x20, #%d\n", var.offset + offset);
+				}
 				output ~= "str x9, [x19], #8\n";
 			}
 			else {
