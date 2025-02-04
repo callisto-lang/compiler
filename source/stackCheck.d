@@ -137,8 +137,12 @@ class StackChecker {
 		) {
 			Push(node, 1);
 		}
-		else {
-			Error(node.error, "Unknown word '%s'", node.name);
+		else switch (node.name) {
+			case "throw": {
+				Pop(node, 1);
+				break;
+			}
+			default: Error(node.error, "Unknown word '%s'", node.name);
 		}
 	}
 
@@ -173,6 +177,20 @@ class StackChecker {
 		identifiers = oldIdentifiers;
 	}
 
+	private void EvaluateSingleIf(IfNode node) {
+		auto oldStack = stack.dup;
+		Evaluate(node.condition[0]);
+
+		Pop(node, 1);
+		oldStack = stack.dup;
+
+		Evaluate(node.doIf[0]);
+
+		if (oldStack.length != stack.length) {
+			Error(node.error, "Single if condition must have a body with no stack effect");
+		}
+	}
+
 	void EvaluateIf(IfNode node) {
 		bool   setExpect = false;
 		size_t expectSize;
@@ -180,8 +198,11 @@ class StackChecker {
 		bool   allowCondPop = false;
 
 		if (!node.hasElse && (node.condition.length == 1)) {
-			allowCondPop = true;
-			note         = "Single if condition must have no stack effect";
+			EvaluateSingleIf(node);
+			return;
+			// allowCondPop = true;
+			// setExpect    = true;
+			// note         = "Single if condition must have a body with no stack effect";
 		}
 		else if (node.hasElse) {
 			auto oldStack = stack.dup;
