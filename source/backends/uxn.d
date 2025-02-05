@@ -71,7 +71,7 @@ class BackendUXN : CompilerBackend {
 
 	string TempLabel() {
 		++ tempLabelNum;
-		return format("__temp_%d", tempLabelNum);
+		return format("temp_%d", tempLabelNum);
 	}
 
 	override string[] GetVersions() => [
