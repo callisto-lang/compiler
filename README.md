@@ -1,4 +1,5 @@
 # Callisto
+[![justforfunnoreally.dev badge](https://img.shields.io/badge/justforfunnoreally-dev-9ff)](https://justforfunnoreally.dev)
 
 Callisto is a reverse Polish notation programming language, inspired by YSL-C3 and
 Forth. It also includes a subset called CallistoScript, designed for compiling to
