@@ -1203,19 +1203,39 @@ class BackendX86_64 : CompilerBackend {
 			if (GlobalExists(name)) {
 				auto var = GetGlobal(name);
 
-				output ~= format(
-					"lea rax, qword [__global_%s + %d]\n", name.Sanitise(), offset
-				);
+				if (var.type.ptr) {
+					output ~= format("mov rax, [__global_%s]\n", name.Sanitise());
+
+					if (offset > 0) {
+						output ~= format("lea rax, [rax + %d]\n", offset);
+					}
+				}
+				else {
+					output ~= format(
+						"lea rax, qword [__global_%s + %d]\n", name.Sanitise(), offset
+					);
+				}
+				
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 			}
 			else if (VariableExists(name)) {
 				auto var = GetVariable(name);
 
-				output ~= "mov rdi, rsp\n";
-				if (var.offset > 0) {
-					output ~= format("add rdi, %d\n", var.offset + offset);
+				if (var.type.ptr) {
+					output ~= format("mov rdi, [rsp + %d]\n", var.offset);
+
+					if (offset > 0) {
+						output ~= format("lea rdi, [rdi + %d]\n", offset);
+					}
 				}
+				else {
+					output ~= "mov rdi, rsp\n";
+					if (var.offset > 0) {
+						output ~= format("add rdi, %d\n", var.offset + offset);
+					}
+				}
+				
 				output ~= "mov [r15], rdi\n";
 				output ~= "add r15, 8\n";
 			}

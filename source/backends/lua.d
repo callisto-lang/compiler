@@ -785,14 +785,25 @@ class BackendLua : CompilerBackend {
 				auto var   = GetGlobal(name);
 				auto extra = cast(GlobalExtra*) var.extra;
 
-				output ~= format("mem[dsp] = %d\n", extra.addr + offset);
-				output ~= "dsp = dsp + 1\n";
+				if (var.type.ptr) {
+					output ~= format("mem[dsp] = mem[%d] + %d\n", extra.addr, offset);
+				}
+				else {
+					output ~= format("mem[dsp] = %d\n", extra.addr + offset);
+				}
 			}
 			else if (VariableExists(name)) {
 				auto var = GetVariable(name);
 
-				output ~= format("mem[dsp] = vsp + %d\n", var.offset + offset);
-				output ~= "dsp = dsp + 1";
+				if (var.type.ptr) {
+					writeln("HELLO!!!", var.offset, offset);
+					output ~= format(
+						"mem[dsp] = mem[vsp + %d] + %d\n", var.offset, offset
+					);
+				}
+				else {
+					output ~= format("mem[dsp] = vsp + %d\n", var.offset + offset);
+				}
 			}
 			else {
 				Error(node.error, "Variable '%s' does not exist", name);

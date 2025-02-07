@@ -889,19 +889,34 @@ class BackendRM86 : CompilerBackend {
 			if (GlobalExists(name)) {
 				auto var = GetGlobal(name);
 
-				output ~= format(
-					"lea ax, [__global_%s + %d]\n", name.Sanitise(), offset
-				);
+				if (var.type.ptr) {
+					output ~= format("mov bx, [__global_%s]\n", name.Sanitise());
+					output ~= format("lea ax, [bx + %d]\n", offset);
+				}
+				else {
+					output ~= format(
+						"lea ax, [__global_%s + %d]\n", name.Sanitise(), offset
+					);
+				}
+
 				output ~= "mov [si], ax\n";
 				output ~= "add si, 2\n";
 			}
 			else if (VariableExists(name)) {
 				auto var = GetVariable(name);
 
-				output ~= "mov ax, si\n";
-				if (var.offset > 0) {
-					output ~= format("add ax, %d\n", var.offset + offset);
+				if (var.type.ptr) {
+					output ~= "mov di, sp\n";
+					output ~= format("mov bx, [di + %d]\n", var.offset);
+					output ~= format("lea ax, [bx + %d]\n", offset);
 				}
+				else {
+					output ~= "mov ax, sp\n";
+					if (var.offset > 0) {
+						output ~= format("add ax, %d\n", var.offset + offset);
+					}
+				}
+
 				output ~= "mov [si], ax\n";
 				output ~= "add si, 2\n";
 			}

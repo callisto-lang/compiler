@@ -819,11 +819,27 @@ class BackendUXN : CompilerBackend {
 
 			if (GlobalExists(name)) {
 				auto var = GetGlobal(name);
-				output ~= format(";global_%s #%.4x ADD2\n", name.Sanitise(), offset);
+
+				if (var.type.ptr) {
+					output ~= format(
+						";global_%s LDA2 #%.4x ADD2\n", name.Sanitise(), offset
+					);
+				}
+				else {
+					output ~= format(";global_%s #%.4x ADD2\n", name.Sanitise(), offset);
+				}
 			}
 			else if (VariableExists(name)) {
 				auto var = GetVariable(name);
-				output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset + offset);
+
+				if (var.type.ptr) {
+					output ~= format(
+						".vsp LDZ2 #%.4x ADD2 LDA2 #%.4x ADD2\n", var.offset, offset
+					);
+				}
+				else {
+					output ~= format(".vsp LDZ2 #%.4x ADD2\n", var.offset + offset);
+				}
 			}
 			else {
 				Error(node.error, "Variable '%s' does not exist", name);
