@@ -12,6 +12,7 @@ import callisto.error;
 import callisto.parser;
 import callisto.compiler;
 import callisto.language;
+import callisto.preprocessor;
 
 private enum WordType {
 	Callisto,
@@ -41,6 +42,8 @@ class BackendX86_64 : CompilerBackend {
 	uint             currentLoop;
 	bool             useLibc;
 	uint             tempLabelNum;
+	bool             useGas = false;
+	bool             useFramePtr = true;
 
 	this() {
 		addrSize = 8;
@@ -152,12 +155,15 @@ class BackendX86_64 : CompilerBackend {
 
 		string[] ret = [
 			format("mv %s %s.asm", compiler.outFile, compiler.outFile),
-			useDebug?
+			useGas?
 				format(
-					"nasm -f %s %s.asm -o %s.o -F dwarf -g", objFormat, compiler.outFile,
-					compiler.outFile
+					"as %s.asm -o %s.o %s", compiler.outFile, compiler.outFile,
+					useDebug? "-g" : ""
 				) :
-				format("nasm -f %s %s.asm -o %s.o", objFormat, compiler.outFile, compiler.outFile)
+				format(
+					"nasm -f %s %s.asm -o %s.o %s", objFormat,
+					compiler.outFile, compiler.outFile, useDebug? "-F dwarf -g" : ""
+				)
 		];
 
 		string linker;
@@ -226,12 +232,17 @@ class BackendX86_64 : CompilerBackend {
 
 	override string DefaultHeader() => "";
 
-	override bool HandleOption(string opt, ref string[] versions) {
+	override bool HandleOption(string opt, ref string[] versions, Preprocessor preproc) {
 		switch (opt) {
 			case "use-libc": {
 				link     ~= "c";
 				useLibc   = true;
 				versions ~= "LibC";
+				return true;
+			}
+			case "frame-ptr": {
+				preproc.versions ~= "x86_64_FramePtr";
+				useFramePtr       = true;
 				return true;
 			}
 			default: return false;
@@ -728,6 +739,11 @@ class BackendX86_64 : CompilerBackend {
 
 			output ~= format("%s:\n", symbol);
 
+			if (useFramePtr) {
+				output ~= "push rbp\n";
+				output ~= "mov rbp, rsp\n";
+			}
+
 			if (node.errors) {
 				output ~= format("mov rax, __global_%s\n", Sanitise("_cal_exception"));
 				output ~= "mov qword [rax], qword 0\n";
@@ -796,11 +812,18 @@ class BackendX86_64 : CompilerBackend {
 					output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
 				}
 			}
-			if (scopeSize == 1) {
-				output ~= "inc rsp\n";
+
+			if (useFramePtr) {
+				output ~= "mov rsp, rbp\n";
+				output ~= "pop rbp\n";
 			}
-			else if (scopeSize > 0) {
-				output ~= format("add rsp, %d\n", scopeSize);
+			else {
+				if (scopeSize == 1) {
+					output ~= "inc rsp\n";
+				}
+				else if (scopeSize > 0) {
+					output ~= format("add rsp, %d\n", scopeSize);
+				}
 			}
 
 			output    ~= "ret\n";
@@ -1077,22 +1100,28 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Return used outside of function");
 		}
 
-		size_t scopeSize;
-		foreach (ref var ; variables) {
-			scopeSize += var.Size();
+		if (useFramePtr) {
+			output ~= "mov rsp, rbp\n";
+			output ~= "pop rbp\n";
+		}
+		else {
+			size_t scopeSize;
+			foreach (ref var ; variables) {
+				scopeSize += var.Size();
 
-			if (var.type.hasDeinit && !var.type.ptr) {
-				output ~= format("lea rax, [rsp + %d\n]", var.offset);
-				output ~= "mov [r15], rax\n";
-				output ~= "add r15, 8\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				if (var.type.hasDeinit && !var.type.ptr) {
+					output ~= format("lea rax, [rsp + %d\n]", var.offset);
+					output ~= "mov [r15], rax\n";
+					output ~= "add r15, 8\n";
+					output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				}
 			}
-		}
-		if (scopeSize == 1) {
-			output ~= "inc rsp\n";
-		}
-		else if (scopeSize > 0) {
-			output ~= format("add rsp, %d\n", scopeSize);
+			if (scopeSize == 1) {
+				output ~= "inc rsp\n";
+			}
+			else if (scopeSize > 0) {
+				output ~= format("add rsp, %d\n", scopeSize);
+			}
 		}
 
 		output ~= "ret\n";
@@ -1285,26 +1314,37 @@ class BackendX86_64 : CompilerBackend {
 
 		output ~= format("%s:\n", labelName);
 
+		if (useFramePtr) {
+			output ~= "push rbp\n";
+			output ~= "mov rbp, rsp\n";
+		}
+
 		foreach (ref inode ; node.nodes) {
 			compiler.CompileNode(inode);
 		}
 
-		size_t scopeSize;
-		foreach (ref var ; variables) {
-			scopeSize += var.Size();
+		if (useFramePtr) {
+			output ~= "mov rsp, rbp\n";
+			output ~= "pop rbp\n";
+		}
+		else {
+			size_t scopeSize;
+			foreach (ref var ; variables) {
+				scopeSize += var.Size();
 
-			if (var.type.hasDeinit && !var.type.ptr) {
-				output ~= format("lea rax, [rsp + %d]\n", var.offset);
-				output ~= "mov [r15], rax\n";
-				output ~= "add r15, 8\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				if (var.type.hasDeinit && !var.type.ptr) {
+					output ~= format("lea rax, [rsp + %d]\n", var.offset);
+					output ~= "mov [r15], rax\n";
+					output ~= "add r15, 8\n";
+					output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				}
 			}
-		}
-		if (scopeSize == 1) {
-			output ~= "inc rsp\n";
-		}
-		else if (scopeSize > 0) {
-			output ~= format("add rsp, %d\n", scopeSize);
+			if (scopeSize == 1) {
+				output ~= "inc rsp\n";
+			}
+			else if (scopeSize > 0) {
+				output ~= format("add rsp, %d\n", scopeSize);
+			}
 		}
 
 		output    ~= "ret\n";

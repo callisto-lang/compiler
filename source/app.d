@@ -60,8 +60,9 @@ Backends and their operating systems:
 Backend options:
   rm86:
     no-dos - Disables DOS-specific features
-  linux86:
+  x86_64:
     use-libc - Makes Callisto use the C runtime and links libc
+    frame-ptr - Makes Callisto use both rbp (frame pointer) and rsp for stack frames
 ";
 
 int main(string[] args) {
@@ -333,8 +334,9 @@ int main(string[] args) {
 		os = backend.defaultOS;
 	}
 
+	auto preproc = new Preprocessor();
 	foreach (ref opt ; backendOpts) {
-		if (!backend.HandleOption(opt, versions)) {
+		if (!backend.HandleOption(opt, versions, preproc)) {
 			stderr.writefln("Unknown option '%s'", opt);
 			return 1;
 		}
@@ -397,10 +399,9 @@ int main(string[] args) {
 		next:
 	}
 
-	auto preproc        = new Preprocessor();
-	preproc.disabled    = disabled;
-	preproc.includeDirs = includeDirs;
-	preproc.versions    = versions;
+	preproc.disabled    ~= disabled;
+	preproc.includeDirs ~= includeDirs;
+	preproc.versions    ~= versions;
 
 	nodes = preproc.Run(nodes);
 	if (!preproc.success) return 1;

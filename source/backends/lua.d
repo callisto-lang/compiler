@@ -12,6 +12,7 @@ import callisto.error;
 import callisto.parser;
 import callisto.compiler;
 import callisto.language;
+import callisto.preprocessor;
 
 private struct GlobalExtra {
 	ulong addr;
@@ -98,7 +99,7 @@ class BackendLua : CompilerBackend {
 
 	override string DefaultHeader() => "";
 
-	override bool HandleOption(string opt, ref string[] versions) => false;
+	override bool HandleOption(string opt, ref string[] versions, Preprocessor preproc) => false;
 
 	override void Init() {
 		output ~= "mem = {};\n";

@@ -10,6 +10,7 @@ import callisto.error;
 import callisto.parser;
 import callisto.compiler;
 import callisto.language;
+import callisto.preprocessor;
 
 private struct Word {
 	bool       raw;
@@ -101,7 +102,7 @@ class BackendRM86 : CompilerBackend {
 
 	override string DefaultHeader() => "";
 
-	override bool HandleOption(string opt, ref string[] versions) {
+	override bool HandleOption(string opt, ref string[] versions, Preprocessor preproc) {
 		switch (opt) {
 			case "no-dos": {
 				opts.noDos = true;

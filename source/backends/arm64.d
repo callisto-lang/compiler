@@ -13,6 +13,7 @@ import callisto.error;
 import callisto.parser;
 import callisto.compiler;
 import callisto.language;
+import callisto.preprocessor;
 
 private enum WordType {
 	Callisto,
@@ -200,7 +201,7 @@ class BackendARM64 : CompilerBackend {
 
 	override string DefaultHeader() => "";
 
-	override bool HandleOption(string opt, ref string[] versions) {
+	override bool HandleOption(string opt, ref string[] versions, Preprocessor preproc) {
 		switch (opt) {
 			case "use-libc": {
 				link     ~= "c";

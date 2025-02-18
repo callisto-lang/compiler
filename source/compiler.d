@@ -10,6 +10,7 @@ import callisto.util;
 import callisto.error;
 import callisto.parser;
 import callisto.language;
+import callisto.preprocessor;
 
 ubyte addrSize; // in bytes, set by backend
 
@@ -99,7 +100,7 @@ class CompilerBackend {
 	abstract long     MaxInt();
 	abstract void     NewConst(string name, long value, ErrorInfo error = ErrorInfo.init);
 	abstract string   DefaultHeader();
-	abstract bool     HandleOption(string opt, ref string[] versions);
+	abstract bool     HandleOption(string opt, ref string[] versions, Preprocessor preproc);
 
 	abstract void BeginMain();
 

@@ -10,6 +10,7 @@ import callisto.error;
 import callisto.parser;
 import callisto.compiler;
 import callisto.language;
+import callisto.preprocessor;
 
 private struct Word {
 	bool       raw;
@@ -94,7 +95,7 @@ class BackendUXN : CompilerBackend {
 		|10 @Console &vector $2 &read $5 &type $1 &write $1 &error $1
 	";
 
-	override bool HandleOption(string opt, ref string[] versions) => false;
+	override bool HandleOption(string opt, ref string[] versions, Preprocessor preproc) => false;
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
