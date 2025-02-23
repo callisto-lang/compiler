@@ -464,7 +464,7 @@ class Compiler {
 				auto node = cast(WhileNode) inode;
 
 				NodeType[] allowedTypes = [
-					NodeType.Word, NodeType.Integer
+					NodeType.Word, NodeType.Integer, NodeType.Addr
 				];
 
 				foreach (ref inode2 ; node.condition) {

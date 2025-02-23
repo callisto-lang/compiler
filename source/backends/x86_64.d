@@ -14,6 +14,11 @@ import callisto.compiler;
 import callisto.language;
 import callisto.preprocessor;
 
+private enum ABI {
+	SysV,
+	Windows
+};
+
 private enum WordType {
 	Callisto,
 	Raw,

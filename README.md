@@ -1,52 +1,39 @@
-# Callisto
-[![justforfunnoreally.dev badge](https://img.shields.io/badge/justforfunnoreally-dev-9ff)](https://justforfunnoreally.dev)
+# The Callisto compiler
+Callisto is a stack-based imperative programming language with stack safety enforced
+by the compiler (which is optional).
 
-Callisto is a reverse Polish notation programming language, inspired by YSL-C3 and
-Forth. It also includes a subset called CallistoScript, designed for compiling to
-scripting languages like Lua, while still maintaining a relatively low-level approach.
+It also has a subset called CallistoScript made to compile to scripting languages like
+Lua, while keeping its low level features (like direct access to memory).
 
-## Supported Targets 
+## Supported targets
+- x86 real mode - MS-DOS, bare metal
+- x86_64 - Linux, macOS, FreeBSD (partial)
+- ARM64 - Linux, macOS
+- Uxn - Varvara
+- Lua
 
-- **x86 Real Mode, MS-DOS:** Fully supported
-- **x86_64 Linux, macOS:** Fully supported
-- **ARM64 Linux, macOS:** Fully supported
-- **Uxn:** Fully supported
-- **Lua:** Fully supported (subset: CallistoScript)
-
-## Build Instructions
-
-To build the Callisto compiler, you will need a
-[D compiler](https://dlang.org/download.html). Once installed, build the project using
-the following command:
-
+## Build
 ```
 dub build
 ```
 
-## Getting Started
+The compiler executable will be called `cac`
 
-### Running Example Programs
-
-Before running example programs, ensure that the `std` submodule is included in your
-repository. You can achieve this by cloning the repository recursively or running the
-following command:
+## Run example programs
+Make sure you get the standard library
 
 ```
-git submodule update --init --remote --recursive
+git submodule update --remote
 ```
 
-Example programs are located in the `examples` directory. To compile and run an example,
-use:
+Then compile example programs like this
 
 ```
-cac examples/<exampleName>.cal -i std -o out
-./out
+cac examples/exampleNameHere.cal -i std
 ```
 
-For more detailed information about Callisto, please refer to the
-[official documentation](https://callisto.mesyeti.uk/docs).
+The output executable will be called `out`. Any example programs that require extra flags
+for compilation will have a compile command in a comment at the top of the source file.
 
-## Community and Support
-
-For support or discussions, join the `#callisto-lang` channel on
-[irc.libera.chat](https://libera.chat).
+## Community
+Join `#callisto-lang` on irc.libera.chat.
