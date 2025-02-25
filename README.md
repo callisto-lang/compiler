@@ -37,3 +37,5 @@ for compilation will have a compile command in a comment at the top of the sourc
 
 ## Community
 Join `#callisto-lang` on irc.libera.chat.
+
+Join `QHAtc4GWq7` on Discord
