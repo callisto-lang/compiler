@@ -746,7 +746,7 @@ class BackendX86_64 : CompilerBackend {
 			output ~= "mov [r15], r14\n";
 		}
 		else {
-			output ~= format("mov qword [r15], qword %d\n", node.value);
+			output ~= format("mov $(QWORD) [r15], %d\n", node.value);
 		}
 		output ~= "add r15, 8\n";
 	}
@@ -806,7 +806,7 @@ class BackendX86_64 : CompilerBackend {
 
 			if (node.errors) {
 				output ~= format("lea rax, __global_%s\n", Sanitise("_cal_exception"));
-				output ~= "mov qword [rax], qword 0\n";
+				output ~= "mov $(QWORD) [rax], 0\n";
 			}
 
 			// allocate parameters
@@ -1095,7 +1095,7 @@ class BackendX86_64 : CompilerBackend {
 
 		if (!inScope || node.constant) {
 			output ~= format("lea rax, __array_%d_meta\n", arrays.length - 1);
-			output ~= "mov qword [r15], rax\n";
+			output ~= "mov $(QWORD) [r15], rax\n";
 			output ~= "add r15, 8\n";
 		}
 		else {
@@ -1132,8 +1132,8 @@ class BackendX86_64 : CompilerBackend {
 
 			output ~= "mov rax, rsp\n";
 			output ~= format("sub rsp, %d\n", 8 * 3); // size of Array structure
-			output ~= format("mov qword [rsp], qword %d\n", array.values.length); // length
-			output ~= format("mov qword [rsp + 8], qword %d\n", array.type.size); // member size
+			output ~= format("mov $(QWORD) [rsp], %d\n", array.values.length); // length
+			output ~= format("mov $(QWORD) [rsp + 8], %d\n", array.type.size); // member size
 			output ~= "mov [rsp + 16], rax\n"; // elements
 
 			// push metadata address

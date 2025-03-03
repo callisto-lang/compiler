@@ -18,7 +18,7 @@ import callisto.backends.rm86;
 import callisto.backends.arm64;
 import callisto.backends.x86_64;
 
-const static string appVersion = "Beta 0.12.5";
+const static string appVersion = "Beta 0.12.6";
 
 const static string usage = "
 Callisto Compiler
@@ -61,7 +61,7 @@ Backend options:
   rm86:
     no-dos - Disables DOS-specific features
   x86_64:
-    use-libc - Makes Callisto use the C runtime and links libc
+    use-libc  - Makes Callisto use the C runtime and links libc
     frame-ptr - Makes Callisto use both rbp (frame pointer) and rsp for stack frames
 ";
 
