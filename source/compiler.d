@@ -9,6 +9,7 @@ import std.algorithm;
 import callisto.util;
 import callisto.error;
 import callisto.parser;
+import callisto.output;
 import callisto.language;
 import callisto.preprocessor;
 
@@ -79,7 +80,7 @@ struct Array {
 }
 
 class CompilerBackend {
-	string           output;
+	Output           output;
 	ulong            org;
 	bool             orgSet;
 	Compiler         compiler;
@@ -515,7 +516,7 @@ class Compiler {
 
 		if (assemblyLines) {
 			//backend.output ~= "; " ~ inode.toString().replace("\n", "\n; ") ~ '\n';
-			size_t line = backend.output.count!((ch) => ch == '\n');
+			size_t line = backend.output.output.count!((ch) => ch == '\n');
 			writefln(
 				"%s:%d:%d - line %d, node %s", inode.error.file, inode.error.line + 1,
 				inode.error.col + 1, line, inode.type

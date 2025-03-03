@@ -10,6 +10,7 @@ import std.process;
 import std.algorithm;
 import callisto.util;
 import callisto.error;
+import callisto.output;
 import callisto.parser;
 import callisto.compiler;
 import callisto.language;
@@ -44,6 +45,8 @@ class BackendARM64 : CompilerBackend {
 	bool             useLibc;
 
 	this() {
+		output = new Output();
+
 		addrSize = 8;
 
 		version (linux) {

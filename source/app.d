@@ -329,6 +329,7 @@ int main(string[] args) {
 	if (backend is null) {
 		ErrorNoInfo("No backend selected");
 	}
+	backend.output.outFile = outFile;
 
 	if (os == "DEFAULT") {
 		os = backend.defaultOS;
@@ -355,7 +356,7 @@ int main(string[] args) {
 		}
 	}
 
-	backend.output = header ~ '\n';
+	backend.output ~= header ~ '\n';
 
 	if (file == "") {
 		stderr.writeln("No source files");
@@ -445,7 +446,8 @@ int main(string[] args) {
 	compiler.Compile(nodes);
 	if (!compiler.success) return 1;
 
-	std.file.write(outFile, compiler.backend.output);
+	// std.file.write(outFile, compiler.backend.output);
+	compiler.backend.output.Finish();
 
 	if (runFinal) {
 		compiler.outFile   = outFile;

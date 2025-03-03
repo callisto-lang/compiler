@@ -10,6 +10,7 @@ import std.algorithm;
 import callisto.util;
 import callisto.error;
 import callisto.parser;
+import callisto.output;
 import callisto.compiler;
 import callisto.language;
 import callisto.preprocessor;
@@ -51,6 +52,12 @@ class BackendX86_64 : CompilerBackend {
 	bool             useFramePtr = true;
 
 	this() {
+		output = new Output();
+		output.macros["QWORD"] = useGas? "qword ptr" : "qword";
+		output.macros["DWORD"] = useGas? "dword ptr" : "dword";
+		output.macros["WORD"]  = useGas? "word ptr"  : "word";
+		output.macros["BYTE"]  = useGas? "byte ptr"  : "byte";
+
 		addrSize = 8;
 
 		version (linux) {
@@ -250,6 +257,10 @@ class BackendX86_64 : CompilerBackend {
 				useFramePtr       = true;
 				return true;
 			}
+			case "use-gas": {
+				useGas = true;
+				return true;
+			}
 			default: return false;
 		}
 	}
@@ -295,19 +306,41 @@ class BackendX86_64 : CompilerBackend {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
 		}
 
-		output ~= "section .text\n";
+		if (useGas) {
+			output ~= ".intel_syntax noprefix\n";
+			output ~= ".section .text\n";
+		}
+		else {
+			output ~= "section .text\n";
+		}
 
 		if (os == "osx") {
+			if (useGas) {
+				ErrorNoInfo("Cannot use GNU Assembler on x86_64 macOS");
+			}
+
 			output ~= "default rel\n";
 			output ~= "global _main\n";
 			output ~= "_main:\n";
 		}
 		else if (useLibc) {
-			output ~= "global main\n";
+			if (useGas) {
+				output ~= ".global main\n";
+			}
+			else {
+				output ~= "global main\n";
+			}
+
 			output ~= "main:\n";
 		}
 		else {
-			output ~= "global _start\n";
+			if (useGas) {
+				output ~= ".global _start\n";
+			}
+			else {
+				output ~= "global _start\n";
+			}
+
 			output ~= "_start:\n";
 		}
 
@@ -325,8 +358,8 @@ class BackendX86_64 : CompilerBackend {
 
 		// create functions for interop
 		if (exportSymbols) {
-			output ~= "
-				global cal_push
+			output ~= format("
+				%sglobal cal_push
 				cal_push:
 					mov [r15], rdi
 					add r15, 8
@@ -335,7 +368,7 @@ class BackendX86_64 : CompilerBackend {
 					sub r15, 8
 					mov rax, [r15]
 					ret
-			";
+			", useGas? "." : "");
 		}
 	}
 	
@@ -362,8 +395,8 @@ class BackendX86_64 : CompilerBackend {
 		output ~= "__copy_arrays:\n";
 
 		foreach (i, ref array ; arrays) {
-			output ~= format("mov rsi, __array_src_%d\n", i);
-			output ~= format("mov rdi, __array_%d\n", i);
+			output ~= format("lea rsi, __array_src_%d\n", i);
+			output ~= format("lea rdi, __array_%d\n", i);
 			output ~= format("mov rcx, %d\n", array.Size());
 			output ~= "rep movsb\n";
 		}
@@ -381,21 +414,42 @@ class BackendX86_64 : CompilerBackend {
 		output ~= "ret\n";
 
 		// create global variables
-		output ~= "section .bss\n";
+		if (useGas) {
+			output ~= ".section .bss\n";
+		}
+		else {
+			output ~= "section .bss\n";
+		}
 
 		foreach (var ; globals) {
-			output ~= format("__global_%s: resb %d\n", var.name.Sanitise(), var.Size());
+			if (useGas) {
+				output ~= format(
+					"__global_%s: .skip %d\n", var.name.Sanitise(), var.Size()
+				);
+			}
+			else {
+				output ~= format(
+					"__global_%s: resb %d\n", var.name.Sanitise(), var.Size()
+				);
+			}
 
 			if (exportSymbols) {
-				output ~= format("global __global_%s\n", var.name.Sanitise());
+				output ~= format(
+					"%sglobal __global_%s\n", useGas? "." : "", var.name.Sanitise()
+				);
 			}
 		}
 
 		foreach (i, ref array ; arrays) {
-			output ~= format("__array_%d: resb %d\n", i, array.Size());
+			if (useGas) {
+				output ~= format("__array_%d: skip %d\n", i, array.Size());
+			}
+			else {
+				output ~= format("__array_%d: resb %d\n", i, array.Size());
+			}
 
 			if (exportSymbols) {
-				output ~= format("global __array_%d\n", i);
+				output ~= format("%sglobal __array_%d\n", useGas? "." : "", i);
 			}
 		}
 
@@ -405,10 +459,10 @@ class BackendX86_64 : CompilerBackend {
 			output ~= format("__array_src_%d: ", i);
 
 			switch (array.type.size) {
-				case 1:  output ~= "db "; break;
-				case 2:  output ~= "dw "; break;
-				case 4:  output ~= "dd "; break;
-				case 8:  output ~= "dq "; break;
+				case 1:  output ~= useGas? ".byte " : "db "; break;
+				case 2:  output ~= useGas? ".word " : "dw "; break;
+				case 4:  output ~= useGas? ".long " : "dd "; break;
+				case 8:  output ~= useGas? ".quad " : "dq "; break;
 				default: assert(0);
 			}
 
@@ -420,7 +474,8 @@ class BackendX86_64 : CompilerBackend {
 
 			if (array.global) {
 				output ~= format(
-					"__array_%d_meta: dq %d, %d, __array_%d\n", i,
+					"__array_%d_meta: %s %d, %d, __array_%d\n", i,
+					useGas? ".quad" : "dq",
 					array.values.length,
 					array.type.size,
 					i
@@ -617,7 +672,7 @@ class BackendX86_64 : CompilerBackend {
 					}
 
 					if (crash) {
-						output ~= format("mov rax, __global_%s\n", Sanitise("_cal_exception"));
+						output ~= format("lea rax, __global_%s\n", Sanitise("_cal_exception"));
 						output ~= "cmp qword [rax], 0\n";
 						output ~= format("jne __func__%s\n", Sanitise("__x86_64_exception"));
 					}
@@ -691,7 +746,7 @@ class BackendX86_64 : CompilerBackend {
 			output ~= "mov [r15], r14\n";
 		}
 		else {
-			output ~= format("mov qword [r15], %d\n", node.value);
+			output ~= format("mov qword [r15], qword %d\n", node.value);
 		}
 		output ~= "add r15, 8\n";
 	}
@@ -718,7 +773,7 @@ class BackendX86_64 : CompilerBackend {
 
 		if (node.inline) {
 			if (node.errors) {
-				output ~= format("mov rax, __global_%s\n", Sanitise("_cal_exception"));
+				output ~= format("lea rax, __global_%s\n", Sanitise("_cal_exception"));
 				output ~= "mov [rax], 0\n";
 			}
 
@@ -750,7 +805,7 @@ class BackendX86_64 : CompilerBackend {
 			}
 
 			if (node.errors) {
-				output ~= format("mov rax, __global_%s\n", Sanitise("_cal_exception"));
+				output ~= format("lea rax, __global_%s\n", Sanitise("_cal_exception"));
 				output ~= "mov qword [rax], qword 0\n";
 			}
 
@@ -1039,7 +1094,7 @@ class BackendX86_64 : CompilerBackend {
 		arrays          ~= array;
 
 		if (!inScope || node.constant) {
-			output ~= format("mov rax, __array_%d_meta\n", arrays.length - 1);
+			output ~= format("lea rax, __array_%d_meta\n", arrays.length - 1);
 			output ~= "mov qword [r15], rax\n";
 			output ~= "add r15, 8\n";
 		}
@@ -1047,7 +1102,7 @@ class BackendX86_64 : CompilerBackend {
 			// allocate a copy of this array
 			output ~= format("sub rsp, %d\n", array.Size());
 			output ~= "mov rax, rsp\n";
-			output ~= format("mov rsi, __array_%d\n", arrays.length - 1);
+			output ~= format("lea rsi, __array_%d\n", arrays.length - 1);
 			output ~= "mov rdi, rax\n";
 			output ~= format("mov rcx, %d\n", array.Size());
 			output ~= format("rep movsb\n");
@@ -1077,8 +1132,8 @@ class BackendX86_64 : CompilerBackend {
 
 			output ~= "mov rax, rsp\n";
 			output ~= format("sub rsp, %d\n", 8 * 3); // size of Array structure
-			output ~= format("mov qword [rsp], %d\n", array.values.length); // length
-			output ~= format("mov qword [rsp + 8], %d\n", array.type.size); // member size
+			output ~= format("mov qword [rsp], qword %d\n", array.values.length); // length
+			output ~= format("mov qword [rsp + 8], qword %d\n", array.type.size); // member size
 			output ~= "mov [rsp + 16], rax\n"; // elements
 
 			// push metadata address
@@ -1188,7 +1243,7 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		if (word.type != WordType.Callisto) {
-			output ~= format("extern %s\n", ExternSymbol(node.func));
+			output ~= format("%sextern %s\n", useGas? "." : "", ExternSymbol(node.func));
 		}
 
 		words[funcName] = word;
@@ -1206,7 +1261,7 @@ class BackendX86_64 : CompilerBackend {
 			string symbol = word.type == WordType.Callisto?
 				format("__func__%s", node.func.Sanitise()) : ExternSymbol(node.func);
 
-			output ~= format("mov rax, %s\n", symbol);
+			output ~= format("lea rax, %s\n", symbol);
 			output ~= "mov [r15], rax\n";
 			output ~= "add r15, 8\n";
 		}
@@ -1505,7 +1560,7 @@ class BackendX86_64 : CompilerBackend {
 
 		++ blockCounter;
 
-		output ~= format("mov rax, __global_%s\n", Sanitise("_cal_exception"));
+		output ~= format("lea rax, __global_%s\n", Sanitise("_cal_exception"));
 		output ~= "cmp qword [rax], 0\n";
 		output ~= format("je __catch_%d_end\n", blockCounter);
 
@@ -1547,7 +1602,7 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		// set exception error
-		output ~= format("mov rbx, __global_%s\n", Sanitise("_cal_exception"));
+		output ~= format("lea rbx, __global_%s\n", Sanitise("_cal_exception"));
 		output ~= "mov rax, 0xFFFFFFFFFFFFFFFF\n";
 		output ~= "mov [rbx], rax\n";
 

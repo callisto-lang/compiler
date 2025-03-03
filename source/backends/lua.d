@@ -10,6 +10,7 @@ import std.algorithm;
 import callisto.util;
 import callisto.error;
 import callisto.parser;
+import callisto.output;
 import callisto.compiler;
 import callisto.language;
 import callisto.preprocessor;
@@ -48,6 +49,8 @@ class BackendLua : CompilerBackend {
 	ulong        arrayStack = 524287;
 
 	this() {
+		output = new Output();
+
 		addrSize = 1;
 
 		// built in integer types

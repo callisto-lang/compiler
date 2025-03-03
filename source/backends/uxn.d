@@ -8,6 +8,7 @@ import std.algorithm;
 import callisto.util;
 import callisto.error;
 import callisto.parser;
+import callisto.output;
 import callisto.compiler;
 import callisto.language;
 import callisto.preprocessor;
@@ -30,6 +31,8 @@ class BackendUXN : CompilerBackend {
 	uint             tempLabelNum;
 
 	this() {
+		output = new Output();
+
 		addrSize = 2;
 
 		types ~= Type("u8",    1);
