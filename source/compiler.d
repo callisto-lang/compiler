@@ -103,6 +103,8 @@ class CompilerBackend {
 	abstract string   DefaultHeader();
 	abstract bool     HandleOption(string opt, ref string[] versions, Preprocessor preproc);
 
+	void BeforeCompile(Node node) {}
+
 	abstract void BeginMain();
 
 	abstract void Init();
@@ -404,6 +406,8 @@ class Compiler {
 	}
 
 	void CompileNode(Node inode) {
+		backend.BeforeCompile(inode);
+
 		switch (inode.type) {
 			case NodeType.Word: {
 				auto node = cast(WordNode) inode;

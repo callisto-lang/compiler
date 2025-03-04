@@ -50,6 +50,7 @@ class BackendX86_64 : CompilerBackend {
 	uint             tempLabelNum;
 	bool             useGas = false;
 	bool             useFramePtr = true;
+	int[string]      fileID;
 
 	this() {
 		output = new Output();
@@ -110,6 +111,21 @@ class BackendX86_64 : CompilerBackend {
 		globals ~= Global(
 			"_cal_exception", UsedType(GetType("Exception"), false), false, 0
 		);
+	}
+
+	int GetMaxFileID() {
+		int ret = 0;
+		foreach (key, value ; fileID) {
+			if (value > ret) ret = value;
+		}
+		return ret;
+	}
+
+	int GetOrCreateFileID(string file) {
+		if (file !in fileID) {
+			fileID[file] = GetMaxFileID() + 1;
+		}
+		return fileID[file];
 	}
 
 	string TempLabel() {
@@ -257,6 +273,28 @@ class BackendX86_64 : CompilerBackend {
 				return true;
 			}
 			default: return false;
+		}
+	}
+
+	override void BeforeCompile(Node node) {
+		static string thisFile;
+
+		if (useDebug && useGas) {
+			if (thisFile != node.error.file) {
+				thisFile  = node.error.file;
+
+				if (node.error.file !in fileID) {
+					output ~= format(
+						".file %d \"%s\"\n", GetOrCreateFileID(node.error.file),
+						node.error.file
+					);
+				}
+			}
+
+			output ~= format(
+				".loc %d %d %d\n", GetOrCreateFileID(node.error.file),
+				node.error.line + 1, node.error.col + 1
+			);
 		}
 	}
 
@@ -774,11 +812,6 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		if (node.inline) {
-			if (node.errors) {
-				output ~= format("lea rax, __global_%s\n", Sanitise("_cal_exception"));
-				output ~= "mov [rax], 0\n";
-			}
-
 			words[node.name] = Word(
 				WordType.Callisto, true, node.nodes, node.errors, params
 			);
