@@ -11,7 +11,7 @@ let Array path
 1 &path get_arg
 
 let File file
-&path FILE_READ open_file &file file<
+&path FILE_READ &file open_file
 
 if &file @ -2 = then
 	"Failed to open file\n" print_str
@@ -21,15 +21,15 @@ end
 let cell fileSize
 let array 16384 u8 fileContents
 
-&file 0 SEEK_END file_seek
+0 SEEK_END &file file_seek
 &file file_peek -> fileSize
-&file 0 SEEK_SET file_seek
+0 SEEK_SET &file file_seek
 
 let Array fileArray
 &fileContents &fileArray Array.elements + !
 1 &fileArray Array.memberSize + !
 fileSize &fileArray Array.length + !
 
-&file &fileContents fileSize file@ 
+&fileContents fileSize &file file@ 
 
 &fileArray print_str new_line
