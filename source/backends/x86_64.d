@@ -442,7 +442,7 @@ class BackendX86_64 : CompilerBackend {
 
 		foreach (i, ref array ; arrays) {
 			if (useGas) {
-				output ~= format("__array_%d: skip %d\n", i, array.Size());
+				output ~= format("__array_%d: .skip %d\n", i, array.Size());
 			}
 			else {
 				output ~= format("__array_%d: resb %d\n", i, array.Size());
@@ -454,7 +454,7 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		// create array source
-		output ~= "section .text\n";
+		output ~= format("%ssection .text\n", useGas? "." : "");
 		foreach (i, ref array ; arrays) {
 			output ~= format("__array_src_%d: ", i);
 

@@ -6,6 +6,7 @@ import std.format;
 import std.string;
 import std.algorithm;
 import core.stdc.stdlib : exit;
+import callisto.util;
 
 // this will eventually be used for generating ASMMod files
 // but for now i'm using it because GNU Assembler is the worst piece of software to
@@ -50,6 +51,22 @@ class Output {
 
 				output ~= macros[macroName];
 				i = macroName.length + i + 2;
+			}
+			else if (text[i .. $].startsWith("${")) {
+				if (text[i .. $].length == 2) {
+					Error(text, "Incomplete sanitise statement");
+				}
+
+				string input = text[i + 2 .. $];
+
+				if (!input.canFind('}')) {
+					Error(text, "Incomplete sanitise statement");
+				}
+
+				input = input[0 .. input.indexOf('}')];
+
+				output ~= input.Sanitise();
+				i = input.length + i + 2;
 			}
 			else {
 				output ~= text[i];
