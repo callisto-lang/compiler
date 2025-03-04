@@ -63,6 +63,7 @@ Backend options:
   x86_64:
     use-libc  - Makes Callisto use the C runtime and links libc
     frame-ptr - Makes Callisto use both rbp (frame pointer) and rsp for stack frames
+    use-gas   - Makes Callisto use GNU Assembler instead of nasm
 ";
 
 int main(string[] args) {
