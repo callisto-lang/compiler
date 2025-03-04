@@ -14,12 +14,6 @@ cac-test-*
 *.o
 *.obj
 *.lst
-out.asm
-out.com
-out.bin
-test.cal
-out.c
-out
-out.o
-out.exe
-out*
+/test.cal
+/out
+/out.*

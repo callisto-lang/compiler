@@ -53,11 +53,6 @@ class BackendX86_64 : CompilerBackend {
 
 	this() {
 		output = new Output();
-		output.macros["QWORD"] = useGas? "qword ptr" : "qword";
-		output.macros["DWORD"] = useGas? "dword ptr" : "dword";
-		output.macros["WORD"]  = useGas? "word ptr"  : "word";
-		output.macros["BYTE"]  = useGas? "byte ptr"  : "byte";
-
 		addrSize = 8;
 
 		version (linux) {
@@ -272,7 +267,7 @@ class BackendX86_64 : CompilerBackend {
 		foreach (global ; globals) {
 			if (global.type.hasInit && !global.type.ptr) {
 				output ~= format(
-					"lea rax, qword [__global_%s]\n", global.name.Sanitise()
+					"lea rax, __global_%s\n", global.name.Sanitise()
 				);
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
@@ -301,6 +296,11 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	override void Init() {
+		output.macros["QWORD"] = useGas? "qword ptr" : "qword";
+		output.macros["DWORD"] = useGas? "dword ptr" : "dword";
+		output.macros["WORD"]  = useGas? "word ptr"  : "word";
+		output.macros["BYTE"]  = useGas? "byte ptr"  : "byte";
+
 		string[] oses = ["linux", "bare-metal", "osx", "freebsd"];
 		if (!oses.canFind(os)) {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
@@ -376,7 +376,7 @@ class BackendX86_64 : CompilerBackend {
 		// call destructors
 		foreach (global ; globals) {
 			if (global.type.hasDeinit && !global.type.ptr) {
-				output ~= format("lea rax, qword [__global_%s]\n", Sanitise(global.name));
+				output ~= format("lea rax, __global_%s\n", Sanitise(global.name));
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 				output ~= format("call __type_deinit_%s\n", Sanitise(global.type.name));
@@ -624,7 +624,7 @@ class BackendX86_64 : CompilerBackend {
 						// push parameters
 						foreach_reverse (i ; 6 .. word.params.length) {
 							output ~= format(
-								"push qword [r15 - %d]\n", (word.params.length - i) * 8
+								"push $(QWORD) [r15 - %d]\n", (word.params.length - i) * 8
 							);
 						}
 					}
@@ -673,13 +673,15 @@ class BackendX86_64 : CompilerBackend {
 
 					if (crash) {
 						output ~= format("lea rax, __global_%s\n", Sanitise("_cal_exception"));
-						output ~= "cmp qword [rax], 0\n";
+						output ~= "cmp $(QWORD) [rax], 0\n";
 						output ~= format("jne __func__%s\n", Sanitise("__x86_64_exception"));
 					}
 					else {
 						string temp = TempLabel();
 						
-						output ~= format("cmp qword [__global_%s], 0\n", Sanitise("_cal_exception"));
+						output ~= format(
+							"cmp $(QWORD) [__global_%s], 0\n", Sanitise("_cal_exception")
+						);
 						output ~= format("je %s\n", temp);
 						output ~= "mov r15, r14\n";
 						CompileReturn(node);
@@ -1269,7 +1271,7 @@ class BackendX86_64 : CompilerBackend {
 			auto var = GetGlobal(node.func);
 
 			output ~= format(
-				"lea rax, qword [__global_%s]\n", node.func.Sanitise()
+				"lea rax, __global_%s\n", node.func.Sanitise()
 			);
 			output ~= "mov [r15], rax\n";
 			output ~= "add r15, 8\n";
@@ -1301,7 +1303,7 @@ class BackendX86_64 : CompilerBackend {
 				}
 				else {
 					output ~= format(
-						"lea rax, qword [__global_%s + %d]\n", name.Sanitise(), offset
+						"lea rax, [__global_%s + %d]\n", name.Sanitise(), offset
 					);
 				}
 				
@@ -1561,7 +1563,7 @@ class BackendX86_64 : CompilerBackend {
 		++ blockCounter;
 
 		output ~= format("lea rax, __global_%s\n", Sanitise("_cal_exception"));
-		output ~= "cmp qword [rax], 0\n";
+		output ~= "cmp $(QWORD) [rax], 0\n";
 		output ~= format("je __catch_%d_end\n", blockCounter);
 
 		// function errored, assume that all it did was consume parameters
