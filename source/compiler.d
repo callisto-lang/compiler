@@ -156,22 +156,41 @@ class CompilerBackend {
 			offset = GetType(node.inheritsFrom).size;
 		}
 
+		UsedType*[] copiesOfMe;
+
 		foreach (ref member ; node.members) {
-			if (!TypeExists(member.type.name)) {
+			bool canUseMyself = false;
+
+			if ((member.type.name == node.name) && member.type.ptr) {
+				canUseMyself = true;
+			}
+
+			if (!canUseMyself && !TypeExists(member.type.name)) {
 				Error(node.error, "Type '%s' doesn't exist", member.type.name);
 			}
 			if (members.canFind(member.name)) {
 				Error(node.error, "Duplicate member '%s'", member.name);
 			}
 
-			UsedType memberType = UsedType(GetType(member.type.name), member.type.ptr);
-			memberType.ptr      = member.type.ptr;
+			UsedType memberType;
+			if (canUseMyself) {
+				memberType = UsedType(
+					Type.init, member.type.ptr
+				);
+			}
+			else {
+				memberType = UsedType(
+					GetType(member.type.name), member.type.ptr
+				);
+			}
+			memberType.ptr = member.type.ptr;
 
 			auto newMember = StructEntry(
 				memberType, member.name, member.array, memberType.Size(), offset
 			);
-			entries ~= newMember;
-			members ~= member.name;
+			entries    ~= newMember;
+			members    ~= member.name;
+			copiesOfMe ~= &entries[$ - 1].type;
 
 			offset += newMember.array?
 				newMember.type.Size() * newMember.size : newMember.type.Size();
@@ -183,6 +202,10 @@ class CompilerBackend {
 
 		NewConst(format("%s.sizeOf", node.name), offset);
 		types ~= Type(node.name, offset, true, entries);
+
+		foreach (ref me ; copiesOfMe) {
+			*me = UsedType(types[$ - 1], true);
+		}
 	}
 
 	void CompileEnum(EnumNode node) {
