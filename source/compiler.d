@@ -174,7 +174,7 @@ class CompilerBackend {
 			members ~= member.name;
 
 			offset += newMember.array?
-				newMember.type.Size() * newMember.size : newMember.type.size;
+				newMember.type.Size() * newMember.size : newMember.type.Size();
 		}
 
 		foreach (ref member ; entries) {
