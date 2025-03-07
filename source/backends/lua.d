@@ -143,7 +143,7 @@ class BackendLua : CompilerBackend {
 			auto arrayExtra = cast(ArrayExtra*) array.extra;
 
 			output ~= format("mem[%d] = %d\n", arrayExtra.metaAddr, array.values.length);
-			output ~= format("mem[%d + 1] = %d\n", arrayExtra.metaAddr, array.type.size);
+			output ~= format("mem[%d + 1] = %d\n", arrayExtra.metaAddr, array.type.Size());
 			output ~= format("mem[%d + 2] = %d\n", arrayExtra.metaAddr, arrayExtra.elements);
 
 			// create array contents
@@ -688,7 +688,7 @@ class BackendLua : CompilerBackend {
 			output ~= "regA = vsp\n";
 			output ~= "vsp = vsp - 3\n";
 			output ~= format("mem[vsp] = %d\n", array.values.length);
-			output ~= format("mem[vsp + 1] = %d\n", array.type.size);
+			output ~= format("mem[vsp + 1] = %d\n", array.type.Size());
 			output ~= "mem[vsp + 2] = regA\n";
 
 			// push metadata address

@@ -299,6 +299,9 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	override void BeginMain() {
+		if (useGas && useDebug) {
+			output ~= ".type __calmain, @function\n";
+		}
 		output ~= "__calmain:\n";
 
 		// call constructors
@@ -496,7 +499,7 @@ class BackendX86_64 : CompilerBackend {
 		foreach (i, ref array ; arrays) {
 			output ~= format("__array_src_%d: ", i);
 
-			switch (array.type.size) {
+			switch (array.type.Size()) {
 				case 1:  output ~= useGas? ".byte " : "db "; break;
 				case 2:  output ~= useGas? ".word " : "dw "; break;
 				case 4:  output ~= useGas? ".long " : "dd "; break;
@@ -515,7 +518,7 @@ class BackendX86_64 : CompilerBackend {
 					"__array_%d_meta: %s %d, %d, __array_%d\n", i,
 					useGas? ".quad" : "dq",
 					array.values.length,
-					array.type.size,
+					array.type.Size(),
 					i
 				);
 			}
@@ -832,6 +835,9 @@ class BackendX86_64 : CompilerBackend {
 				output ~= format("global %s\n", symbol);
 			}
 
+			if (useGas && useDebug) {
+				output ~= format(".type %s, @function\n", symbol);
+			}
 			output ~= format("%s:\n", symbol);
 
 			if (useFramePtr) {
@@ -1168,7 +1174,7 @@ class BackendX86_64 : CompilerBackend {
 			output ~= "mov rax, rsp\n";
 			output ~= format("sub rsp, %d\n", 8 * 3); // size of Array structure
 			output ~= format("mov $(QWORD) [rsp], %d\n", array.values.length); // length
-			output ~= format("mov $(QWORD) [rsp + 8], %d\n", array.type.size); // member size
+			output ~= format("mov $(QWORD) [rsp + 8], %d\n", array.type.Size()); // member size
 			output ~= "mov [rsp + 16], rax\n"; // elements
 
 			// push metadata address

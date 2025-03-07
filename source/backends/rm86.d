@@ -203,7 +203,7 @@ class BackendRM86 : CompilerBackend {
 		foreach (i, ref array ; arrays) {
 			output ~= format("__array_%d: ", i);
 
-			switch (array.type.size) {
+			switch (array.type.Size()) {
 				case 1:  output ~= "db "; break;
 				case 2:  output ~= "dw "; break;
 				default: assert(0);
@@ -219,7 +219,7 @@ class BackendRM86 : CompilerBackend {
 				output ~= format(
 					"__array_%d_meta: dw %d, %d, __array_%d\n", i,
 					array.values.length,
-					array.type.size,
+					array.type.Size(),
 					i
 				);
 			}
@@ -777,7 +777,7 @@ class BackendRM86 : CompilerBackend {
 			output ~= format("sub sp, %d\n", 2 * 3); // size of Array structure
 			output ~= "mov bx, sp\n";
 			output ~= format("mov word [bx], %d\n", array.values.length); // length
-			output ~= format("mov word [bx + 2], %d\n", array.type.size); // member size
+			output ~= format("mov word [bx + 2], %d\n", array.type.Size()); // member size
 			output ~= "mov [bx + 4], ax\n"; // elements
 
 			// push metadata address

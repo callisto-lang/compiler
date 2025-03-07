@@ -176,7 +176,7 @@ class BackendUXN : CompilerBackend {
 				output ~= format(
 					"@array_%d_meta %.4x %.4x =array_%d\n", i,
 					array.values.length,
-					array.type.size,
+					array.type.Size(),
 					i
 				);
 			}
@@ -668,7 +668,7 @@ class BackendUXN : CompilerBackend {
 					auto node2    = cast(IntegerNode) elem;
 
 					//array.values ~= node2.value.text();
-					final switch (array.type.size) {
+					final switch (array.type.Size()) {
 						case 1: array.values ~= format("%.2x", node2.value); break;
 						case 2: array.values ~= format("%.4x", node2.value); break;
 					}
@@ -728,7 +728,7 @@ class BackendUXN : CompilerBackend {
 			// length
 			output ~= format("#%.4x .vsp LDZ2 STA2\n", array.values.length);
 			// member size
-			output ~= format("#%.4x .vsp LDZ2 INC2 INC2 STA2\n", array.type.size);
+			output ~= format("#%.4x .vsp LDZ2 INC2 INC2 STA2\n", array.type.Size());
 			// elements
 			output ~= ".vsp LDZ2 #0004 ADD2 STA2\n";
 

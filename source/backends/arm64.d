@@ -343,7 +343,7 @@ class BackendARM64 : CompilerBackend {
 
 			output ~= format("__array_%d: ", i);
 
-			switch (array.type.size) {
+			switch (array.type.Size()) {
 				case 1:  output ~= ".byte "; break;
 				case 2:  output ~= ".2byte "; break;
 				case 4:  output ~= ".4byte "; break;
@@ -362,7 +362,7 @@ class BackendARM64 : CompilerBackend {
 				output ~= format(
 					"__array_%d_meta: .8byte %d, %d, __array_%d\n", i,
 					array.values.length,
-					array.type.size,
+					array.type.Size(),
 					i
 				);
 			}
@@ -454,7 +454,7 @@ class BackendARM64 : CompilerBackend {
 						ulong stackSpace = 0;
 						if (os == "osx") {
 							for (auto i = 8; i < word.params.length; i++) {
-								stackSpace += word.params[i].size;
+								stackSpace += word.params[i].Size();
 							}
 						}
 						else {
@@ -469,7 +469,7 @@ class BackendARM64 : CompilerBackend {
 						for (auto i = 0; i < stackParams; i++) {
 							output ~= "ldr x9, [x19, #-8]!\n";
 							if (os == "osx") {
-								auto size = word.params[i + 8].size;
+								auto size = word.params[i + 8].Size();
 								stackOffset -= size;
 								switch (size) {
 									case 1: output ~= format("strb w9, [sp, #%d]\n", stackOffset); break;
@@ -960,10 +960,10 @@ class BackendARM64 : CompilerBackend {
 			variables ~= var;
 
 			output ~= "mov x9, x20\n";
-			output ~= format("sub x20, x20, #%d\n", var.type.size); // size of Array structure
+			output ~= format("sub x20, x20, #%d\n", var.type.Size()); // size of Array structure
 			output ~= format("ldr x10, =%d\n", array.values.length);
 			output ~= "str x10, [x20]\n"; // length
-			output ~= format("ldr x10, =%d\n", array.type.size);
+			output ~= format("ldr x10, =%d\n", array.type.Size());
 			output ~= "str x10, [x20, #8]\n"; // member size
 			output ~= "str x9, [x20, #16]\n"; // elements
 
