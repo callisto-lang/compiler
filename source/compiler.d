@@ -52,8 +52,10 @@ struct Variable {
 	uint     offset; // SP + offset to access
 	bool     array;
 	ulong    arraySize;
+	size_t   stackSize; // use this instead of Size() if >0
 
 	size_t Size() => array? arraySize * type.Size() : type.Size();
+	size_t StackSize() => stackSize > 0? stackSize : Size();
 }
 
 struct Global {
@@ -402,7 +404,7 @@ class CompilerBackend {
 
 		size_t size;
 		foreach (ref var ; variables) {
-			size += var.Size();
+			size += var.StackSize();
 		}
 
 		return size;

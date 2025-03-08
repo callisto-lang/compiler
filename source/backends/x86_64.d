@@ -49,7 +49,7 @@ class BackendX86_64 : CompilerBackend {
 	bool             useLibc;
 	uint             tempLabelNum;
 	bool             useGas = false;
-	bool             useFramePtr = true;
+	bool             useFramePtr = false;
 	int[string]      fileID;
 
 	this() {
@@ -875,7 +875,8 @@ class BackendX86_64 : CompilerBackend {
 					var.type.type = GetType(type.name);
 					var.type.ptr  = type.ptr;
 					var.offset    = cast(uint) offset;
-					offset       += var.Size();
+					var.stackSize = 8;
+					offset       += var.StackSize();
 					variables    ~= var;
 				}
 
@@ -904,7 +905,7 @@ class BackendX86_64 : CompilerBackend {
 
 			size_t scopeSize;
 			foreach (ref var ; variables) {
-				scopeSize += var.Size();
+				scopeSize += var.StackSize();
 
 				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format("lea rax, [rsp + %d]\n", var.offset);
@@ -1208,7 +1209,7 @@ class BackendX86_64 : CompilerBackend {
 		else {
 			size_t scopeSize;
 			foreach (ref var ; variables) {
-				scopeSize += var.Size();
+				scopeSize += var.StackSize();
 
 				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format("lea rax, [rsp + %d\n]", var.offset);
@@ -1431,7 +1432,7 @@ class BackendX86_64 : CompilerBackend {
 		else {
 			size_t scopeSize;
 			foreach (ref var ; variables) {
-				scopeSize += var.Size();
+				scopeSize += var.StackSize();
 
 				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format("lea rax, [rsp + %d]\n", var.offset);
