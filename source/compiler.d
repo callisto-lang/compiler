@@ -192,7 +192,10 @@ class CompilerBackend {
 			);
 			entries    ~= newMember;
 			members    ~= member.name;
-			copiesOfMe ~= &entries[$ - 1].type;
+
+			if (canUseMyself) {
+				copiesOfMe ~= &entries[$ - 1].type;
+			}
 
 			offset += newMember.array?
 				newMember.type.Size() * newMember.size : newMember.type.Size();
