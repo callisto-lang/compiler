@@ -444,6 +444,7 @@ class BackendUXN : CompilerBackend {
 					var.name      = param;
 					var.type      = UsedType(GetType(type.name), type.ptr);
 					var.offset    = cast(uint) offset;
+					var.stackSize = 2;
 					offset       += var.Size();
 					variables    ~= var;
 				}
@@ -462,7 +463,7 @@ class BackendUXN : CompilerBackend {
 
 			size_t scopeSize;
 			foreach (ref var ; variables) {
-				scopeSize += var.Size();
+				scopeSize += var.StackSize();
 				
 				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
@@ -757,7 +758,7 @@ class BackendUXN : CompilerBackend {
 
 		size_t scopeSize;
 		foreach (ref var ; variables) {
-			scopeSize += var.Size();
+			scopeSize += var.StackSize();
 
 			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
@@ -900,7 +901,7 @@ class BackendUXN : CompilerBackend {
 
 		size_t scopeSize;
 		foreach (ref var ; variables) {
-			scopeSize += var.Size();
+			scopeSize += var.StackSize();
 
 			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);

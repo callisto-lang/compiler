@@ -673,7 +673,8 @@ class BackendARM64 : CompilerBackend {
 					var.type.type = GetType(type.name);
 					var.type.ptr  = type.ptr;
 					var.offset    = cast(uint) offset;
-					offset       += var.Size();
+					var.stackSize = 8;
+					offset       += var.StackSize();
 					variables    ~= var;
 				}
 
@@ -705,7 +706,7 @@ class BackendARM64 : CompilerBackend {
 
 			size_t scopeSize;
 			foreach (ref var ; variables) {
-				scopeSize += var.Size();
+				scopeSize += var.StackSize();
 
 				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format("add x9, x20, #%d\n", var.offset);
@@ -993,7 +994,7 @@ class BackendARM64 : CompilerBackend {
 
 		size_t scopeSize;
 		foreach (ref var ; variables) {
-			scopeSize += var.Size();
+			scopeSize += var.StackSize();
 
 			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format("add x9, x20, #%d\n", var.offset);
@@ -1177,7 +1178,7 @@ class BackendARM64 : CompilerBackend {
 
 		size_t scopeSize;
 		foreach (ref var ; variables) {
-			scopeSize += var.Size();
+			scopeSize += var.StackSize();
 
 			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format("add x9, x20, #%d\n", var.offset);

@@ -484,7 +484,8 @@ class BackendRM86 : CompilerBackend {
 					var.type.type = GetType(type.name);
 					var.type.ptr  = type.ptr;
 					var.offset    = cast(uint) offset;
-					offset       += var.Size();
+					var.stackSize = 2;
+					offset       += var.StackSize();
 					variables    ~= var;
 				}
 
@@ -505,7 +506,7 @@ class BackendRM86 : CompilerBackend {
 
 			size_t scopeSize;
 			foreach (ref var ; variables) {
-				scopeSize += var.Size();
+				scopeSize += var.StackSize();
 
 				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format("lea ax, [sp + %d\n]", var.offset);
@@ -976,7 +977,7 @@ class BackendRM86 : CompilerBackend {
 
 		size_t scopeSize;
 		foreach (ref var ; variables) {
-			scopeSize += var.Size();
+			scopeSize += var.StackSize();
 
 			if (var.type.hasDeinit) {
 				output ~= format("lea ax, [sp + %d\n]", var.offset);
