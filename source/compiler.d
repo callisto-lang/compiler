@@ -541,6 +541,17 @@ class Compiler {
 				}
 				break;
 			}
+			case NodeType.Anon: {
+				auto node = cast(AnonNode) inode;
+				auto let  = new LetNode(inode.error);
+
+				let.varType   = node.varType;
+				let.name      = "";
+				let.array     = node.array;
+				let.arraySize = node.arraySize;
+				backend.CompileLet(let);
+				break;
+			}
 			default: {
 				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}

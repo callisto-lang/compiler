@@ -840,16 +840,18 @@ class BackendARM64 : CompilerBackend {
 		output ~= format("bne __while_%d\n", blockNum);
 		output ~= format("__while_%d_end:\n", blockNum);
 	}
-	
+
 	override void CompileLet(LetNode node) {
 		if (!TypeExists(node.varType.name)) {
 			Error(node.error, "Undefined type '%s'", node.varType.name);
 		}
-		if (VariableExists(node.name) || (node.name in words)) {
-			Error(node.error, "Variable name '%s' already used", node.name);
-		}
-		if (Language.bannedNames.canFind(node.name)) {
-			Error(node.error, "Name '%s' can't be used", node.name);
+		if (node.name != "") {
+			if (VariableExists(node.name) || (node.name in words)) {
+				Error(node.error, "Variable name '%s' already used", node.name);
+			}
+			if (Language.bannedNames.canFind(node.name)) {
+				Error(node.error, "Name '%s' can't be used", node.name);
+			}
 		}
 
 		if (inScope) {
@@ -875,6 +877,10 @@ class BackendARM64 : CompilerBackend {
 				default: OffsetLocalsStack(var.Size(), true);
 			}
 
+			if (var.name == "") {
+				output ~= "str x20, [x19], #8\n";
+			}
+
 			if (var.type.hasInit && !var.type.ptr) { // call constructor
 				output ~= "str x20, [x19], #8\n";
 				output ~= format("bl __type_init_%s\n", var.type.name.Sanitise());
@@ -892,6 +898,11 @@ class BackendARM64 : CompilerBackend {
 			global.arraySize   = node.arraySize;
 			global.name        = node.name;
 			globals           ~= global;
+
+			if (global.name == "") {
+				LoadAddress("x9", format("__global_%s", global.name.Sanitise()));
+				output ~= "str x9, [x19], #8\n";
+			}
 		}
 	}
 	

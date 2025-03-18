@@ -544,11 +544,13 @@ class BackendLua : CompilerBackend {
 		if (!TypeExists(node.varType.name)) {
 			Error(node.error, "Undefined type '%s'", node.varType.name);
 		}
-		if (VariableExists(node.name) || (node.name in words)) {
-			Error(node.error, "Variable name '%s' already used", node.name);
-		}
-		if (Language.bannedNames.canFind(node.name)) {
-			Error(node.error, "Name '%s' can't be used", node.name);
+		if (node.name != "") {
+			if (VariableExists(node.name) || (node.name in words)) {
+				Error(node.error, "Variable name '%s' already used", node.name);
+			}
+			if (Language.bannedNames.canFind(node.name)) {
+				Error(node.error, "Name '%s' can't be used", node.name);
+			}
 		}
 
 		if (inScope) {
@@ -570,6 +572,11 @@ class BackendLua : CompilerBackend {
 
 			if (var.Size() == 1) {
 				output ~= "mem[vsp] = 0\n";
+			}
+
+			if (var.name == "") {
+				output ~= "mem[dsp] = vsp\n";
+				output ~= "dsp = dsp + 1\n";
 			}
 
 			if (var.type.hasInit && !var.type.ptr) { // call constructor
@@ -596,6 +603,13 @@ class BackendLua : CompilerBackend {
 			globals          ~= global;
 
 			globalStack += global.Size();
+
+			if (global.name == "") {
+				Error(
+					node.error,
+					"Anonymous variables can only be created inside a function"
+				);
+			}
 
 			if (global.type.hasInit && !global.type.ptr) { // call constructor
 				output ~= format("mem[dsp] = %d\n", extra.addr);

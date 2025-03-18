@@ -482,6 +482,7 @@ class StackChecker {
 			case NodeType.Union:     EvaluateUnion(cast(UnionNode) node); break;
 			case NodeType.Alias:     EvaluateAlias(cast(AliasNode) node); break;
 			case NodeType.Unsafe:    EvaluateUnsafe(cast(UnsafeNode) node); break;
+			case NodeType.Anon:      Push(node, 1); break;
 			default: break;
 		}
 	}

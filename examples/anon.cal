@@ -1,0 +1,11 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+func main begin
+	let cell meow
+	&meow print_dec new_line
+
+	anon cell print_dec new_line
+end
+
+main

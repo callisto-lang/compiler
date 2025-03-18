@@ -35,7 +35,8 @@ enum NodeType {
 	Implement,
 	Set,
 	TryCatch,
-	Unsafe
+	Unsafe,
+	Anon
 }
 
 class Node {
@@ -561,6 +562,21 @@ class UnsafeNode : Node {
 
 		return ret ~ "end";
 	}
+}
+
+class AnonNode : Node {
+	TypeNode varType;
+	bool     array;
+	size_t   arraySize;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.Anon;
+		error = perror;
+	}
+
+	override string toString() => array?
+		format("anon array %d %s", arraySize, varType) :
+		format("anon %s", varType);
 }
 
 class ParserError : Exception {
@@ -1351,6 +1367,28 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseAnon() {
+		auto ret = new AnonNode(GetError());
+		parsing  = NodeType.Anon;
+		parseStart = tokens[i];
+
+		Next();
+		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "array") {
+			Next();
+			Expect(TokenType.Integer);
+
+			ret.array     = true;
+			ret.arraySize = parse!size_t(tokens[i].contents);
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
+		ret.varType = cast(TypeNode) ParseType();
+		return ret;
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -1379,6 +1417,7 @@ class Parser {
 					case "try":        return ParseTryCatch();
 					case "->":         return ParseSet();
 					case "unsafe":     return ParseUnsafe();
+					case "anon":       return ParseAnon();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

@@ -1060,11 +1060,13 @@ class BackendX86_64 : CompilerBackend {
 		if (!TypeExists(node.varType.name)) {
 			Error(node.error, "Undefined type '%s'", node.varType.name);
 		}
-		if (VariableExists(node.name) || (node.name in words)) {
-			Error(node.error, "Variable name '%s' already used", node.name);
-		}
-		if (Language.bannedNames.canFind(node.name)) {
-			Error(node.error, "Name '%s' can't be used", node.name);
+		if (node.name != "") {
+			if (VariableExists(node.name) || (node.name in words)) {
+				Error(node.error, "Variable name '%s' already used", node.name);
+			}
+			if (Language.bannedNames.canFind(node.name)) {
+				Error(node.error, "Name '%s' can't be used", node.name);
+			}
 		}
 
 		if (inScope) {
@@ -1089,6 +1091,11 @@ class BackendX86_64 : CompilerBackend {
 				output ~= format("sub rsp, %d\n", var.Size());
 			}
 
+			if (var.name == "") {
+				output ~= "mov [r15], rsp\n";
+				output ~= "add r15, 8\n";
+			}
+
 			if (var.type.hasInit && !var.type.ptr) { // call constructor
 				output ~= "mov [r15], rsp\n";
 				output ~= "add r15, 8\n";
@@ -1107,6 +1114,13 @@ class BackendX86_64 : CompilerBackend {
 			global.arraySize   = node.arraySize;
 			global.name        = node.name;
 			globals           ~= global;
+
+			if (global.name == "") {
+				Error(
+					node.error,
+					"Anonymous variables can only be created inside a function"
+				);
+			}
 		}
 	}
 	
