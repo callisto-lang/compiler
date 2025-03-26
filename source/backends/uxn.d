@@ -96,6 +96,16 @@ class BackendUXN : CompilerBackend {
 	override string DefaultHeader() => "
 		|00 @System &vector $2 &expansion $2 &wst $1 &rst $1 &metadata $2 &r $2 &g $2 &b $2 &debug $1 &state $1
 		|10 @Console &vector $2 &read $5 &type $1 &write $1 &error $1
+		|20 @Screen/vector $2 &width $2 &height $2 &auto $2 &x $2 &y $2 &addr $2 &pixel $1 &sprite $1
+		|30 @Audio0/vector $2 &position $2 &output $1 &pad $3 &adsr $2 &length $2 &addr $2 &volume $1 &pitch $1
+		|40 @Audio1/vector $2 &position $2 &output $1 &pad $3 &adsr $2 &length $2 &addr $2 &volume $1 &pitch $1
+		|50 @Audio2/vector $2 &position $2 &output $1 &pad $3 &adsr $2 &length $2 &addr $2 &volume $1 &pitch $1
+		|60 @Audio3/vector $2 &position $2 &output $1 &pad $3 &adsr $2 &length $2 &addr $2 &volume $1 &pitch $1
+		|80 @Controller/vector $2 &button $1 &key $1
+		|90 @Mouse/vector $2 &x $2 &y $2 &state $5 &scrolly &scrolly-hb $1 &scrolly-lb $1
+		|a0 @File1/vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2
+		|b0 @File2/vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2
+		|c0 @DateTime &year $2 &month $1 &day $1 &hour $1 &minute $1 &second $1 &dotw $1 &doty $2 &isdst $1
 	";
 
 	override bool HandleOption(string opt, ref string[] versions, Preprocessor preproc) => false;

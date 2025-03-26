@@ -8,13 +8,11 @@ import std.algorithm;
 import core.stdc.stdlib : exit;
 import callisto.util;
 
-// this will eventually be used for generating ASMMod files
-// but for now i'm using it because GNU Assembler is the worst piece of software to
-// ever exist
 class Output {
 	string         output;
 	string         outFile;
 	string[string] macros;
+	bool           toMod;
 
 	this() {
 		

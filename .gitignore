@@ -1,7 +1,5 @@
 .dub
-docs.json
 __dummy.html
-docs/
 /cac
 cac.so
 cac.dylib
