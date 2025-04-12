@@ -148,7 +148,7 @@ class BackendUXN : CompilerBackend {
 		output ~= "|100\n";
 		output ~= "@on-reset\n";
 		output ~= "    #ffff .vsp STZ2\n";
-		output ~= "    calmain\n";
+		output ~= "    init\n";
 		output ~= "    BRK\n";
 	}
 
@@ -161,6 +161,21 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 
+		if ("__uxn_program_exit" in words) {
+			CallFunction("__uxn_program_exit");
+		}
+		else {
+			WarnNoInfo("No exit function available, expect bugs");
+		}
+
+		// create init function
+		output ~= "@init\n";
+		if ("__uxn_program_init" in words) {
+			CallFunction("__uxn_program_init");
+		}
+		else {
+			WarnNoInfo("No program init function available");
+		}
 		output ~= "JMP2r\n";
 
 		foreach (var ; globals) {
@@ -198,6 +213,8 @@ class BackendUXN : CompilerBackend {
 		output ~= "&srcAddr 0000\n";
 		output ~= "&dstBank 0000\n";
 		output ~= "&dstAddr 0000\n";
+
+		output ~= "@program_end\n";
 
 		// pad for the stack
 		output ~= "|e0000\n";
