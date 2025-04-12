@@ -73,6 +73,7 @@ The following tables will include the type byte mentioned before
 | 3              | 8            | Number of called functions                         |
 | 11             | ?            | Array of strings containing called functions       |
 | ?              | ?            | Assembly of function (includes label)              |
+| ?              | ?            | Function name                                      |
 
 ### Flags
 Flags are OR'd together

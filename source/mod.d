@@ -36,6 +36,10 @@ enum OS : ushort {
 	Fox32OS = 0x0007
 }
 
+class Section {
+	
+}
+
 struct TopLevelCode {
 	string[] called;
 	string   assembly;
@@ -91,6 +95,7 @@ class Module {
 	size_t[string]   unions;
 	string[string]   aliases;
 	Implement[]      implements;
+	bool             readAsm;
 
 	static Module Open(string path, bool write) {
 		file  = File(path, pwrite? "wb", "rb");
@@ -120,6 +125,18 @@ class Module {
 		return ret;
 	}
 
+	private void SkipString() {
+		assert(!write);
+
+		while (true) {
+			auto read = file.rawRead(new char[1]);
+
+			if (read[0] == 0) {
+				break;
+			}
+		}
+	}
+
 	private ulong ReadValue(T)() {
 		assert(!write);
 
@@ -145,12 +162,44 @@ class Module {
 
 	private void ReadTopLevelCode() {
 		TopLevelCode tlc;
-		size_t calledNum = 
+		ulong calledNum = ReadValue!ulong();
+
+		for (ulong i = 0; i < calledNum; ++ i) {
+			tlc.called ~= ReadString();
+		}
+
+		if (readAsm) {
+			tlc.assembly = ReadString();
+		}
+		else {
+			SkipString();
+		}
+
+		topLevel ~= tlc;
 	}
 
-	private void ReadFuncDef() {return;}
+	private void ReadFuncDef() {
+		Function func;
+		func.pub = ReadValue!ubyte() == 1;
 
-	private void ReadImport() {return;}
+		ulong calledNum = ReadValue!ulong();
+		for (ulong i = 0; i < calledNum; ++ i) {
+			func.called ~= ReadString();
+		}
+
+		if (readAsm) {
+			func.assembly = ReadString();
+		}
+		else {
+			SkipString();
+		}
+
+		funcs[ReadString()] = func;
+	}
+
+	private void ReadImport() {
+		
+	}
 
 	private void ReadEnable() {return;}
 
