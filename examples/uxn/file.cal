@@ -1,0 +1,25 @@
+# this is a cat program
+
+include "cores/select.cal"
+include "std/io.cal"
+include "std/args.cal"
+include "uxn/file.cal"
+
+if get_args_length 1 = then
+	"Please pass a file name" print_str new_line
+	0 exit
+end
+
+let Array fileName
+1 &fileName get_arg
+&fileName 0 uxn_open_file
+
+let u8 ch
+while true do
+	&ch 1 0 try uxn_read_file
+	catch
+		0 exit
+	end
+
+	ch print_ch
+end

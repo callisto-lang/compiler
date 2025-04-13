@@ -8,7 +8,7 @@ rules:
     - statement: "\\b(let|enable|requires|struct|version|return|const|enum|restrict)\\b"
     - statement: "\\b(continue|break|union|alias|overwrite|error|extern|call|raw)\\b"
     - statement: "\\b(implement|as|try|catch|throw|unsafe|man|ptr|anon)\\b"
-    - type:      "\\b(addr|void|u8|i8|u16|i16|u32|i32|u64|i64|size|usize|cell|array)\\b"
+    - type:      "\\b(addr|void|u8|i8|u16|i16|u32|i32|u64|i64|size|usize|cell|array|bool)\\b"
     - type:      "\\b[A-Z]+[a-zA-Z_0-9]*[a-z]+[a-zA-Z_0-9]*\\b"
     
     - constant.string:

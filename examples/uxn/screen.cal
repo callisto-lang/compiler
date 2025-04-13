@@ -1,0 +1,48 @@
+include "cores/select.cal"
+include "std/io.cal"
+include "uxn/uxn.cal"
+include "uxn/screen.cal"
+include "uxn/system.cal"
+
+let bool drawn
+let cell w
+let cell h
+
+func plot cell x cell y cell colour begin
+	x uxn_screen_set_x
+	y uxn_screen_set_y
+	colour 0 uxn_pixel_set_colour uxn_set_pixel
+end
+
+func screen_vector begin
+	if drawn not then
+		let cell x
+		let cell y
+
+		while y h < do
+			0 -> x
+			while x w < do
+				if x y and 0 = then
+					x y 1 plot
+				end
+
+				x 1 + -> x
+			end
+
+			y 1 + -> y
+		end
+
+		1 -> drawn
+	end
+	
+	uxn_brk
+end
+
+uxn_get_screen_size -> h -> w
+
+0x0FFF uxn_set_red
+0x0FFF uxn_set_green
+0x0FFF uxn_set_blue
+&screen_vector uxn_set_screen_vector
+
+uxn_brk

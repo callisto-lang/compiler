@@ -226,9 +226,9 @@ class StackChecker {
 		}
 
 		foreach (i, ref cond ; node.condition) {
-			if (cond.empty()) {
-				Error(node.error, "Empty condition in if statement");
-			}
+			//if (cond.empty()) {
+			//	Error(node.error, "Empty condition in if statement");
+			//}
 
 			StackCell[] oldStack;
 
