@@ -1,0 +1,10 @@
+include "cores/select.cal"
+include "std/io.cal"
+include "uxn/datetime.cal"
+
+let UxnDateTime time
+&time uxn_get_date_time
+
+time.hour   print_dec ':' print_ch
+time.minute print_dec ':' print_ch
+time.second print_dec new_line
