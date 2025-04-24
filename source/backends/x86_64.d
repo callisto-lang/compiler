@@ -201,7 +201,9 @@ class BackendX86_64 : CompilerBackend {
 		);
 
 		if (os == "osx") {
-			linkCommand ~= " -ld_classic";
+			linkCommand ~= " -platform_version macos 10.6 `xcrun --sdk macosx --show-sdk-version`";
+			linkCommand ~= " -ld_classic -no_pie -e _main";
+			linkCommand ~= " -lSystem -syslibroot `xcrun --sdk macosx --show-sdk-path`";
 		}
 
 		foreach (ref lib ; link) {
@@ -235,7 +237,7 @@ class BackendX86_64 : CompilerBackend {
 				}
 			}
 			else if (os == "osx") {
-				linkCommand ~= " -syslibroot `xcrun --sdk macosx --show-sdk-path`";
+				// Always supported and enabled.
 			}
 			else {
 				WarnNoInfo("Cannot use libc on operating system '%s'", os);

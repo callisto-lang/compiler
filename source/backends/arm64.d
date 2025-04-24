@@ -160,6 +160,10 @@ class BackendARM64 : CompilerBackend {
 			linkCommand ~= format(" -l%s", lib);
 		}
 
+		if (os == "osx") {
+			linkCommand ~= " -lSystem -syslibroot `xcrun --sdk macosx --show-sdk-path`";
+		}
+
 		if (useLibc) {
 			if (os == "linux") {
 				string[] possiblePaths = [
@@ -184,7 +188,7 @@ class BackendARM64 : CompilerBackend {
 				}
 			}
 			else if (os == "osx") {
-				linkCommand ~= " -lSystem -syslibroot `xcrun --sdk macosx --show-sdk-path`";
+				// Always supported and enabled.
 			}
 			else {
 				WarnNoInfo("Cannot use libc on operating system '%s'", os);
