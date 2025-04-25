@@ -4,6 +4,7 @@ import std.conv;
 import std.stdio;
 import std.range;
 import std.format;
+import std.string;
 import std.algorithm;
 import callisto.util;
 import callisto.error;
@@ -29,6 +30,7 @@ class BackendUXN : CompilerBackend {
 	bool             inWhile;
 	uint             currentLoop;
 	uint             tempLabelNum;
+	string           assembler = "uxnasm";
 
 	this() {
 		output = new Output();
@@ -87,7 +89,7 @@ class BackendUXN : CompilerBackend {
 
 	override string[] FinalCommands() => [
 		format("mv %s %s.tal", compiler.outFile, compiler.outFile),
-		format("uxnasm %s.tal %s", compiler.outFile, compiler.outFile),
+		format("%s %s.tal %s", assembler, compiler.outFile, compiler.outFile),
 		keepAssembly? "" : format("rm %s.tal", compiler.outFile)
 	];
 
@@ -108,7 +110,23 @@ class BackendUXN : CompilerBackend {
 		|c0 @DateTime &year $2 &month $1 &day $1 &hour $1 &minute $1 &second $1 &dotw $1 &doty $2 &isdst $1
 	";
 
-	override bool HandleOption(string opt, ref string[] versions, Preprocessor preproc) => false;
+	override bool HandleOption(string opt, ref string[] versions, Preprocessor preproc) {
+		if (opt.canFind('=')) {
+			string key = opt[0 .. opt.indexOf('=')];
+			string val = opt[opt.indexOf('=') + 1 .. $];
+
+			switch (key) {
+				case "asm": {
+					assembler = val;
+					return true;
+				}
+				default: return false;
+			}
+		}
+		else {
+			return false;
+		}
+	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
 		consts[name] = Constant(new IntegerNode(error, value));
@@ -370,6 +388,10 @@ class BackendUXN : CompilerBackend {
 		else if (IsStructMember(node.name)) {
 			string name    = node.name[0 .. node.name.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.name);
+
+			if (structVar.structure) {
+				Error(node.error, "Can't push the value of an array or structure");
+			}
 
 			if (GlobalExists(name)) {
 				auto var = GetGlobal(name);
@@ -1039,6 +1061,10 @@ class BackendUXN : CompilerBackend {
 		else if (IsStructMember(node.var)) {
 			string name    = node.var[0 .. node.var.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.var);
+
+			if (structVar.structure) {
+				Error(node.error, "Can't push the value of an array or structure");
+			}
 
 			if (VariableExists(name)) {
 				auto var = GetVariable(name);

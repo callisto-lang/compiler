@@ -19,13 +19,16 @@ struct StructEntry {
 	UsedType type;
 	string   name;
 	bool     array;
-	size_t   size;
+	private size_t size;
 	size_t   offset;
+
+	size_t Size() => array? size * type.Size() : type.Size();
 }
 
 struct StructVariable {
 	size_t size;
 	size_t offset; // Relative to root struct, unlike StructEntry
+	bool   structure; // includes defined structs and arrays
 }
 
 struct Type {
@@ -188,7 +191,7 @@ class CompilerBackend {
 			memberType.ptr = member.type.ptr;
 
 			auto newMember = StructEntry(
-				memberType, member.name, member.array, memberType.Size(), offset
+				memberType, member.name, member.array, member.size, offset
 			);
 			entries    ~= newMember;
 			members    ~= member.name;
@@ -197,8 +200,7 @@ class CompilerBackend {
 				copiesOfMe ~= &entries[$ - 1].type;
 			}
 
-			offset += newMember.array?
-				newMember.type.Size() * newMember.size : newMember.type.Size();
+			offset += newMember.Size();
 		}
 
 		foreach (ref member ; entries) {
@@ -398,7 +400,9 @@ class CompilerBackend {
 		offset += structure[index].offset;
 		size_t size = structure[index].type.Size();
 
-		return StructVariable(size, offset);
+		return StructVariable(
+			size, offset, structure[index].array || structure[index].type.isStruct
+		);
 	}
 
 	final size_t GetStackSize() {

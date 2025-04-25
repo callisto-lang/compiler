@@ -292,6 +292,10 @@ class BackendLua : CompilerBackend {
 			string name    = node.name[0 .. node.name.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.name);
 
+			if (structVar.structure) {
+				Error(node.error, "Can't push the value of an array or structure");
+			}
+
 			if (GlobalExists(name)) {
 				auto var = GetGlobal(name);
 
@@ -956,6 +960,10 @@ class BackendLua : CompilerBackend {
 		else if (IsStructMember(node.var)) {
 			string name    = node.var[0 .. node.var.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.var);
+
+			if (structVar.structure) {
+				Error(node.error, "Can't push the value of an array or structure");
+			}
 
 			if (VariableExists(name)) {
 				auto var = GetVariable(name);
