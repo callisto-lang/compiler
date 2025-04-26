@@ -78,7 +78,6 @@ int main(string[] args) {
 
 	string          file;
 	string          outFile = "out";
-	ulong           org = 0xFFFF;
 	bool            orgSet;
 	string[]        includeDirs;
 	bool            optimise;
@@ -137,7 +136,7 @@ int main(string[] args) {
 					}
 
 					try {
-						org = args[i].to!ulong(16);
+						backend.org = args[i].to!ulong(16);
 					}
 					catch (ConvException) {
 						stderr.writeln("--org parameter must be hexadecimal");
@@ -377,7 +376,6 @@ int main(string[] args) {
 
 	auto compiler                   = new Compiler();
 	compiler.backend                = backend;
-	compiler.backend.org            = org;
 	compiler.backend.orgSet         = orgSet;
 	compiler.backend.useDebug       = doDebug;
 	compiler.backend.exportSymbols  = exportSymbols;

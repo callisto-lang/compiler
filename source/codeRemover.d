@@ -25,7 +25,7 @@ class CodeRemover {
 			"uxn_program_init",
 			"uxn_program_end",
 			"__uxn_program_init",
-			"__uxn_program_end",
+			"__uxn_program_exit",
 			"__x86_64_exception",
 			"__rm86_exception",
 			"__uxn_exception",
