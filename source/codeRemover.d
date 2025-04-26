@@ -12,9 +12,10 @@ class CodeRemover {
 	Node[][string] functions;
 	string[]       funcStack;
 	bool           success = true;
+	string[]       specialFuncs;
 
 	this() {
-		usedFunctions = [
+		specialFuncs = [
 			"__x86_64_program_init",
 			"__x86_64_program_exit",
 			"__rm86_program_init",
@@ -23,12 +24,15 @@ class CodeRemover {
 			"__arm64_program_exit",
 			"uxn_program_init",
 			"uxn_program_end",
+			"__uxn_program_init",
+			"__uxn_program_end",
 			"__x86_64_exception",
 			"__rm86_exception",
 			"__uxn_exception",
 			"__arm64_exception",
 			"__lua_exception",
 		];
+		usedFunctions = specialFuncs;
 	}
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
@@ -99,6 +103,18 @@ class CodeRemover {
 					auto node = cast(ImplementNode) inode;
 
 					FindFunctions(node.nodes);
+					break;
+				}
+				case NodeType.FuncDef: {
+					auto node = cast(FuncDefNode) inode;
+
+					if (!specialFuncs.canFind(node.name)) {
+						continue;
+					}
+
+					funcStack ~= node.name;
+					FindFunctions(functions[node.name]);
+					funcStack = funcStack[0 .. $ - 1];
 					break;
 				}
 				default: break;
