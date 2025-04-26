@@ -164,6 +164,12 @@ class BackendUXN : CompilerBackend {
 
 	override void Init() {
 		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2 @temp $2\n";
+
+		if (org != 0x100) {
+			output ~= "|100\n";
+			output ~= format("#%.4x JMP2\n", org);
+		}
+
 		output ~= format("|%x\n", org);
 		output ~= "@on-reset\n";
 		output ~= "    #ffff .vsp STZ2\n";

@@ -117,6 +117,12 @@ class CodeRemover {
 					funcStack = funcStack[0 .. $ - 1];
 					break;
 				}
+				case NodeType.Unsafe: {
+					auto node = cast(UnsafeNode) inode;
+
+					FindFunctions(node.nodes);
+					break;
+				}
 				default: break;
 			}
 		}
