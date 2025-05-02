@@ -123,6 +123,14 @@ class CodeRemover {
 					FindFunctions(node.nodes);
 					break;
 				}
+				case NodeType.TryCatch: {
+					auto node = cast(TryCatchNode) inode;
+
+					usedFunctions ~= node.func;
+					FindFunctions(functions[node.func]);
+					FindFunctions(node.catchBlock);
+					break;
+				}
 				default: break;
 			}
 		}
