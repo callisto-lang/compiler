@@ -431,7 +431,7 @@ class BackendUXN : CompilerBackend {
 			Error(node.error, "Value is too big for 16-bit target");
 		}
 
-		output ~= format("#%.4x\n", (cast(short) node.value) & 0x7F);
+		output ~= format("#%.4x\n", cast(short) node.value);
 	}
 
 	override void CompileInteger(IntegerNode node) {
