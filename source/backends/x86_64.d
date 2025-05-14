@@ -652,7 +652,7 @@ class BackendX86_64 : CompilerBackend {
 					}
 
 					// align stack pointer
-					output ~= "mov rbp, rsp\n";
+					output ~= "mov rbx, rsp\n";
 					output ~= "and rsp, 0xFFFFFFFFFFFFFFF0\n";
 
 					if ((word.params.length > 6) && (word.params.length % 2 != 0)) {
@@ -671,7 +671,7 @@ class BackendX86_64 : CompilerBackend {
 					output ~= format("sub r15, %d\n", word.params.length * 8);
 				
 					output ~= format("call %s\n", ExternSymbol(word.symbolName));
-					output ~= "mov rsp, rbp\n";
+					output ~= "mov rsp, rbx\n";
 
 					if (!word.isVoid) {
 						output ~= "mov [r15], rax\n";
@@ -784,9 +784,20 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Undefined identifier '%s'", node.name);
 		}
 	}
+
+	override void CompileSignedInt(SignedIntNode node) {
+		if ((node.value < 0) || (node.value > 0xFFFFFFFF)) {
+			output ~= format("mov r14, %d\n", node.value);
+			output ~= "mov [r15], r14\n";
+		}
+		else {
+			output ~= format("mov $(QWORD) [r15], %d\n", node.value);
+		}
+		output ~= "add r15, 8\n";
+	}
 	
 	override void CompileInteger(IntegerNode node) {
-		if (node.value > 0xFFFF) {
+		if ((node.value < 0) || (node.value > 0xFFFFFFFF)) {
 			output ~= format("mov r14, %d\n", node.value);
 			output ~= "mov [r15], r14\n";
 		}

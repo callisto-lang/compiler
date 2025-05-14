@@ -13,6 +13,7 @@ enum NodeType {
 	Type,
 	Word,
 	Integer,
+	SignedInt,
 	FuncDef,
 	Include,
 	Asm,
@@ -84,15 +85,30 @@ class WordNode : Node {
 	override string toString() => name;
 }
 
-class IntegerNode : Node {
+class SignedIntNode : Node {
 	long value;
+
+	this(ErrorInfo perror) {
+		type  = NodeType.SignedInt;
+		error = perror;
+	}
+
+	this(ErrorInfo perror, long pvalue) {
+		error = perror;
+		type  = NodeType.SignedInt;
+		value = pvalue;
+	}
+}
+
+class IntegerNode : Node {
+	ulong value;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Integer;
 		error = perror;
 	}
 
-	this(ErrorInfo perror, long pvalue) {
+	this(ErrorInfo perror, ulong pvalue) {
 		error = perror;
 		type  = NodeType.Integer;
 		value = pvalue;
@@ -1392,7 +1408,12 @@ class Parser {
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
-				return new IntegerNode(GetError(), parse!long(tokens[i].contents));
+				try {
+					return new SignedIntNode(GetError(), parse!long(tokens[i].contents));
+				}
+				catch (ConvOverflowException) {
+					return new IntegerNode(GetError(), parse!ulong(tokens[i].contents));
+				}
 			}
 			case TokenType.Identifier: {
 				switch (tokens[i].contents) {

@@ -115,6 +115,7 @@ class CompilerBackend {
 	abstract void Init();
 	abstract void End();
 	abstract void CompileWord(WordNode node);
+	abstract void CompileSignedInt(SignedIntNode node);
 	abstract void CompileInteger(IntegerNode node);
 	abstract void CompileFuncDef(FuncDefNode node);
 	abstract void CompileIf(IfNode node);
@@ -455,6 +456,10 @@ class Compiler {
 				}
 				break;
 			}
+			case NodeType.SignedInt: {
+				backend.CompileSignedInt(cast(SignedIntNode) inode);
+				break;
+			}
 			case NodeType.Integer: backend.CompileInteger(cast(IntegerNode) inode); break;
 			case NodeType.FuncDef: backend.CompileFuncDef(cast(FuncDefNode) inode); break;
 			case NodeType.Include: {
@@ -501,7 +506,7 @@ class Compiler {
 				auto node = cast(WhileNode) inode;
 
 				NodeType[] allowedTypes = [
-					NodeType.Word, NodeType.Integer, NodeType.Addr
+					NodeType.Word, NodeType.SignedInt, NodeType.Integer, NodeType.Addr
 				];
 
 				foreach (ref inode2 ; node.condition) {

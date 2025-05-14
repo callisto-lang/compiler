@@ -320,6 +320,11 @@ class BackendLua : CompilerBackend {
 		}
 	}
 
+	override void CompileSignedInt(SignedIntNode node) {
+		output ~= format("mem[dsp] = %d\n", node.value);
+		output ~= "dsp = dsp + 1\n";
+	}
+
 	override void CompileInteger(IntegerNode node) {
 		output ~= format("mem[dsp] = %d;\n", node.value);
 		output ~= "dsp = dsp + 1;\n";

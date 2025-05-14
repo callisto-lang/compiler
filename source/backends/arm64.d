@@ -594,6 +594,11 @@ class BackendARM64 : CompilerBackend {
 			Error(node.error, "Undefined identifier '%s'", node.name);
 		}
 	}
+
+	override void CompileSignedInt(SignedIntNode node) {
+		output ~= format("ldr x9, =%d\n", node.value);
+		output ~= "str x9, [x19], #8\n";
+	}
 	
 	override void CompileInteger(IntegerNode node) {
 		output ~= format("ldr x9, =%d\n", node.value);
