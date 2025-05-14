@@ -416,6 +416,11 @@ class BackendRM86 : CompilerBackend {
 		}
 	}
 
+	override void CompileSignedInt(SignedIntNode node) {
+		output ~= format("mov word [si], %d\n", cast(short) node.value);
+		output ~= "add si, 2\n";
+	}
+
 	override void CompileInteger(IntegerNode node) {
 		output ~= format("mov word [si], %d\n", node.value);
 		output ~= "add si, 2\n";

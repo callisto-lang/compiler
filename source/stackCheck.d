@@ -460,8 +460,9 @@ class StackChecker {
 				}
 				break;
 			}
-			case NodeType.Integer: Push(node, 1); break;
-			case NodeType.FuncDef: EvaluateFuncDef(cast(FuncDefNode) node); break;
+			case NodeType.SignedInt: Push(node, 1); break;
+			case NodeType.Integer:   Push(node, 1); break;
+			case NodeType.FuncDef:   EvaluateFuncDef(cast(FuncDefNode) node); break;
 			case NodeType.Asm: {
 				Error(node.error, "Inline assembly can only be used in unsafe code");
 				break;

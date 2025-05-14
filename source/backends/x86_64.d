@@ -781,9 +781,20 @@ class BackendX86_64 : CompilerBackend {
 			Error(node.error, "Undefined identifier '%s'", node.name);
 		}
 	}
+
+	override void CompileSignedInt(SignedIntNode node) {
+		if ((node.value < 0) || (node.value > 0xFFFFFFFF)) {
+			output ~= format("mov r14, %d\n", node.value);
+			output ~= "mov [r15], r14\n";
+		}
+		else {
+			output ~= format("mov $(QWORD) [r15], %d\n", node.value);
+		}
+		output ~= "add r15, 8\n";
+	}
 	
 	override void CompileInteger(IntegerNode node) {
-		if (node.value > 0xFFFF) {
+		if ((node.value < 0) || (node.value > 0xFFFFFFFF)) {
 			output ~= format("mov r14, %d\n", node.value);
 			output ~= "mov [r15], r14\n";
 		}

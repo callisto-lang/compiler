@@ -89,7 +89,7 @@ class Lexer {
 				Error("Invalid literal");
 			}
 
-			reading = format("%d", reading[2 .. $].to!long(16));
+			reading = format("%d", reading[2 .. $].to!ulong(16));
 			AddToken(TokenType.Integer);
 		}
 		else if (reading.startsWith("0b")) {
@@ -97,7 +97,7 @@ class Lexer {
 				Error("Invalid binary literal");
 			}
 
-			reading = format("%d", reading[2 .. $].to!long(2));
+			reading = format("%d", reading[2 .. $].to!ulong(2));
 			AddToken(TokenType.Integer);
 		}
 		else if (reading.startsWith("0o")) {
@@ -105,7 +105,7 @@ class Lexer {
 				Error("Invalid octal literal");
 			}
 
-			reading = format("%d", reading[2 .. $].to!long(8));
+			reading = format("%d", reading[2 .. $].to!ulong(8));
 			AddToken(TokenType.Integer);
 		}
 		else {

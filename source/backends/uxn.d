@@ -426,6 +426,14 @@ class BackendUXN : CompilerBackend {
 		}
 	}
 
+	override void CompileSignedInt(SignedIntNode node) {
+		if (node.value > 0xFFFF) {
+			Error(node.error, "Value is too big for 16-bit target");
+		}
+
+		output ~= format("#%.4x", (cast(short) node.value) & 0x7F);
+	}
+
 	override void CompileInteger(IntegerNode node) {
 		if (node.value > 0xFFFF) {
 			Error(node.error, "Value is too big for 16-bit target");
