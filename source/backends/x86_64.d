@@ -649,7 +649,7 @@ class BackendX86_64 : CompilerBackend {
 					}
 
 					// align stack pointer
-					output ~= "mov rbp, rsp\n";
+					output ~= "mov rbx, rsp\n";
 					output ~= "and rsp, 0xFFFFFFFFFFFFFFF0\n";
 
 					if ((word.params.length > 6) && (word.params.length % 2 != 0)) {
@@ -668,7 +668,7 @@ class BackendX86_64 : CompilerBackend {
 					output ~= format("sub r15, %d\n", word.params.length * 8);
 				
 					output ~= format("call %s\n", ExternSymbol(word.symbolName));
-					output ~= "mov rsp, rbp\n";
+					output ~= "mov rsp, rbx\n";
 
 					if (!word.isVoid) {
 						output ~= "mov [r15], rax\n";
