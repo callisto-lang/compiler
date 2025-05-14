@@ -49,8 +49,6 @@ class BackendLua : CompilerBackend {
 	ulong        arrayStack = 524287;
 
 	this() {
-		output = new Output();
-
 		addrSize = 1;
 
 		// built in integer types

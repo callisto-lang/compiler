@@ -3,6 +3,7 @@ module callisto.mod.sections;
 import std.conv;
 import std.stdio;
 import std.bitmanip;
+import std.algorithm;
 
 alias SectionInt = ulong;
 
@@ -53,6 +54,14 @@ class Section {
 	abstract SectionType GetType();
 	abstract void        Write(File file);
 	abstract void        Read(File file, bool skip);
+
+	void WriteAsm(string code) {
+		throw new SectionException("Module doesn't contain assembly code");
+	}
+
+	void AddCall(string call) {
+		throw new SectionException("Module doesn't contain called function list");
+	}
 }
 
 private SectionInt ReadInt(File file) {
@@ -133,7 +142,6 @@ private void WriteByte(File file, ubyte value) {
 	file.rawWrite([value]);
 }
 
-
 class HeaderSection : Section {
 	SectionInt ver;
 	ModCPU     cpu;
@@ -175,6 +183,12 @@ class TopLevelSection : Section {
 		calls    = file.ReadStringArray();
 		assembly = file.ReadOrSkipString(skip);
 	}
+
+	override void WriteAsm(string code) => cast(void) (assembly ~= code);
+
+	override void AddCall(string call) {
+		if (!calls.canFind(call)) calls ~= call;
+	}
 }
 
 class FuncDefSection : Section {
@@ -203,6 +217,12 @@ class FuncDefSection : Section {
 		name     = file.ReadString();
 		params   = file.ReadInt();
 		ret      = file.ReadInt();
+	}
+
+	override void WriteAsm(string code) => cast(void) (assembly ~= code);
+
+	override void AddCall(string call) {
+		if (!calls.canFind(call)) calls ~= call;
 	}
 }
 
@@ -338,6 +358,12 @@ class ImplementSection : Section {
 			assembly = file.ReadString();
 		}
 	}
+
+	override void WriteAsm(string code) => cast(void) (assembly ~= code);
+
+	override void AddCall(string call) {
+		if (!called.canFind(call)) called ~= call;
+	}
 }
 
 class LetSection : Section {
@@ -399,6 +425,16 @@ class StructSection : Section {
 		ret.name   = file.ReadString();
 
 		return ret;
+	}
+
+	override void Read(File file, bool skip) {
+		size = file.ReadInt();
+		name = file.ReadString();
+
+		auto num = file.ReadInt();
+		foreach (i ; 0 .. num) {
+			entries ~= ReadEntry(file);
+		}
 	}
 
 	override void Write(File file) {

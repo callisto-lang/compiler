@@ -33,9 +33,7 @@ class BackendUXN : CompilerBackend {
 	string           assembler = "uxnasm";
 
 	this() {
-		org    = 0x100;
-		output = new Output();
-
+		org      = 0x100;
 		addrSize = 2;
 
 		types ~= Type("u8",    1);
@@ -88,7 +86,7 @@ class BackendUXN : CompilerBackend {
 		"IO", "Exit"
 	];
 
-	override string[] FinalCommands() => [
+	override string[] FinalCommands() => output.useMod? [] : [
 		format("mv %s %s.tal", compiler.outFile, compiler.outFile),
 		format("%s %s.tal %s", assembler, compiler.outFile, compiler.outFile),
 		keepAssembly? "" : format("rm %s.tal", compiler.outFile)

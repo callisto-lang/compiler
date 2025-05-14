@@ -36,8 +36,6 @@ class BackendRM86 : CompilerBackend {
 	uint             tempLabelNum;
 
 	this() {
-		output = new Output();
-
 		addrSize  = 2;
 		defaultOS = "dos";
 
@@ -95,7 +93,7 @@ class BackendRM86 : CompilerBackend {
 		"IO"
 	] ~ (os == "dos"? ["DOS", "Args", "Exit"] : os == "bare-metal"? ["BareMetal"] : []);
 
-	override string[] FinalCommands() => [
+	override string[] FinalCommands() => output.useMod? [] : [
 		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
 		format("nasm -f bin %s.asm -o %s", compiler.outFile, compiler.outFile),
 		keepAssembly? "" : format("rm %s.asm", compiler.outFile)

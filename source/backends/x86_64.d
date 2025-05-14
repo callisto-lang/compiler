@@ -14,6 +14,7 @@ import callisto.output;
 import callisto.compiler;
 import callisto.language;
 import callisto.preprocessor;
+import callisto.mod.sections;
 
 private enum ABI {
 	SysV,
@@ -53,7 +54,6 @@ class BackendX86_64 : CompilerBackend {
 	int[string]      fileID;
 
 	this() {
-		output = new Output();
 		addrSize = 8;
 
 		version (linux) {
@@ -168,6 +168,8 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	override string[] FinalCommands() {
+		if (output.useMod) return [];
+
 		string objFormat;
 
 		switch (os) {
@@ -301,6 +303,7 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	override void BeginMain() {
+		output.StartSection(SectionType.TopLevel);
 		if (useGas && useDebug) {
 			output ~= ".type __calmain, @function\n";
 		}

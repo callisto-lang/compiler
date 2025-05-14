@@ -7,11 +7,14 @@ import std.string;
 import std.process;
 import std.algorithm;
 import callisto.error;
+import callisto.output;
+import callisto.mod.mod;
 import callisto.compiler;
 import callisto.language;
 import callisto.stackCheck;
 import callisto.codeRemover;
 import callisto.preprocessor;
+import callisto.mod.sections;
 import callisto.backends.lua;
 import callisto.backends.uxn;
 import callisto.backends.rm86;
@@ -49,6 +52,7 @@ Flags:
   -sc         - Stop after stack check
   -scf        - Show functions in stack checker
   --help      - Shows this help text
+  -m          - Generates a module file instead of an executable
 
 Backends and their operating systems:
   rm86   - Real mode x86, for bare-metal, DOS
@@ -97,13 +101,18 @@ int main(string[] args) {
 	bool            onlyStackCheck = false;
 	bool            noStackCheck;
 	bool            stackCheckerFunctions = false;
+	bool            makeMod;
+	ModCPU          modCPU;
+	ModOS           modOS;
 
 	// choose default backend
 	version (X86_64) {
 		backend = new BackendX86_64();
+		modCPU  = ModCPU.x86_64;
 	}
 	else version (AArch64) {
 		backend = new BackendARM64();
+		modCPU  = ModCPU.ARM64;
 	}
 	else {
 		WarnNoInfo("No default backend for your system");
@@ -180,23 +189,28 @@ int main(string[] args) {
 					switch (args[i]) {
 						case "rm86": {
 							backend = new BackendRM86();
+							modCPU  = ModCPU.RM86;
 							break;
 						}
 						case "x86_64": {
 							backend = new BackendX86_64();
+							modCPU  = ModCPU.x86_64;
 							break;
 						}
 						case "arm64": {
 							backend = new BackendARM64();
+							modCPU  = ModCPU.ARM64;
 							break;
 						}
 						case "uxn": {
 							backend = new BackendUXN();
+							modCPU  = ModCPU.Uxn;
 							break;
 						}
 						case "lua": {
 							writeln("Language subset 'CallistoScript' in use");
 							backend = new BackendLua();
+							modCPU  = ModCPU.None;
 							break;
 						}
 						default: {
@@ -294,18 +308,10 @@ int main(string[] args) {
 					os = args[i];
 					break;
 				}
-				case "-sc": {
-					onlyStackCheck = true;
-					break;
-				}
-				case "-nsc": {
-					noStackCheck = true;
-					break;
-				}
-				case "-scf": {
-					stackCheckerFunctions = true;
-					break;
-				}
+				case "-sc":  onlyStackCheck = true;        break;
+				case "-nsc": noStackCheck = true;          break;
+				case "-scf": stackCheckerFunctions = true; break;
+				case "-m":   makeMod = true;               break;
 				case "--help": {
 					writeln(usage.strip());
 					return 0;
@@ -326,6 +332,13 @@ int main(string[] args) {
 		}
 	}
 
+	if (makeMod) {
+		backend.output = new Output(modCPU, modOS, file, outFile);
+	}
+	else {
+		backend.output = new Output(outFile);
+	}
+
 	if (backend is null) {
 		ErrorNoInfo("No backend selected");
 	}
@@ -333,6 +346,15 @@ int main(string[] args) {
 
 	if (os == "DEFAULT") {
 		os = backend.defaultOS;
+
+		switch (os) {
+			case "linux":      modOS = ModOS.Linux;   break;
+			case "osx":        modOS = ModOS.macOS;   break;
+			case "bare-metal": modOS = ModOS.None;    break;
+			case "dos":        modOS = ModOS.DOS;     break;
+			case "freebsd":    modOS = ModOS.FreeBSD; break;
+			default:           assert(0);
+		}
 	}
 
 	auto preproc = new Preprocessor();

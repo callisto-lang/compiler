@@ -45,8 +45,6 @@ class BackendARM64 : CompilerBackend {
 	bool             useLibc;
 
 	this() {
-		output = new Output();
-
 		addrSize = 8;
 
 		version (linux) {
@@ -128,6 +126,8 @@ class BackendARM64 : CompilerBackend {
 	}
 
 	override string[] FinalCommands() {
+		if (output.useMod) return [];
+
 		// TODO: allow user to specify commands manually?
 		version (AArch64) {
 			string assembler = "as";
