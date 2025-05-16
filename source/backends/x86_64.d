@@ -202,7 +202,6 @@ class BackendX86_64 : CompilerBackend {
 
 		if (os == "osx") {
 			linkCommand ~= " -platform_version macos 10.6 `xcrun --sdk macosx --show-sdk-version`";
-			linkCommand ~= " -ld_classic -no_pie -e _main";
 			linkCommand ~= " -lSystem -syslibroot `xcrun --sdk macosx --show-sdk-path`";
 		}
 
@@ -497,7 +496,7 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		// create array source
-		output ~= format("%ssection .text\n", useGas? "." : "");
+		output ~= format("%ssection .rodata\n", useGas? "." : "");
 		foreach (i, ref array ; arrays) {
 			output ~= format("__array_src_%d: ", i);
 
