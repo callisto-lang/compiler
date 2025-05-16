@@ -496,7 +496,7 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		// create array source
-		output ~= format("%ssection .rodata\n", useGas? "." : "");
+		output ~= format("%ssection .data\n", useGas? "." : "");
 		foreach (i, ref array ; arrays) {
 			output ~= format("__array_src_%d: ", i);
 
