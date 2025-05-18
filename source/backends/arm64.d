@@ -924,13 +924,18 @@ class BackendARM64 : CompilerBackend {
 
 		foreach (ref elem ; node.elements) {
 			switch (elem.type) {
+				case NodeType.SignedInt: {
+					auto node2    = cast(SignedIntNode) elem;
+					array.values ~= node2.value.text();
+					break;
+				}
 				case NodeType.Integer: {
 					auto node2    = cast(IntegerNode) elem;
 					array.values ~= node2.value.text();
 					break;
 				}
 				default: {
-					Error(elem.error, "Type '%s' can't be used in array literal");
+					Error(elem.error, "Type '%s' can't be used in array literal", elem.type);
 				}
 			}
 		}

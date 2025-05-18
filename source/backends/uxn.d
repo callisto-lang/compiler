@@ -742,6 +742,21 @@ class BackendUXN : CompilerBackend {
 
 		foreach (ref elem ; node.elements) {
 			switch (elem.type) {
+				case NodeType.SignedInt:{
+					auto node2    = cast(SignedIntNode) elem;
+
+					final switch (array.type.Size()) {
+						case 1: {
+							array.values ~= format("%.2x", cast(ubyte) (cast(byte) node2.value));
+							break;
+						}
+						case 2: {
+							array.values ~= format("%.4x", cast(ushort) (cast(short) node2.value));
+							break;
+						}
+					}
+					break;
+				}
 				case NodeType.Integer: {
 					auto node2    = cast(IntegerNode) elem;
 
@@ -753,8 +768,7 @@ class BackendUXN : CompilerBackend {
 					break;
 				}
 				default: {
-					Error(elem.error, "Type '%s' can't be used in array literal");
-					// TODO: orphan format specifier
+					Error(elem.error, "Type '%s' can't be used in array literal", elem.type);
 				}
 			}
 		}
