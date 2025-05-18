@@ -333,7 +333,7 @@ int main(string[] args) {
 	}
 
 	if (makeMod) {
-		backend.output = new Output(modCPU, modOS, file, outFile);
+		backend.output = new Output(modCPU, modOS, file, outFile ~ ".mod");
 	}
 	else {
 		backend.output = new Output(outFile);

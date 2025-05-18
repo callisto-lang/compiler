@@ -302,12 +302,28 @@ class BackendX86_64 : CompilerBackend {
 		}
 	}
 
+	string Label(string label) {
+		return format("%s%s:", output.GetModPrefix(), label);
+	}
+
+	string Label(string prefix, string label) {
+		format("%s%s%s:", prefix, output.GetModPrefix(), label);
+	}
+
+	string Label(Char, A...)(in Char[] fmt, A args) => Label(format(fmt, args));
+
+	string Label(Char, A...)(string prefix, in Char[] fmt, A args) {
+		return Label(prefix, format(fmt, args));
+	}
+
 	override void BeginMain() {
 		output.StartSection(SectionType.TopLevel);
-		if (useGas && useDebug) {
-			output ~= ".type __calmain, @function\n";
+		if (!output.useMod) {
+			if (useGas && useDebug) {
+				output ~= ".type __calmain, @function\n";
+			}
+			output ~= "__calmain:\n";
 		}
-		output ~= "__calmain:\n";
 
 		// call constructors
 		foreach (global ; globals) {
@@ -351,6 +367,8 @@ class BackendX86_64 : CompilerBackend {
 		if (!oses.canFind(os)) {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
 		}
+
+		if (output.useMod) return;
 
 		if (useGas) {
 			output ~= ".intel_syntax noprefix\n";
@@ -396,9 +414,6 @@ class BackendX86_64 : CompilerBackend {
 		output ~= "sub rsp, 4096\n"; // 512 cells
 		output ~= "mov r15, rsp\n";
 
-		// copy static array constants
-		output ~= "call __copy_arrays\n";
-
 		// jump to main
 		output ~= "jmp __calmain\n";
 
@@ -429,35 +444,28 @@ class BackendX86_64 : CompilerBackend {
 			}
 		}
 
-		// exit program
-		if ("__x86_64_program_exit" in words) {
-			CallFunction("__x86_64_program_exit");
-		}
-		else {
-			WarnNoInfo("No exit function available, expect bugs");
+		if (!output.useMod) {
+			// exit program
+			if ("__x86_64_program_exit" in words) {
+				CallFunction("__x86_64_program_exit");
+			}
+			else {
+				WarnNoInfo("No exit function available, expect bugs");
+			}
+
+			// init program
+			output ~= "__init:\n";
+			if ("__x86_64_program_init" in words) {
+				CallFunction("__x86_64_program_init");
+			}
+			else {
+				WarnNoInfo("No program init function available");
+			}
+			output ~= "ret\n";
 		}
 
-		// create copy arrays function
-		output ~= "__copy_arrays:\n";
-
-		foreach (i, ref array ; arrays) {
-			output ~= format("lea rsi, __array_src_%d\n", i);
-			output ~= format("lea rdi, __array_%d\n", i);
-			output ~= format("mov rcx, %d\n", array.Size());
-			output ~= "rep movsb\n";
-		}
-
-		output ~= "ret\n";
-
-		// run init function
-		output ~= "__init:\n";
-		if ("__x86_64_program_init" in words) {
-			CallFunction("__x86_64_program_init");
-		}
-		else {
-			WarnNoInfo("No program init function available");
-		}
-		output ~= "ret\n";
+		// end top level code
+		output.FinishSection();
 
 		// create global variables
 		if (useGas) {
@@ -486,23 +494,10 @@ class BackendX86_64 : CompilerBackend {
 			}
 		}
 
-		foreach (i, ref array ; arrays) {
-			if (useGas) {
-				output ~= format("__array_%d: .skip %d\n", i, array.Size());
-			}
-			else {
-				output ~= format("__array_%d: resb %d\n", i, array.Size());
-			}
-
-			if (exportSymbols) {
-				output ~= format("%sglobal __array_%d\n", useGas? "." : "", i);
-			}
-		}
-
 		// create array source
-		output ~= format("%ssection .text\n", useGas? "." : "");
+		output ~= format("%ssection .data\n", useGas? "." : "");
 		foreach (i, ref array ; arrays) {
-			output ~= format("__array_src_%d: ", i);
+			output ~= format("__array_%d: ", i);
 
 			switch (array.type.Size()) {
 				case 1:  output ~= useGas? ".byte " : "db "; break;

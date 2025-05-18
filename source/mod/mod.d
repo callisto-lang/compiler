@@ -1,7 +1,9 @@
 module callisto.mod.mod;
 
+import std.path;
 import std.stdio;
 import std.bitmanip;
+import std.algorithm;
 import std.exception;
 import callisto.mod.sections;
 
@@ -10,6 +12,7 @@ class ModuleException : Exception {
 }
 
 class Module {
+	string        name;
 	HeaderSection header;
 	Section[]     sections;
 
@@ -18,6 +21,11 @@ class Module {
 	}
 
 	void Read(string path, bool skip) {
+		if (!path.endsWith(".mod")) {
+			throw new ModuleException("Not a module file");
+		}
+		name = path.baseName().stripExtension();
+
 		auto file = File(path, "rb");
 
 		header = new HeaderSection();
@@ -62,11 +70,14 @@ class Module {
 
 // smaller version that uses less memory, just used for writing
 class WriteModule {
+	string name;
+
 	private size_t sectionNum;
 	private File   file;
 
-	this(ModCPU cpu, ModOS os, string source, string dest) {
+	this(string path, ModCPU cpu, ModOS os, string source, string dest) {
 		file = File(dest, "wb");
+		name = path.baseName().stripExtension();
 
 		auto header   = new HeaderSection();
 		header.cpu    = cpu;

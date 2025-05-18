@@ -45,6 +45,8 @@ class Output {
 		exit(1);
 	}
 
+	string GetModPrefix() => useMod? format("%s__sep__", mod.name) : "";
+
 	void StartSection(SectionType type) {
 		if (!useMod) return;
 
