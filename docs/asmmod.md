@@ -174,8 +174,20 @@ Enum entries follow this header.
 | Offset (bytes) | Size (bytes) | Description                                        |
 | -------------- | ------------ | -------------------------------------------------- |
 | 0              | 1            | Bool - is pointer?                                 |
-| ?              | ?            | Type name                                          |
+| 1              | ?            | Type name                                          |
 | ?              | 1            | Bool - is array?                                   |
 | ?              | 8            | Size, if applicable                                |
 | ?              | 8            | Offset in structure                                |
 | ?              | ?            | Member name                                        |
+
+## BSS Section assembly
+| Offset (bytes) | Size (bytes) | Description                                        |
+| -------------- | ------------ | -------------------------------------------------- |
+| 0              | 1            | Type - set to 0x0C                                 |
+| 1              | ?            | Assembly                                           |
+
+## Data section assembly
+| Offset (bytes) | Size (bytes) | Description                                        |
+| -------------- | ------------ | -------------------------------------------------- |
+| 0              | 1            | Type - set to 0x0D                                 |
+| 1              | ?            | Assembly                                           |

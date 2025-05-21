@@ -41,7 +41,9 @@ enum SectionType : ubyte {
 	Alias     = 0x08,
 	Implement = 0x09,
 	Let       = 0x0A,
-	Struct    = 0x0B
+	Struct    = 0x0B,
+	BSS       = 0x0C,
+	Data      = 0x0D
 }
 
 class SectionException : Exception {
@@ -352,13 +354,10 @@ class ImplementSection : Section {
 	}
 
 	override void Read(File file, bool skip) {
-		type   = file.ReadString();
-		method = file.ReadString();
-		called = file.ReadStringArray();
-
-		if (!skip) {
-			assembly = file.ReadString();
-		}
+		type     = file.ReadString();
+		method   = file.ReadString();
+		called   = file.ReadStringArray();
+		assembly = file.ReadOrSkipString();
 	}
 
 	override void WriteAsm(string code) => cast(void) (assembly ~= code);
@@ -447,5 +446,19 @@ class StructSection : Section {
 		foreach (ref entry ; entries) {
 			WriteEntry(file, entry);
 		}
+	}
+}
+
+class BSSSection : Section {
+	string assembly;
+
+	override void GetType() => SectionType.BSS;
+
+	override void Write(File file) {
+		file.WriteString(assembly);
+	}
+
+	override void Read(File file, bool skip) {
+		assembly = file.ReadOrSkipString();
 	}
 }
