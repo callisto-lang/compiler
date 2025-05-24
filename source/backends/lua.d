@@ -54,14 +54,14 @@ class BackendLua : CompilerBackend {
 		addrSize = 1;
 
 		// built in integer types
-		types ~= Type("addr",  1);
-		types ~= Type("size",  1);
-		types ~= Type("usize", 1);
-		types ~= Type("cell",  1);
-		types ~= Type("bool",  1);
+		types ~= Type("addr",  1, false);
+		types ~= Type("size",  1, true);
+		types ~= Type("usize", 1, false);
+		types ~= Type("cell",  1, false);
+		types ~= Type("bool",  1, false);
 
 		// built in structs
-		types ~= Type("Array", 3, true, [
+		types ~= Type("Array", 3, false, true, [
 			StructEntry(UsedType(GetType("usize"), false), "length", false, 1, 0),
 			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 1, 1),
 			StructEntry(UsedType(GetType("addr"), false),  "elements", false, 1, 2)
@@ -71,7 +71,7 @@ class BackendLua : CompilerBackend {
 		NewConst("Array.elements",   2);
 		NewConst("Array.sizeOf",     3);
 
-		types ~= Type("Exception", 3 + 1, true, [
+		types ~= Type("Exception", 3 + 1, false, true, [
 			StructEntry(UsedType(GetType("bool"), false),  "error", false, 1, 0),
 			StructEntry(UsedType(GetType("Array"), false), "msg", false, 3, 1)
 		]);

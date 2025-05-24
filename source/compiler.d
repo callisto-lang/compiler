@@ -34,6 +34,7 @@ struct StructVariable {
 struct Type {
 	string        name;
 	ulong         size;
+	bool          isSigned;
 	bool          isStruct;
 	StructEntry[] structure;
 	bool          hasInit;
@@ -209,7 +210,7 @@ class CompilerBackend {
 		}
 
 		NewConst(format("%s.sizeOf", node.name), offset);
-		types ~= Type(node.name, offset, true, entries);
+		types ~= Type(node.name, offset, false, true, entries);
 
 		foreach (ref me ; copiesOfMe) {
 			*me = UsedType(types[$ - 1], true);

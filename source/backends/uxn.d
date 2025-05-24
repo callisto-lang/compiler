@@ -38,18 +38,18 @@ class BackendUXN : CompilerBackend {
 
 		addrSize = 2;
 
-		types ~= Type("u8",    1);
-		types ~= Type("i8",    1);
-		types ~= Type("u16",   2);
-		types ~= Type("i16",   2);
-		types ~= Type("addr",  2);
-		types ~= Type("size",  2);
-		types ~= Type("usize", 2);
-		types ~= Type("cell",  2);
-		types ~= Type("bool",  2);
+		types ~= Type("u8",    1, false);
+		types ~= Type("i8",    1, true);
+		types ~= Type("u16",   2, false);
+		types ~= Type("i16",   2, true);
+		types ~= Type("addr",  2, false);
+		types ~= Type("size",  2, true);
+		types ~= Type("usize", 2, false);
+		types ~= Type("cell",  2, false);
+		types ~= Type("bool",  2, false);
 
 		// built in structs
-		types ~= Type("Array", 6, true, [
+		types ~= Type("Array", 6, false, true, [
 			StructEntry(UsedType(GetType("usize"), false), "length", false, 2, 0),
 			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 2, 2),
 			StructEntry(UsedType(GetType("addr"), false),  "elements", false, 2, 4)
@@ -59,7 +59,7 @@ class BackendUXN : CompilerBackend {
 		NewConst("Array.elements",   4);
 		NewConst("Array.sizeOf",     2 * 3);
 
-		types ~= Type("Exception", 6 + 2, true, [
+		types ~= Type("Exception", 6 + 2, false, true, [
 			StructEntry(UsedType(GetType("bool"), false),  "error", false, 2, 0),
 			StructEntry(UsedType(GetType("Array"), false), "msg", false, 6, 0)
 		]);
