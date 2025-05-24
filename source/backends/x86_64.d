@@ -527,12 +527,11 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	void PushGlobalValue(
-		Node node, Global var, size_t size = 0, size_t offset = 0, bool signed = false,
-		bool member = false, bool deref = false
+		Node node, Global var, size_t size = 0, size_t offset = 0, bool member = false,
+		bool deref = false
 	) {
 		if (size == 0) {
 			size   = var.type.Size();
-			signed = var.type.isSigned;
 		}
 
 		if (size != 8) {
@@ -544,7 +543,7 @@ class BackendX86_64 : CompilerBackend {
 		if (deref) {
 			output ~= format("mov rbx, [%s]\n", symbol);
 
-			if (signed) {
+			if (var.type.isSigned) {
 				switch (size) {
 					case 1: output ~= format("movsx rax, byte [rbx + %d]\n", offset); break;
 					case 2: output ~= format("movsx rax, word [rbx + %d]\n", offset); break;
@@ -564,7 +563,7 @@ class BackendX86_64 : CompilerBackend {
 			}
 		}
 		else {
-			if (signed) {
+			if (var.type.isSigned) {
 				switch (size) {
 					case 1: output ~= format("movsx rax, byte [%s + %d]\n", symbol, offset); break;
 					case 2: output ~= format("movsx rax, word [%s + %d]\n", symbol, offset); break;
@@ -589,12 +588,11 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	void PushVariableValue(
-		Node node, Variable var, size_t size = 0, size_t offset = 0, bool signed = false,
-		bool member = false, bool deref = false
+		Node node, Variable var, size_t size = 0, size_t offset = 0, bool member = false,
+		bool deref = false
 	) {
 		if (size == 0) {
 			size   = var.type.Size();
-			signed = var.type.isSigned;
 		}
 
 		if (size != 8) {
@@ -604,7 +602,7 @@ class BackendX86_64 : CompilerBackend {
 		if (deref) {
 			output ~= format("mov rbx, [rsp + %d]\n", var.offset);
 
-			if (signed) {
+			if (var.type.isSigned) {
 				switch (size) {
 					case 1: output ~= format("movsx rax, byte [rbx + %d]\n", offset); break;
 					case 2: output ~= format("movsx rax, word [rbx + %d]\n", offset); break;
@@ -624,7 +622,7 @@ class BackendX86_64 : CompilerBackend {
 			}
 		}
 		else {
-			if (signed) {
+			if (var.type.isSigned) {
 				switch (size) {
 					case 1: output ~= format("movsx rax, byte [rsp + %d]\n", offset + var.offset); break;
 					case 2: output ~= format("movsx rax, word [rsp + %d]\n", offset + var.offset); break;
@@ -805,14 +803,14 @@ class BackendX86_64 : CompilerBackend {
 				auto var = GetGlobal(name);
 
 				PushGlobalValue(
-					node, var, structVar.size, structVar.offset, structVar.signed, true, var.type.ptr
+					node, var, structVar.size, structVar.offset, true, var.type.ptr
 				);
 			}
 			else if (VariableExists(name)) {
 				auto var = GetVariable(name);
 
 				PushVariableValue(
-					node, var, structVar.size, structVar.offset, structVar.signed, true, var.type.ptr
+					node, var, structVar.size, structVar.offset, true, var.type.ptr
 				);
 			}
 		}

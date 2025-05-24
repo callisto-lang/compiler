@@ -28,7 +28,6 @@ struct StructEntry {
 struct StructVariable {
 	size_t size;
 	size_t offset; // Relative to root struct, unlike StructEntry
-	bool   signed;
 	bool   structure; // includes defined structs and arrays
 }
 
@@ -404,7 +403,7 @@ class CompilerBackend {
 		size_t size = structure[index].type.Size();
 
 		return StructVariable(
-			size, offset, structure[index].type.isSigned, structure[index].array || structure[index].type.isStruct
+			size, offset, structure[index].array || structure[index].type.isStruct
 		);
 	}
 
