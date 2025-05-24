@@ -28,12 +28,14 @@ struct StructEntry {
 struct StructVariable {
 	size_t size;
 	size_t offset; // Relative to root struct, unlike StructEntry
+	bool   signed;
 	bool   structure; // includes defined structs and arrays
 }
 
 struct Type {
 	string        name;
 	ulong         size;
+	bool          isSigned;
 	bool          isStruct;
 	StructEntry[] structure;
 	bool          hasInit;
@@ -209,7 +211,7 @@ class CompilerBackend {
 		}
 
 		NewConst(format("%s.sizeOf", node.name), offset);
-		types ~= Type(node.name, offset, true, entries);
+		types ~= Type(node.name, offset, false, true, entries);
 
 		foreach (ref me ; copiesOfMe) {
 			*me = UsedType(types[$ - 1], true);
@@ -402,7 +404,7 @@ class CompilerBackend {
 		size_t size = structure[index].type.Size();
 
 		return StructVariable(
-			size, offset, structure[index].array || structure[index].type.isStruct
+			size, offset, structure[index].type.isSigned, structure[index].array || structure[index].type.isStruct
 		);
 	}
 
