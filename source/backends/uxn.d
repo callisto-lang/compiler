@@ -284,7 +284,7 @@ class BackendUXN : CompilerBackend {
 		}
 
 		if ((size == 1) && var.type.isSigned) {
-			output ~= "LIT2r 00ff DUP #80 AND ?{ SWPr } STHr POPr SWP\n";
+			output ~= "DUP #7f GTH #ff MUL SWP\n";
 		}
 		else if (size == 1) {
 			output ~= "#00 SWP\n";
