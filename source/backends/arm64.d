@@ -70,9 +70,10 @@ class BackendARM64 : CompilerBackend {
 		types ~= Type("u64",   8, false);
 		types ~= Type("i64",   8, true);
 		types ~= Type("addr",  8, false);
-		types ~= Type("size",  8, true);
+		types ~= Type("isize", 8, true);
 		types ~= Type("usize", 8, false);
 		types ~= Type("cell",  8, false);
+		types ~= Type("icell", 8, true);
 		types ~= Type("bool",  8, false);
 
 		// built in structs

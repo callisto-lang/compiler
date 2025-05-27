@@ -80,9 +80,10 @@ class BackendX86_64 : CompilerBackend {
 		types ~= Type("u64",   8, false);
 		types ~= Type("i64",   8, true);
 		types ~= Type("addr",  8, false);
-		types ~= Type("size",  8, true);
+		types ~= Type("isize", 8, true);
 		types ~= Type("usize", 8, false);
 		types ~= Type("cell",  8, false);
+		types ~= Type("icell", 8, true);
 		types ~= Type("bool",  8, false);
 
 		// built in structs
@@ -534,52 +535,44 @@ class BackendX86_64 : CompilerBackend {
 			size   = var.type.Size();
 		}
 
-		if (size != 8) {
-			output ~= "xor rax, rax\n";
-		}
-
 		string symbol = format("__global_%s", var.name.Sanitise());
+		char   op     = var.type.isSigned? 's' : 'z';
 
 		if (deref) {
 			output ~= format("mov rbx, [%s]\n", symbol);
-
-			if (var.type.isSigned) {
-				switch (size) {
-					case 1: output ~= format("movsx rax, byte [rbx + %d]\n", offset); break;
-					case 2: output ~= format("movsx rax, word [rbx + %d]\n", offset); break;
-					case 4: output ~= format("movsxd rax, dword [rbx + %d]\n", offset); break;
-					case 8: output ~= format("mov rax, [rbx + %d]\n", offset); break;
-					default: Error(node.error, "Bad variable type size");
+			switch (size) {
+				case 1: {
+					output ~= format("mov%cx rax, $(BYTE) [rbx + %d]\n", op, offset);
+					break;
 				}
-			}
-			else {
-				switch (size) {
-					case 1: output ~= format("mov al, [rbx + %d]\n", offset); break;
-					case 2: output ~= format("mov ax, [rbx + %d]\n", offset); break;
-					case 4: output ~= format("mov eax, [rbx + %d]\n", offset); break;
-					case 8: output ~= format("mov rax, [rbx + %d]\n", offset); break;
-					default: Error(node.error, "Bad variable type size");
+				case 2: {
+					output ~= format("mov%cx rax, $(WORD) [rbx + %d]\n", op, offset);
+					break;
 				}
+				case 4: {
+					output ~= format("mov%cxd rax, $(DWORD) [rbx + %d]\n", op, offset);
+					break;
+				}
+				case 8: output ~= format("mov rax, [rbx + %d]\n", offset); break;
+				default: Error(node.error, "Bad variable type size");
 			}
 		}
 		else {
-			if (var.type.isSigned) {
-				switch (size) {
-					case 1: output ~= format("movsx rax, byte [%s + %d]\n", symbol, offset); break;
-					case 2: output ~= format("movsx rax, word [%s + %d]\n", symbol, offset); break;
-					case 4: output ~= format("movsxd rax, dword [%s + %d]\n", symbol, offset); break;
-					case 8: output ~= format("mov rax, [%s + %d]\n", symbol, offset); break;
-					default: Error(node.error, "Bad variable type size");
+			switch (size) {
+				case 1: {
+					output ~= format("mov%cx rax, byte [%s + %d]\n", op, symbol, offset);
+					break;
 				}
-			}
-			else {
-				switch (size) {
-					case 1: output ~= format("mov al, [%s + %d]\n", symbol, offset); break;
-					case 2: output ~= format("mov ax, [%s + %d]\n", symbol, offset); break;
-					case 4: output ~= format("mov eax, [%s + %d]\n", symbol, offset); break;
-					case 8: output ~= format("mov rax, [%s + %d]\n", symbol, offset); break;
-					default: Error(node.error, "Bad variable type size");
+				case 2: {
+					output ~= format("mov%cx rax, word [%s + %d]\n", op, symbol, offset);
+					break;
 				}
+				case 4: {
+					output ~= format("mov%cxd rax, dword [%s + %d]\n", op, symbol, offset);
+					break;
+				}
+				case 8: output ~= format("mov rax, [%s + %d]\n", symbol, offset); break;
+				default: Error(node.error, "Bad variable type size");
 			}
 		}
 

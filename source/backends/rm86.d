@@ -46,9 +46,10 @@ class BackendRM86 : CompilerBackend {
 		types ~= Type("u16",   2, false);
 		types ~= Type("i16",   2, true);
 		types ~= Type("addr",  2, false);
-		types ~= Type("size",  2, true);
+		types ~= Type("isize", 2, true);
 		types ~= Type("usize", 2, false);
 		types ~= Type("cell",  2, false);
+		types ~= Type("icell", 2, true);
 		types ~= Type("bool",  2, false);
 
 		// built in structs
@@ -236,10 +237,6 @@ class BackendRM86 : CompilerBackend {
 			size = var.type.Size();
 		}
 
-		if (size != 2) {
-			output ~= "xor ax, ax\n";
-		}
-
 		output ~= "mov di, sp\n";
 
 		if (deref) {
@@ -259,6 +256,13 @@ class BackendRM86 : CompilerBackend {
 			}
 		}
 
+		if ((size == 1) && var.type.isSigned) {
+			output ~= "cbw\n"; // thank god that exists on 8086
+		}
+		else if (size == 1) {
+			output ~= "xor ah, ah\n";
+		}
+
 		output ~= "mov [si], ax\n";
 		output ~= "add si, 2\n";
 	}
@@ -269,10 +273,6 @@ class BackendRM86 : CompilerBackend {
 	) {
 		if (size == 0) {
 			size = var.type.Size();
-		}
-
-		if (size != 2) {
-			output ~= "xor ax, ax\n";
 		}
 
 		string symbol = format("__global_%s", var.name.Sanitise());
@@ -292,6 +292,13 @@ class BackendRM86 : CompilerBackend {
 				case 2: output ~= format("mov ax, [%s + %d]\n", symbol, offset); break;
 				default: Error(node.error, "Bad variable type size");
 			}
+		}
+
+		if ((size == 1) && var.type.isSigned) {
+			output ~= "cbw\n"; // thank god that exists on 8086
+		}
+		else if (size == 1) {
+			output ~= "xor ah, ah\n";
 		}
 
 		output ~= "mov [si], ax\n";
