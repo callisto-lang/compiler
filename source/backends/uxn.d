@@ -278,9 +278,16 @@ class BackendUXN : CompilerBackend {
 		}
 
 		switch (size) {
-			case 1: output ~= "LDA #00 SWP\n"; break;
+			case 1: output ~= "LDA\n"; break;
 			case 2: output ~= "LDA2\n"; break;
 			default: Error(node.error, "Bad variable type size");
+		}
+
+		if ((size == 1) && var.type.isSigned) {
+			output ~= "LIT2r 00ff DUP #80 AND ?{ SWPr } STHr POPr SWP\n";
+		}
+		else if (size == 1) {
+			output ~= "#00 SWP\n";
 		}
 	}
 
@@ -309,7 +316,7 @@ class BackendUXN : CompilerBackend {
 		}
 
 		if ((size == 1) && var.type.isSigned) {
-			output ~= "LITr 00 LITr ff DUP #80 AND ?{ SWPr } STHr POPr SWP\n";
+			output ~= "LIT2r 00ff DUP #80 AND ?{ SWPr } STHr POPr SWP\n";
 		}
 		else if (size == 1) {
 			output ~= "#00 SWP\n";
