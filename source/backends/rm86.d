@@ -39,18 +39,19 @@ class BackendRM86 : CompilerBackend {
 		addrSize  = 2;
 		defaultOS = "dos";
 
-		types ~= Type("u8",    1);
-		types ~= Type("i8",    1);
-		types ~= Type("u16",   2);
-		types ~= Type("i16",   2);
-		types ~= Type("addr",  2);
-		types ~= Type("size",  2);
-		types ~= Type("usize", 2);
-		types ~= Type("cell",  2);
-		types ~= Type("bool",  2);
+		types ~= Type("u8",    1, false);
+		types ~= Type("i8",    1, true);
+		types ~= Type("u16",   2, false);
+		types ~= Type("i16",   2, true);
+		types ~= Type("addr",  2, false);
+		types ~= Type("isize", 2, true);
+		types ~= Type("usize", 2, false);
+		types ~= Type("cell",  2, false);
+		types ~= Type("icell", 2, true);
+		types ~= Type("bool",  2, false);
 
 		// built in structs
-		types ~= Type("Array", 6, true, [
+		types ~= Type("Array", 6, false, true, [
 			StructEntry(UsedType(GetType("usize"), false), "length", false, 2, 0),
 			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 2, 2),
 			StructEntry(UsedType(GetType("addr"), false),  "elements", false, 2, 4)
@@ -60,7 +61,7 @@ class BackendRM86 : CompilerBackend {
 		NewConst("Array.elements",   4);
 		NewConst("Array.sizeOf",     2 * 3);
 
-		types ~= Type("Exception", 6 + 2, true, [
+		types ~= Type("Exception", 6 + 2, false, true, [
 			StructEntry(UsedType(GetType("bool"), false),  "error", false, 2, 0),
 			StructEntry(UsedType(GetType("Array"), false), "msg", false, 6, 2)
 		]);
@@ -234,10 +235,6 @@ class BackendRM86 : CompilerBackend {
 			size = var.type.Size();
 		}
 
-		if (size != 2) {
-			output ~= "xor ax, ax\n";
-		}
-
 		output ~= "mov di, sp\n";
 
 		if (deref) {
@@ -257,6 +254,13 @@ class BackendRM86 : CompilerBackend {
 			}
 		}
 
+		if ((size == 1) && var.type.isSigned) {
+			output ~= "cbw\n"; // thank god that exists on 8086
+		}
+		else if (size == 1) {
+			output ~= "xor ah, ah\n";
+		}
+
 		output ~= "mov [si], ax\n";
 		output ~= "add si, 2\n";
 	}
@@ -267,10 +271,6 @@ class BackendRM86 : CompilerBackend {
 	) {
 		if (size == 0) {
 			size = var.type.Size();
-		}
-
-		if (size != 2) {
-			output ~= "xor ax, ax\n";
 		}
 
 		string symbol = format("__global_%s", var.name.Sanitise());
@@ -290,6 +290,13 @@ class BackendRM86 : CompilerBackend {
 				case 2: output ~= format("mov ax, [%s + %d]\n", symbol, offset); break;
 				default: Error(node.error, "Bad variable type size");
 			}
+		}
+
+		if ((size == 1) && var.type.isSigned) {
+			output ~= "cbw\n"; // thank god that exists on 8086
+		}
+		else if (size == 1) {
+			output ~= "xor ah, ah\n";
 		}
 
 		output ~= "mov [si], ax\n";
@@ -732,13 +739,18 @@ class BackendRM86 : CompilerBackend {
 
 		foreach (ref elem ; node.elements) {
 			switch (elem.type) {
+				case NodeType.SignedInt:{
+					auto node2    = cast(SignedIntNode) elem;
+					array.values ~= node2.value.text();
+					break;
+				}
 				case NodeType.Integer: {
 					auto node2    = cast(IntegerNode) elem;
 					array.values ~= node2.value.text();
 					break;
 				}
 				default: {
-					Error(elem.error, "Type '%s' can't be used in array literal");
+					Error(elem.error, "Type '%s' can't be used in array literal", elem.type);
 				}
 			}
 		}

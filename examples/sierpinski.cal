@@ -21,7 +21,14 @@ func man sierpinski cell n begin
 		0 -> x
 
 		while x n 2 / < do
-			if x n y 1 + - and then
+			# x & y
+			#    creates an (upside down) sierpinski triangle, all by itself, that's
+			#    pretty cool
+			# x & ~y 
+			#    this creates a sierpinski triangle too except it's the right way up.
+			#    the not operator flips the whole thing. i think it's interesting how
+			#    bitwise operators can work with a sierpinski triangle so easily
+			if x y not and then
 				' ' print_ch
 			else
 				'*' print_ch

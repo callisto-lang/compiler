@@ -71,22 +71,23 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		// built in integer types
-		types ~= Type("u8",    1);
-		types ~= Type("i8",    1);
-		types ~= Type("u16",   2);
-		types ~= Type("i16",   2);
-		types ~= Type("u32",   4);
-		types ~= Type("i32",   4);
-		types ~= Type("u64",   8);
-		types ~= Type("i64",   8);
-		types ~= Type("addr",  8);
-		types ~= Type("size",  8);
-		types ~= Type("usize", 8);
-		types ~= Type("cell",  8);
-		types ~= Type("bool",  8);
+		types ~= Type("u8",    1, false);
+		types ~= Type("i8",    1, true);
+		types ~= Type("u16",   2, false);
+		types ~= Type("i16",   2, true);
+		types ~= Type("u32",   4, false);
+		types ~= Type("i32",   4, true);
+		types ~= Type("u64",   8, false);
+		types ~= Type("i64",   8, true);
+		types ~= Type("addr",  8, false);
+		types ~= Type("isize", 8, true);
+		types ~= Type("usize", 8, false);
+		types ~= Type("cell",  8, false);
+		types ~= Type("icell", 8, true);
+		types ~= Type("bool",  8, false);
 
 		// built in structs
-		types ~= Type("Array", 24, true, [
+		types ~= Type("Array", 24, false, true, [
 			StructEntry(UsedType(GetType("usize"), false), "length", false, 8, 0),
 			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 8, 8),
 			StructEntry(UsedType(GetType("addr"), false), "elements", false, 8, 16)
@@ -96,7 +97,7 @@ class BackendX86_64 : CompilerBackend {
 		NewConst("Array.elements",   16);
 		NewConst("Array.sizeOf",     8 * 3);
 
-		types ~= Type("Exception", 24 + 8, true, [
+		types ~= Type("Exception", 24 + 8, false, true, [
 			StructEntry(UsedType(GetType("bool"), false),  "error", false, 8, 0),
 			StructEntry(UsedType(GetType("Array"), false), "msg", false, 24, 8)
 		]);
@@ -204,7 +205,6 @@ class BackendX86_64 : CompilerBackend {
 
 		if (os == "osx") {
 			linkCommand ~= " -platform_version macos 10.6 `xcrun --sdk macosx --show-sdk-version`";
-			linkCommand ~= " -ld_classic -no_pie -e _main";
 			linkCommand ~= " -lSystem -syslibroot `xcrun --sdk macosx --show-sdk-path`";
 		}
 
@@ -530,31 +530,45 @@ class BackendX86_64 : CompilerBackend {
 		bool deref = false
 	) {
 		if (size == 0) {
-			size = var.type.Size();
-		}
-
-		if (size != 8) {
-			output ~= "xor rax, rax\n";
+			size   = var.type.Size();
 		}
 
 		string symbol = format("__global_%s", var.name.Sanitise());
+		char   op     = var.type.isSigned? 's' : 'z';
 
 		if (deref) {
 			output ~= format("mov rbx, [%s]\n", symbol);
-
 			switch (size) {
-				case 1: output ~= format("mov al, [rbx + %d]\n", offset); break;
-				case 2: output ~= format("mov ax, [rbx + %d]\n", offset); break;
-				case 4: output ~= format("mov eax, [rbx + %d]\n", offset); break;
+				case 1: {
+					output ~= format("mov%cx rax, $(BYTE) [rbx + %d]\n", op, offset);
+					break;
+				}
+				case 2: {
+					output ~= format("mov%cx rax, $(WORD) [rbx + %d]\n", op, offset);
+					break;
+				}
+				case 4: {
+					output ~= format("mov%cxd rax, $(DWORD) [rbx + %d]\n", op, offset);
+					break;
+				}
 				case 8: output ~= format("mov rax, [rbx + %d]\n", offset); break;
 				default: Error(node.error, "Bad variable type size");
 			}
 		}
 		else {
 			switch (size) {
-				case 1: output ~= format("mov al, [%s + %d]\n", symbol, offset); break;
-				case 2: output ~= format("mov ax, [%s + %d]\n", symbol, offset); break;
-				case 4: output ~= format("mov eax, [%s + %d]\n", symbol, offset); break;
+				case 1: {
+					output ~= format("mov%cx rax, byte [%s + %d]\n", op, symbol, offset);
+					break;
+				}
+				case 2: {
+					output ~= format("mov%cx rax, word [%s + %d]\n", op, symbol, offset);
+					break;
+				}
+				case 4: {
+					output ~= format("mov%cxd rax, dword [%s + %d]\n", op, symbol, offset);
+					break;
+				}
 				case 8: output ~= format("mov rax, [%s + %d]\n", symbol, offset); break;
 				default: Error(node.error, "Bad variable type size");
 			}
@@ -569,7 +583,7 @@ class BackendX86_64 : CompilerBackend {
 		bool deref = false
 	) {
 		if (size == 0) {
-			size = var.type.Size();
+			size   = var.type.Size();
 		}
 
 		if (size != 8) {
@@ -579,21 +593,43 @@ class BackendX86_64 : CompilerBackend {
 		if (deref) {
 			output ~= format("mov rbx, [rsp + %d]\n", var.offset);
 
-			switch (size) {
-				case 1: output ~= format("mov al, [rbx + %d]\n", offset); break;
-				case 2: output ~= format("mov ax, [rbx + %d]\n", offset); break;
-				case 4: output ~= format("mov eax, [rbx + %d]\n", offset); break;
-				case 8: output ~= format("mov rax, [rbx + %d]\n", offset); break;
-				default: Error(node.error, "Bad variable type size");
+			if (var.type.isSigned) {
+				switch (size) {
+					case 1: output ~= format("movsx rax, byte [rbx + %d]\n", offset); break;
+					case 2: output ~= format("movsx rax, word [rbx + %d]\n", offset); break;
+					case 4: output ~= format("movsxd rax, dword [rbx + %d]\n", offset); break;
+					case 8: output ~= format("mov rax, [rbx + %d]\n", offset); break;
+					default: Error(node.error, "Bad variable type size");
+				}
+			}
+			else {
+				switch (size) {
+					case 1: output ~= format("mov al, [rbx + %d]\n", offset); break;
+					case 2: output ~= format("mov ax, [rbx + %d]\n", offset); break;
+					case 4: output ~= format("mov eax, [rbx + %d]\n", offset); break;
+					case 8: output ~= format("mov rax, [rbx + %d]\n", offset); break;
+					default: Error(node.error, "Bad variable type size");
+				}
 			}
 		}
 		else {
-			switch (size) {
-				case 1: output ~= format("mov al, [rsp + %d]\n", offset + var.offset); break;
-				case 2: output ~= format("mov ax, [rsp + %d]\n", offset + var.offset); break;
-				case 4: output ~= format("mov eax, [rsp + %d]\n", offset + var.offset); break;
-				case 8: output ~= format("mov rax, [rsp + %d]\n", offset + var.offset); break;
-				default: Error(node.error, "Bad variable type size");
+			if (var.type.isSigned) {
+				switch (size) {
+					case 1: output ~= format("movsx rax, byte [rsp + %d]\n", offset + var.offset); break;
+					case 2: output ~= format("movsx rax, word [rsp + %d]\n", offset + var.offset); break;
+					case 4: output ~= format("movsxd rax, dword [rsp + %d]\n", offset + var.offset); break;
+					case 8: output ~= format("mov rax, [rsp + %d]\n", offset + var.offset); break;
+					default: Error(node.error, "Bad variable type size");
+				}
+			}
+			else {
+				switch (size) {
+					case 1: output ~= format("mov al, [rsp + %d]\n", offset + var.offset); break;
+					case 2: output ~= format("mov ax, [rsp + %d]\n", offset + var.offset); break;
+					case 4: output ~= format("mov eax, [rsp + %d]\n", offset + var.offset); break;
+					case 8: output ~= format("mov rax, [rsp + %d]\n", offset + var.offset); break;
+					default: Error(node.error, "Bad variable type size");
+				}
 			}
 		}
 
@@ -1137,13 +1173,18 @@ class BackendX86_64 : CompilerBackend {
 
 		foreach (ref elem ; node.elements) {
 			switch (elem.type) {
+				case NodeType.SignedInt: {
+					auto node2    = cast(SignedIntNode) elem;
+					array.values ~= node2.value.text();
+					break;
+				}
 				case NodeType.Integer: {
 					auto node2    = cast(IntegerNode) elem;
 					array.values ~= node2.value.text();
 					break;
 				}
 				default: {
-					Error(elem.error, "Type '%s' can't be used in array literal");
+					Error(elem.error, "Type '%s' can't be used in array literal", elem.type);
 				}
 			}
 		}

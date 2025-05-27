@@ -36,18 +36,19 @@ class BackendUXN : CompilerBackend {
 		org      = 0x100;
 		addrSize = 2;
 
-		types ~= Type("u8",    1);
-		types ~= Type("i8",    1);
-		types ~= Type("u16",   2);
-		types ~= Type("i16",   2);
-		types ~= Type("addr",  2);
-		types ~= Type("size",  2);
-		types ~= Type("usize", 2);
-		types ~= Type("cell",  2);
-		types ~= Type("bool",  2);
+		types ~= Type("u8",    1, false);
+		types ~= Type("i8",    1, true);
+		types ~= Type("u16",   2, false);
+		types ~= Type("i16",   2, true);
+		types ~= Type("addr",  2, false);
+		types ~= Type("isize", 2, true);
+		types ~= Type("usize", 2, false);
+		types ~= Type("cell",  2, false);
+		types ~= Type("icell", 2, true);
+		types ~= Type("bool",  2, false);
 
 		// built in structs
-		types ~= Type("Array", 6, true, [
+		types ~= Type("Array", 6, false, true, [
 			StructEntry(UsedType(GetType("usize"), false), "length", false, 2, 0),
 			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 2, 2),
 			StructEntry(UsedType(GetType("addr"), false),  "elements", false, 2, 4)
@@ -57,7 +58,7 @@ class BackendUXN : CompilerBackend {
 		NewConst("Array.elements",   4);
 		NewConst("Array.sizeOf",     2 * 3);
 
-		types ~= Type("Exception", 6 + 2, true, [
+		types ~= Type("Exception", 6 + 2, false, true, [
 			StructEntry(UsedType(GetType("bool"), false),  "error", false, 2, 0),
 			StructEntry(UsedType(GetType("Array"), false), "msg", false, 6, 0)
 		]);
@@ -275,7 +276,7 @@ class BackendUXN : CompilerBackend {
 		}
 
 		switch (size) {
-			case 1: output ~= "LDA NIP\n"; break;
+			case 1: output ~= "LDA #00 SWP\n"; break;
 			case 2: output ~= "LDA2\n"; break;
 			default: Error(node.error, "Bad variable type size");
 		}
@@ -300,9 +301,16 @@ class BackendUXN : CompilerBackend {
 		}
 
 		switch (size) {
-			case 1: output ~= "LDA NIP\n"; break;
+			case 1: output ~= "LDA\n"; break;
 			case 2: output ~= "LDA2\n"; break;
 			default: Error(node.error, "Bad variable type size");
+		}
+
+		if ((size == 1) && var.type.isSigned) {
+			output ~= "LITr 00 LITr ff DUP #80 AND ?{ SWPr } STHr POPr SWP\n";
+		}
+		else if (size == 1) {
+			output ~= "#00 SWP\n";
 		}
 	}
 
@@ -740,6 +748,21 @@ class BackendUXN : CompilerBackend {
 
 		foreach (ref elem ; node.elements) {
 			switch (elem.type) {
+				case NodeType.SignedInt:{
+					auto node2    = cast(SignedIntNode) elem;
+
+					final switch (array.type.Size()) {
+						case 1: {
+							array.values ~= format("%.2x", cast(ubyte) (cast(byte) node2.value));
+							break;
+						}
+						case 2: {
+							array.values ~= format("%.4x", cast(ushort) (cast(short) node2.value));
+							break;
+						}
+					}
+					break;
+				}
 				case NodeType.Integer: {
 					auto node2    = cast(IntegerNode) elem;
 
@@ -751,8 +774,7 @@ class BackendUXN : CompilerBackend {
 					break;
 				}
 				default: {
-					Error(elem.error, "Type '%s' can't be used in array literal");
-					// TODO: orphan format specifier
+					Error(elem.error, "Type '%s' can't be used in array literal", elem.type);
 				}
 			}
 		}
