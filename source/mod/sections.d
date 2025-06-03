@@ -357,7 +357,7 @@ class ImplementSection : Section {
 		type     = file.ReadString();
 		method   = file.ReadString();
 		called   = file.ReadStringArray();
-		assembly = file.ReadOrSkipString();
+		assembly = file.ReadOrSkipString(skip);
 	}
 
 	override void WriteAsm(string code) => cast(void) (assembly ~= code);
@@ -370,21 +370,24 @@ class ImplementSection : Section {
 class LetSection : Section {
 	bool       array;
 	SectionInt size;
+	bool       ptr;
 	string     type;
 	string     name;
 
 	override SectionType GetType() => SectionType.Let;
 
 	override void Write(File file) {
-		file.WriteInt(array? 1 : 0);
+		file.WriteByte(array? 1 : 0);
 		file.WriteInt(size);
+		file.WriteByte(ptr? 1 : 0);
 		file.WriteString(type);
 		file.WriteString(name);
 	}
 
 	override void Read(File file, bool skip) {
-		array = file.ReadInt() != 0;
+		array = file.rawRead(new ubyte[1])[0] != 0;
 		size  = file.ReadInt();
+		ptr   = file.rawRead(new ubyte[1])[0] != 0;
 		type  = file.ReadString();
 		name  = file.ReadString();
 	}
@@ -407,9 +410,9 @@ class StructSection : Section {
 	override SectionType GetType() => SectionType.Struct;
 
 	private static void WriteEntry(File file, ref ModStructEntry entry) {
-		file.WriteInt(entry.ptr? 1 : 0);
+		file.WriteByte(entry.ptr? 1 : 0);
 		file.WriteString(entry.type);
-		file.WriteInt(entry.array? 1 : 0);
+		file.WriteByte(entry.array? 1 : 0);
 		file.WriteInt(entry.size);
 		file.WriteInt(entry.offset);
 		file.WriteString(entry.name);
@@ -418,9 +421,9 @@ class StructSection : Section {
 	private static ModStructEntry ReadEntry(File file) {
 		ModStructEntry ret;
 
-		ret.ptr    = file.ReadInt() != 0;
+		ret.ptr    = file.ReadByte() != 0;
 		ret.type   = file.ReadString();
-		ret.array  = file.ReadInt() != 0;
+		ret.array  = file.ReadByte() != 0;
 		ret.size   = file.ReadInt();
 		ret.offset = file.ReadInt();
 		ret.name   = file.ReadString();
@@ -452,13 +455,31 @@ class StructSection : Section {
 class BSSSection : Section {
 	string assembly;
 
-	override void GetType() => SectionType.BSS;
+	override SectionType GetType() => SectionType.BSS;
 
 	override void Write(File file) {
 		file.WriteString(assembly);
 	}
 
 	override void Read(File file, bool skip) {
-		assembly = file.ReadOrSkipString();
+		assembly = file.ReadOrSkipString(skip);
 	}
+
+	override void WriteAsm(string code) => cast(void) (assembly ~= code);
+}
+
+class DataSection : Section {
+	string assembly;
+
+	override SectionType GetType() => SectionType.Data;
+
+	override void Write(File file) {
+		file.WriteString(assembly);
+	}
+
+	override void Read(File file, bool skip) {
+		assembly = file.ReadOrSkipString(skip);
+	}
+
+	override void WriteAsm(string code) => cast(void) (assembly ~= code);
 }

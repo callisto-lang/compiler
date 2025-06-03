@@ -158,6 +158,7 @@ Enum entries follow this header.
 | 0              | 1            | Type - set to 0x0A                                 |
 | 1              | 1            | Boolean - is this an array?                        |
 | 2              | 8            | Array size                                         |
+| 10             | 1            | Boolean - is this a pointer?                       |
 | 10             | ?            | Type                                               |
 | ?              | ?            | Variable name                                      |
 

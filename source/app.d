@@ -8,6 +8,7 @@ import std.process;
 import std.algorithm;
 import callisto.error;
 import callisto.output;
+import callisto.linker;
 import callisto.mod.mod;
 import callisto.compiler;
 import callisto.language;
@@ -68,6 +69,9 @@ Backend options:
     use-libc  - Makes Callisto use the C runtime and links libc
     frame-ptr - Makes Callisto use both rbp (frame pointer) and rsp for stack frames
     use-gas   - Makes Callisto use GNU Assembler instead of nasm
+
+Programs:
+  cac link <MODULES...> - Links MODULES... together into one executable
 ";
 
 int main(string[] args) {
@@ -116,6 +120,13 @@ int main(string[] args) {
 	}
 	else {
 		WarnNoInfo("No default backend for your system");
+	}
+
+	if (args.length > 1) {
+		switch (args[1]) {
+			case "link": return LinkerProgram(args[2 .. $]);
+			default: break;
+		}
 	}
 
 	for (size_t i = 1; i < args.length; ++ i) {
@@ -333,7 +344,7 @@ int main(string[] args) {
 	}
 
 	if (makeMod) {
-		backend.output = new Output(modCPU, modOS, file, outFile ~ ".mod");
+		backend.output = new Output(file, modCPU, modOS, file, outFile ~ ".mod");
 	}
 	else {
 		backend.output = new Output(outFile);
@@ -378,7 +389,7 @@ int main(string[] args) {
 		}
 	}
 
-	backend.output ~= header ~ '\n';
+	if (!makeMod) backend.output ~= header ~ '\n';
 
 	if (file == "") {
 		stderr.writeln("No source files");

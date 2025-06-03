@@ -9,6 +9,7 @@ import std.exception;
 import core.stdc.stdlib : exit;
 import callisto.util;
 import callisto.mod.mod;
+import callisto.compiler;
 import callisto.mod.sections;
 
 class OutputException : Exception {
@@ -32,11 +33,11 @@ class Output {
 		outFile = dest;
 	}
 
-	this(ModCPU cpu, ModOS os, string source, string dest) {
+	this(string inFile, ModCPU cpu, ModOS os, string source, string dest) {
 		useMod  = true;
 		outFile = dest;
 
-		mod = new WriteModule(cpu, os, source, dest);
+		mod = new WriteModule(inFile, cpu, os, source, dest);
 	}
 
 	void Error(Char, A...)(string source, in Char[] fmt, A args) {
@@ -67,6 +68,8 @@ class Output {
 			case SectionType.Implement: sect = new ImplementSection(); break;
 			case SectionType.Let:       sect = new LetSection();       break;
 			case SectionType.Struct:    sect = new StructSection();    break;
+			case SectionType.BSS:       sect = new BSSSection();       break;
+			case SectionType.Data:      sect = new DataSection();      break;
 		}
 	}
 
@@ -80,6 +83,29 @@ class Output {
 		if (!useMod) return;
 
 		mod.Add(sect);
+		sect = null;
+	}
+
+	void AddSection(Section psect) {
+		if (!useMod) return;
+
+		if (sect !is null) {
+			throw new ModuleException("Unfinished section");
+		}
+
+		mod.Add(psect);
+	}
+
+	void AddGlobal(Global global) {
+		if (!useMod) return;
+
+		auto section = new LetSection();
+		section.array = global.array;
+		section.size  = global.type.size;
+		section.ptr   = global.type.ptr;
+		section.type  = global.type.name;
+		section.name  = global.name;
+		AddSection(section);
 	}
 
 	void opOpAssign(string op: "~")(char ch) {

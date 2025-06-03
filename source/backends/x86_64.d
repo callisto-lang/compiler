@@ -131,7 +131,7 @@ class BackendX86_64 : CompilerBackend {
 
 	string TempLabel() {
 		++ tempLabelNum;
-		return format("__temp_%d", tempLabelNum);
+		return Label("__temp_", "%d", tempLabelNum);
 	}
 
 	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
@@ -303,14 +303,12 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	string Label(string label) {
-		return format("%s%s:", output.GetModPrefix(), label);
+		return format("%s%s", output.GetModPrefix(), label);
 	}
 
 	string Label(string prefix, string label) {
-		format("%s%s%s:", prefix, output.GetModPrefix(), label);
+		return format("%s%s%s", prefix, output.GetModPrefix(), label);
 	}
-
-	string Label(Char, A...)(in Char[] fmt, A args) => Label(format(fmt, args));
 
 	string Label(Char, A...)(string prefix, in Char[] fmt, A args) {
 		return Label(prefix, format(fmt, args));
@@ -468,6 +466,7 @@ class BackendX86_64 : CompilerBackend {
 		output.FinishSection();
 
 		// create global variables
+		output.StartSection(SectionType.BSS);
 		if (useGas) {
 			output ~= ".section .bss\n";
 		}
@@ -478,26 +477,31 @@ class BackendX86_64 : CompilerBackend {
 		foreach (var ; globals) {
 			if (useGas) {
 				output ~= format(
-					"__global_%s: .skip %d\n", var.name.Sanitise(), var.Size()
+					"%s: .skip %d\n", Label("__global_", "%s", var.name.Sanitise()),
+					var.Size()
 				);
 			}
 			else {
 				output ~= format(
-					"__global_%s: resb %d\n", var.name.Sanitise(), var.Size()
+					"%s: resb %d\n",
+					Label("__global_", "%s", var.name.Sanitise()), var.Size()
 				);
 			}
 
 			if (exportSymbols) {
 				output ~= format(
-					"%sglobal __global_%s\n", useGas? "." : "", var.name.Sanitise()
+					"%sglobal %s\n", useGas? "." : "",
+					Label("__global_", "%s", var.name.Sanitise())
 				);
 			}
 		}
+		output.FinishSection();
 
 		// create array source
+		output.StartSection(SectionType.Data);
 		output ~= format("%ssection .data\n", useGas? "." : "");
 		foreach (i, ref array ; arrays) {
-			output ~= format("__array_%d: ", i);
+			output ~= format("%s: ", Label("__array_", "%d", i));
 
 			switch (array.type.Size()) {
 				case 1:  output ~= useGas? ".byte " : "db "; break;
@@ -515,7 +519,8 @@ class BackendX86_64 : CompilerBackend {
 
 			if (array.global) {
 				output ~= format(
-					"__array_%d_meta: %s %d, %d, __array_%d\n", i,
+					"%s: %s %d, %d, __array_%d\n",
+					Label("__array_", "%d_meta", i),
 					useGas? ".quad" : "dq",
 					array.values.length,
 					array.type.Size(),
@@ -533,7 +538,7 @@ class BackendX86_64 : CompilerBackend {
 			size   = var.type.Size();
 		}
 
-		string symbol = format("__global_%s", var.name.Sanitise());
+		string symbol = Label("__global_", "%s", var.name.Sanitise());
 		char   op     = var.type.isSigned? 's' : 'z';
 
 		if (deref) {
@@ -722,7 +727,9 @@ class BackendX86_64 : CompilerBackend {
 						}
 					}
 
-					output ~= format("call __func__%s\n", node.name.Sanitise());
+					output ~= format(
+						"call %s\n", Label("__func__", "%s", node.name.Sanitise())
+					);
 
 					if (word.error && words[thisFunc].error) {
 						output ~= "pop r14\n";
@@ -750,7 +757,8 @@ class BackendX86_64 : CompilerBackend {
 						string temp = TempLabel();
 						
 						output ~= format(
-							"cmp $(QWORD) [__global_%s], 0\n", Sanitise("_cal_exception")
+							"cmp $(QWORD) [%s], 0\n",
+							Label("__global_", "%s", Sanitise("_cal_exception"))
 						);
 						output ~= format("je %s\n", temp);
 						output ~= "mov r15, r14\n";
@@ -866,6 +874,7 @@ class BackendX86_64 : CompilerBackend {
 		else {
 			assert(!inScope);
 			inScope = true;
+			output.StartSection(SectionType.FuncDef);
 
 			words[node.name] = Word(
 				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors,
@@ -873,7 +882,7 @@ class BackendX86_64 : CompilerBackend {
 			);
 
 			string symbol =
-				node.raw? node.name : format("__func__%s", node.name.Sanitise());
+				node.raw? node.name : Label("__func__", "%s", node.name.Sanitise());
 
 			if (exportSymbols) {
 				output ~= format("global %s\n", symbol);
@@ -890,7 +899,9 @@ class BackendX86_64 : CompilerBackend {
 			}
 
 			if (node.errors) {
-				output ~= format("lea rax, __global_%s\n", Sanitise("_cal_exception"));
+				output ~= format(
+					"lea rax, %s\n", Label("__global_", "%s", Sanitise("_cal_exception"))
+				);
 				output ~= "mov $(QWORD) [rax], 0\n";
 			}
 
@@ -955,7 +966,10 @@ class BackendX86_64 : CompilerBackend {
 					output ~= format("lea rax, [rsp + %d]\n", var.offset);
 					output ~= "mov [r15], rax\n";
 					output ~= "add r15, 8\n";
-					output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+					output ~= format(
+						"call %s\n",
+						Label("__type_deinit_", "%s", var.type.name.Sanitise())
+					);
 				}
 			}
 
@@ -976,6 +990,8 @@ class BackendX86_64 : CompilerBackend {
 			//output    ~= format("__func_end__%s:\n", node.name.Sanitise());
 			inScope    = false;
 			variables  = [];
+
+			output.FinishSection();
 		}
 	}
 	
@@ -991,7 +1007,9 @@ class BackendX86_64 : CompilerBackend {
 			output ~= "sub r15, 8\n";
 			output ~= "mov rax, [r15]\n";
 			output ~= "cmp rax, 0\n";
-			output ~= format("je __if_%d_%d\n", blockNum, condCounter + 1);
+			output ~= format(
+				"je %s\n", Label("__if_", "%d_%d", blockNum, condCounter + 1)
+			);
 
 			// create scope
 			auto oldVars = variables.dup;
@@ -1009,7 +1027,10 @@ class BackendX86_64 : CompilerBackend {
 				output ~= format("lea rax, [rsp + %d]\n", var.offset);
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format(
+					"call %s\n",
+					Label("__type_deinit_", "%s", var.type.name.Sanitise())
+				);
 			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
@@ -1039,7 +1060,10 @@ class BackendX86_64 : CompilerBackend {
 				output ~= format("lea rax, [rsp + %d]\n", var.offset);
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format(
+					"call %s\n",
+					Label("__type_deinit_", "%s", var.type.name.Sanitise())
+				);
 			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
@@ -1047,7 +1071,7 @@ class BackendX86_64 : CompilerBackend {
 			variables = oldVars;
 		}
 
-		output ~= format("__if_%d_end:\n", blockNum);
+		output ~= format("%s:\n", Label("__if_", "%d_end", blockNum));
 	}
 	
 	override void CompileWhile(WhileNode node) {
@@ -1055,8 +1079,8 @@ class BackendX86_64 : CompilerBackend {
 		uint blockNum = blockCounter;
 		currentLoop   = blockNum;
 
-		output ~= format("jmp __while_%d_condition\n", blockNum);
-		output ~= format("__while_%d:\n", blockNum);
+		output ~= format("jmp %s\n", Label("__while_", "%d_condition", blockNum));
+		output ~= format("%s:\n", Label("__while_", "%d", blockNum));
 
 		// make scope
 		auto oldVars = variables.dup;
@@ -1070,7 +1094,7 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		// restore scope
-		output ~= format("__while_%d_next:\n", blockNum);
+		output ~= format("%s:\n", Label("__while_", "%d_next", blockNum));
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
 			if (!var.type.hasDeinit || var.type.ptr) continue;
@@ -1078,7 +1102,10 @@ class BackendX86_64 : CompilerBackend {
 			output ~= format("lea rax, [rsp + %d]\n", var.offset);
 			output ~= "mov [r15], rax\n";
 			output ~= "add r15, 8\n";
-			output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+			output ~= format(
+				"call %s\n",
+				Label("__type_deinit_", "%s", var.type.name.Sanitise())
+			);
 		}
 		if (GetStackSize() - oldSize > 0) {
 			output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
@@ -1087,7 +1114,7 @@ class BackendX86_64 : CompilerBackend {
 
 		inWhile = false;
 
-		output ~= format("__while_%d_condition:\n", blockNum);
+		output ~= format("%s:\n", Label("__while_", "%d_condition", blockNum));
 		
 		foreach (ref inode ; node.condition) {
 			compiler.CompileNode(inode);
@@ -1096,10 +1123,10 @@ class BackendX86_64 : CompilerBackend {
 		output ~= "sub r15, 8\n";
 		output ~= "mov rax, [r15]\n";
 		output ~= "cmp rax, 0\n";
-		output ~= format("jne __while_%d\n", blockNum);
-		output ~= format("__while_%d_end:\n", blockNum);
+		output ~= format("jne %s\n", Label("__while_", "%d", blockNum));
+		output ~= format("%s:\n", Label("__while_", "%d_end", blockNum));
 	}
-	
+
 	override void CompileLet(LetNode node) {
 		if (!TypeExists(node.varType.name)) {
 			Error(node.error, "Undefined type '%s'", node.varType.name);
@@ -1143,7 +1170,9 @@ class BackendX86_64 : CompilerBackend {
 			if (var.type.hasInit && !var.type.ptr) { // call constructor
 				output ~= "mov [r15], rsp\n";
 				output ~= "add r15, 8\n";
-				output ~= format("call __type_init_%s\n", Sanitise(var.type.name));
+				output ~= format(
+					"call %s", Label("__type_init_", "%s", var.type.name.Sanitise())
+				);
 			}
 		}
 		else {
@@ -1165,6 +1194,8 @@ class BackendX86_64 : CompilerBackend {
 					"Anonymous variables can only be created inside a function"
 				);
 			}
+
+			output.AddGlobal(global);
 		}
 	}
 	
@@ -1199,7 +1230,9 @@ class BackendX86_64 : CompilerBackend {
 		arrays          ~= array;
 
 		if (!inScope || node.constant) {
-			output ~= format("lea rax, __array_%d_meta\n", arrays.length - 1);
+			output ~= format(
+				"lea rax, %s\n", Label("__array_", "%d_meta", arrays.length - 1)
+			);
 			output ~= "mov $(QWORD) [r15], rax\n";
 			output ~= "add r15, 8\n";
 		}
@@ -1207,7 +1240,9 @@ class BackendX86_64 : CompilerBackend {
 			// allocate a copy of this array
 			output ~= format("sub rsp, %d\n", array.Size());
 			output ~= "mov rax, rsp\n";
-			output ~= format("lea rsi, __array_%d\n", arrays.length - 1);
+			output ~= format(
+				"lea rsi, %s\n", Label("__array_", "%d", arrays.length - 1)
+			);
 			output ~= "mov rdi, rax\n";
 			output ~= format("mov rcx, %d\n", array.Size());
 			output ~= format("rep movsb\n");
@@ -1278,7 +1313,10 @@ class BackendX86_64 : CompilerBackend {
 					output ~= format("lea rax, [rsp + %d\n]", var.offset);
 					output ~= "mov [r15], rax\n";
 					output ~= "add r15, 8\n";
-					output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+					output ~= format(
+						"call %s\n",
+						Label("__type_deinit_", "%s", var.type.name.Sanitise())
+					);
 				}
 			}
 			if (scopeSize == 1) {
@@ -1364,7 +1402,7 @@ class BackendX86_64 : CompilerBackend {
 		if (node.func in words) {
 			auto   word   = words[node.func];
 			string symbol = word.type == WordType.Callisto?
-				format("__func__%s", node.func.Sanitise()) : ExternSymbol(node.func);
+				Label("__func__", "%s", node.func.Sanitise()) : ExternSymbol(node.func);
 
 			output ~= format("lea rax, %s\n", symbol);
 			output ~= "mov [r15], rax\n";
@@ -1374,7 +1412,7 @@ class BackendX86_64 : CompilerBackend {
 			auto var = GetGlobal(node.func);
 
 			output ~= format(
-				"lea rax, __global_%s\n", node.func.Sanitise()
+				"lea rax, %s\n", Label("__global_", "%s", node.func.Sanitise())
 			);
 			output ~= "mov [r15], rax\n";
 			output ~= "add r15, 8\n";
@@ -1398,7 +1436,10 @@ class BackendX86_64 : CompilerBackend {
 				auto var = GetGlobal(name);
 
 				if (var.type.ptr) {
-					output ~= format("mov rax, [__global_%s]\n", name.Sanitise());
+					output ~= format(
+						"mov rax, [%s]\n",
+						Label("__global_", "%s", name.Sanitise())
+					);
 
 					if (offset > 0) {
 						output ~= format("lea rax, [rax + %d]\n", offset);
@@ -1406,10 +1447,11 @@ class BackendX86_64 : CompilerBackend {
 				}
 				else {
 					output ~= format(
-						"lea rax, [__global_%s + %d]\n", name.Sanitise(), offset
+						"lea rax, [%s + %d]\n",
+						Label("__global_", "%s", name.Sanitise()), offset
 					);
 				}
-				
+
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 			}
@@ -1457,7 +1499,7 @@ class BackendX86_64 : CompilerBackend {
 				}
 
 				type.hasInit = true;
-				labelName = format("__type_init_%s", Sanitise(node.structure));
+				labelName = Label("__type_init_", "%s", Sanitise(node.structure));
 				break;
 			}
 			case "deinit": {
@@ -1466,7 +1508,7 @@ class BackendX86_64 : CompilerBackend {
 				}
 
 				type.hasDeinit = true;
-				labelName = format("__type_deinit_%s", Sanitise(node.structure));
+				labelName = Label("__type_deinit_", "%s", Sanitise(node.structure));
 				break;
 			}
 			default: Error(node.error, "Unknown method '%s'", node.method);
@@ -1476,6 +1518,13 @@ class BackendX86_64 : CompilerBackend {
 
 		assert(!inScope);
 		inScope = true;
+
+		output.StartSection(SectionType.Implement);
+		if (output.useMod) {
+			auto sect   = cast(ImplementSection) output.sect;
+			sect.type   = type.name;
+			sect.method = node.method;
+		}
 
 		output ~= format("%s:\n", labelName);
 
@@ -1501,7 +1550,10 @@ class BackendX86_64 : CompilerBackend {
 					output ~= format("lea rax, [rsp + %d]\n", var.offset);
 					output ~= "mov [r15], rax\n";
 					output ~= "add r15, 8\n";
-					output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+					output ~= format(
+						"call %s\n",
+						Label("__type_deinit_", "%s", var.type.name.Sanitise())
+					);
 				}
 			}
 			if (scopeSize == 1) {
@@ -1515,6 +1567,8 @@ class BackendX86_64 : CompilerBackend {
 		output    ~= "ret\n";
 		inScope    = false;
 		variables  = [];
+
+		output.FinishSection();
 	}
 
 	void SetVariable(
@@ -1561,7 +1615,7 @@ class BackendX86_64 : CompilerBackend {
 		output ~= "sub r15, 8\n";
 		output ~= "mov rax, [r15]\n";
 
-		string symbol = format("__global_%s", global.name.Sanitise());
+		string symbol = Label("__global_", "%s", global.name.Sanitise());
 
 		if (deref) {
 			output ~= format("mov rbx, [%s]\n", symbol);
@@ -1662,16 +1716,18 @@ class BackendX86_64 : CompilerBackend {
 			}
 		}
 		else {
-			output ~= format("call __func__%s\n", node.func.Sanitise());
+			output ~= format("call %s\n", Label("__func__", "%s", node.func.Sanitise()));
 		}
 
 		output ~= "pop r14\n";
 
 		++ blockCounter;
 
-		output ~= format("lea rax, __global_%s\n", Sanitise("_cal_exception"));
+		output ~= format(
+			"lea rax, %s\n", Label("__global_", "%s", Sanitise("_cal_exception"))
+		);
 		output ~= "cmp $(QWORD) [rax], 0\n";
-		output ~= format("je __catch_%d_end\n", blockCounter);
+		output ~= format("je %s\n", Label("__catch_", "%d_end", blockCounter));
 
 		// function errored, assume that all it did was consume parameters
 		output ~= "mov r15, r14\n";
@@ -1692,7 +1748,10 @@ class BackendX86_64 : CompilerBackend {
 			output ~= format("lea rax, [rsp + %d]\n", var.offset);
 			output ~= "mov [r15], rax\n";
 			output ~= "add r15, 8\n";
-			output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+			output ~= format(
+				"call %s\n",
+				Label("__type_deinit_", "%s", var.type.name.Sanitise())
+			);
 		}
 		if (GetStackSize() - oldSize > 0) {
 			output ~= format("add rsp, %d\n", GetStackSize() - oldSize);
@@ -1711,7 +1770,9 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		// set exception error
-		output ~= format("lea rbx, __global_%s\n", Sanitise("_cal_exception"));
+		output ~= format(
+			"lea rbx, __global_%s\n", Label("__global_", "%s", Sanitise("_cal_exception"))
+		);
 		output ~= "mov rax, 0xFFFFFFFFFFFFFFFF\n";
 		output ~= "mov [rbx], rax\n";
 
