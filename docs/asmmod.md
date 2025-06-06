@@ -30,8 +30,14 @@ Integers are little endian. Strings are null-terminated.
 | 3              | 8            | Version number, currently 0x0000                        |
 | 11             | 8            | CPU architecture ID (see below)                         |
 | 19             | 8            | Operating system ID (see below)                         |
-| 27             | 8            | Number of sections                                      |
+| 27             | 1            | Flags                                                   |
+| 28             | 8            | Number of sections                                      |
 | 35             | ?            | String containing full path of the original source file |
+
+#### Flags
+| Bit | Value                                                |
+| --- | ---------------------------------------------------- |
+| 0   | 1 - this module is a stub, 0 - this is a full module |
 
 ### CPU architectures
 "None" is used for transpiled languages (like when Callisto compiles to Lua)

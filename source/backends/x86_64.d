@@ -327,11 +327,15 @@ class BackendX86_64 : CompilerBackend {
 		foreach (global ; globals) {
 			if (global.type.hasInit && !global.type.ptr) {
 				output ~= format(
-					"lea rax, __global_%s\n", global.name.Sanitise()
+					"lea rax, %s\n",
+					Label("__global_", "%s", global.name.Sanitise())
 				);
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
-				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
+				output ~= format(
+					"call %s\n",
+					Label("__type_init_", "%s", global.type.name.Sanitise())
+				);
 			}
 		}
 	}
@@ -435,10 +439,16 @@ class BackendX86_64 : CompilerBackend {
 		// call destructors
 		foreach (global ; globals) {
 			if (global.type.hasDeinit && !global.type.ptr) {
-				output ~= format("lea rax, __global_%s\n", Sanitise(global.name));
+				output ~= format(
+					"lea rax, %s\n",
+					Label("__global_", "%s", global.name.Sanitise())
+				);
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(global.type.name));
+				output ~= format(
+					"call _%s\n",
+					Label("__type_deinit_", "%s", Sanitise(global.type.name))
+				);
 			}
 		}
 

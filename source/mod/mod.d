@@ -20,7 +20,7 @@ class Module {
 		header = new HeaderSection();
 	}
 
-	void Read(string path, bool skip) {
+	void ReadHeader(string path) {
 		if (!path.endsWith(".mod")) {
 			throw new ModuleException("Not a module file");
 		}
@@ -30,6 +30,10 @@ class Module {
 
 		header = new HeaderSection();
 		header.Read(file, false);
+	}
+
+	void Read(string path, bool skip) {
+		ReadHeader();
 
 		foreach (i ; 0 .. header.sectionNum) {
 			Section sect;
