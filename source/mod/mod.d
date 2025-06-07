@@ -39,8 +39,9 @@ class Module {
 
 		foreach (i ; 0 .. header.sectionNum) {
 			Section sect;
+			auto    type = file.rawRead(new ubyte[1])[0];
 
-			switch (file.rawRead(new ubyte[1])[0]) {
+			switch (type) {
 				case SectionType.TopLevel:  sect = new TopLevelSection();  break;
 				case SectionType.FuncDef:   sect = new FuncDefSection();   break;
 				case SectionType.Import:    sect = new ImportSection();    break;
@@ -53,7 +54,12 @@ class Module {
 				case SectionType.Implement: sect = new ImplementSection(); break;
 				case SectionType.Let:       sect = new LetSection();       break;
 				case SectionType.Struct:    sect = new StructSection();    break;
-				default: throw new ModuleException("Invalid section type");
+				case SectionType.BSS:       sect = new BSSSection();       break;
+				case SectionType.Data:      sect = new DataSection();      break;
+				default: {
+					stderr.writefln("Invalid section type: %.2X", type);
+					throw new ModuleException("Invalid section type");
+				}
 			}
 
 			sect.Read(file, skip);
@@ -93,6 +99,7 @@ class WriteModule {
 	}
 
 	void Add(Section sect) {
+		file.rawWrite(cast(ubyte[]) [sect.GetType()]);
 		sect.Write(file);
 		++ sectionNum;
 	}

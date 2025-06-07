@@ -1,10 +1,25 @@
 module callisto.linkers.x86_64;
 
 import std.stdio;
+import std.format;
+import std.process;
+import std.algorithm;
+import callisto.util;
 import callisto.error;
 import callisto.linker;
+import callisto.output;
 import callisto.mod.mod;
+import callisto.compiler;
 import callisto.mod.sections;
+import callisto.backends.x86_64;
+
+private struct Func {
+	string mod;
+	string name;
+	bool   inline;
+
+	string Label() => format("__func__%s__sep__%s", mod, name.Sanitise());
+}
 
 // TODO: link time optimisation
 class LinkerX86_64 : Linker {
@@ -14,6 +29,33 @@ class LinkerX86_64 : Linker {
 	string dataAsm;
 	bool   useGas;
 	bool   useLibc;
+
+	Func[] funcs;
+
+	bool FuncExists(string name) {
+		foreach (ref func ; funcs) {
+			if (func.name == name) return true;
+		}
+
+		return false;
+	}
+
+	size_t CountFuncs(string name) {
+		size_t ret;
+
+		foreach (ref func ; funcs) {
+			if (func.name == name) ++ ret;
+		}
+
+		return ret;
+	}
+
+	Func GetFunc(string name) {
+		foreach (ref func ; funcs) {
+			if (func.name == name) return func;
+		}
+		assert(0);
+	}
 
 	override bool HandleOption(string opt) {
 		switch (opt) {
@@ -31,7 +73,6 @@ class LinkerX86_64 : Linker {
 
 	override void Add(Module mod) {
 		foreach (ref isect ; mod.sections) {
-			writeln(isect.GetType()); /*
 			switch (isect.GetType()) {
 				case SectionType.TopLevel: {
 					auto sect  = cast(TopLevelSection) isect;
@@ -39,8 +80,17 @@ class LinkerX86_64 : Linker {
 					break;
 				}
 				case SectionType.FuncDef: {
-					auto sect  = cast(FuncDefSection) isect;
-					funcAsm   ~= sect.assembly;
+					auto sect = cast(FuncDefSection) isect;
+
+					if (!sect.inline) {
+						funcAsm ~= sect.assembly;
+					}
+
+					Func func;
+					func.mod    = mod.name;
+					func.name   = sect.name;
+					func.inline = sect.inline;
+					funcs     ~= func;
 					break;
 				}
 				case SectionType.Implement: {
@@ -59,7 +109,16 @@ class LinkerX86_64 : Linker {
 					break;
 				}
 				default: break;
-			}*/
+			}
+		}
+	}
+
+	void CheckForOneFunc(string name) {
+		if (CountFuncs(name) != 1) {
+			ErrorNoInfo("Linker requires one function named `%s`", name);
+		}
+		if (GetFunc(name).inline) {
+			ErrorNoInfo("Linker requires that the function '%s' is not inline", name);
 		}
 	}
 
@@ -79,45 +138,72 @@ class LinkerX86_64 : Linker {
 				ErrorNoInfo("Cannot use GNU Assembler on x86_64 macOS");
 			}
 
-			file.writeln("default rel\n");
-			file.writeln("global _main\n");
-			file.writeln("_main:\n");
+			file.writeln("default rel");
+			file.writeln("global _main");
+			file.writeln("_main:");
 		}
 		else if (useLibc) {
 			if (useGas) {
-				file.writeln(".global main\n");
+				file.writeln(".global main");
 			}
 			else {
-				file.writeln("global main\n");
+				file.writeln("global main");
 			}
 
-			file.writeln("main:\n");
+			file.writeln("main:");
 		}
 		else {
 			if (useGas) {
-				file.writeln(".global _start\n");
+				file.writeln(".global _start");
 			}
 			else {
-				file.writeln("global _start\n");
+				file.writeln("global _start");
 			}
 
-			file.writeln("_start:\n");
+			file.writeln("_start:");
 		}
 
-		file.writeln("call __init\n");
+		CheckForOneFunc("__x86_64_program_init");
+		file.writefln("call %s", GetFunc("__x86_64_program_init").Label());
 
 		// allocate data stack
-		file.writeln("sub rsp, 4096\n"); // 512 cells
-		file.writeln("mov r15, rsp\n");
+		file.writeln("sub rsp, 4096"); // 512 cells
+		file.writeln("mov r15, rsp");
 
-		// jump to main
-		file.writeln("jmp __calmain\n");
-
-		file.write(funcAsm);
+		// run top level code
 		file.writeln("__calmain:");
 		file.write(tlcAsm);
-		// TODO: what do i do about the init/exit words??
-		file.writeln("__init:\n");
-		file.writeln("ret\n");
+
+		// run exit function
+		CheckForOneFunc("__x86_64_program_exit");
+		file.writefln("call %s", GetFunc("__x86_64_program_exit").Label());
+
+		// write function assembly
+		file.write(funcAsm);
+
+		// data
+		file.write(bssAsm);
+		file.write(dataAsm);
+		file.flush();
+		file.close();
+
+		// run final commands
+		auto backend             = new BackendX86_64();
+		backend.compiler         = new Compiler();
+		backend.compiler.outFile = outFile;
+		backend.output           = new Output("");
+		backend.useGas           = useGas;
+		backend.useLibc          = useLibc;
+		auto commands            = backend.FinalCommands();
+
+		foreach (cmd ; commands) {
+			writeln(cmd);
+			auto res = executeShell(cmd);
+
+			if (res.status != 0) {
+				stderr.writefln("Error running '%s': %s", cmd, res.output);
+				exit(1);
+			}
+		}
 	}
 }

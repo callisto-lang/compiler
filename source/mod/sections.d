@@ -1,6 +1,7 @@
 module callisto.mod.sections;
 
 import std.conv;
+import std.array;
 import std.stdio;
 import std.format;
 import std.bitmanip;
@@ -180,6 +181,7 @@ class HeaderSection : Section {
 
 	override string toString() {
 		string str;
+		str ~= "==== MODULE HEADER ====\n";
 		str ~= format("Version:  %s\n", ver);
 		str ~= format("CPU:      %s\n", cpu);
 		str ~= format("OS:       %s\n", os);
@@ -209,6 +211,15 @@ class TopLevelSection : Section {
 
 	override void AddCall(string call) {
 		if (!calls.canFind(call)) calls ~= call;
+	}
+
+	override string toString() {
+		string str;
+		str ~= "==== TOP LEVEL CODE ====\n";
+		str ~= format("Calls: %s\n", calls);
+		str ~= "Assembly:\n";
+		str ~= '\t' ~ assembly.replace("\n", "\n\t") ~ '\n';
+		return str;
 	}
 }
 
@@ -249,6 +260,20 @@ class FuncDefSection : Section {
 	override void AddCall(string call) {
 		if (!calls.canFind(call)) calls ~= call;
 	}
+
+	override string toString() {
+		string str;
+		str ~= "==== FUNCTION DEFINITION ====\n";
+		str ~= format("Public: %s\n", pub);
+		str ~= format("Inline: %s\n", inline);
+		str ~= format("Calls:  %s\n", calls);
+		str ~= format("Name:   %s\n", name);
+		str ~= format("Params: %s\n", params);
+		str ~= format("Ret:    %s\n", ret);
+		str ~= "Assembly:\n";
+		str ~= '\t' ~ assembly.replace("\n", "\n\t") ~ '\n';
+		return str;
+	}
 }
 
 class ImportSection : Section {
@@ -257,6 +282,7 @@ class ImportSection : Section {
 	override SectionType GetType() => SectionType.Import;
 	override void        Write(File file) => file.WriteString(mod);
 	override void        Read(File file, bool skip) => cast(void) (mod = file.ReadString());
+	override string      toString() => format("==== IMPORT %s ====", mod);
 }
 
 class EnableSection : Section {
@@ -265,6 +291,7 @@ class EnableSection : Section {
 	override SectionType GetType() => SectionType.Enable;
 	override void        Write(File file) => file.WriteString(ver);
 	override void        Read(File file, bool skip) => cast(void) (ver = file.ReadString());
+	override string      toString() => format("==== ENABLE %s ====", ver);
 }
 
 class ConstSection : Section {
@@ -282,11 +309,15 @@ class ConstSection : Section {
 		value = file.ReadInt();
 		name  = file.ReadString();
 	}
+
+	override string toString() => format("==== CONST %s = %s ====", name, value);
 }
 
 struct ModEnumEntry {
 	SectionInt value;
 	string     name;
+
+	string toString() => format("%s = %s", name, value);
 }
 
 class EnumSection : Section {
@@ -315,6 +346,17 @@ class EnumSection : Section {
 			entry.name = file.ReadString();
 		}
 	}
+
+	override string toString() {
+		string str;
+		str ~= format("==== ENUM %s ====", name);
+
+		foreach (ref entry ; entries) {
+			str ~= entry.toString() ~ '\n';
+		}
+
+		return str;
+	}
 }
 
 class RestrictSection : Section {
@@ -323,6 +365,7 @@ class RestrictSection : Section {
 	override SectionType GetType() => SectionType.Restrict;
 	override void        Write(File file) => file.WriteString(ver);
 	override void        Read(File file, bool skip) => cast(void) (ver = file.ReadString());	
+	override string      toString() => format("==== RESTRICT %s ====", ver);
 }
 
 class UnionSection : Section {
@@ -340,6 +383,8 @@ class UnionSection : Section {
 		size = file.ReadInt();
 		name = file.ReadString();
 	}
+
+	override string toString() => format("==== UNION %s ====\nSize: %s\n", name, size);
 }
 
 class AliasSection : Section {
@@ -357,6 +402,8 @@ class AliasSection : Section {
 		original = file.ReadString();
 		newName  = file.ReadString();
 	}
+
+	override string toString() => format("==== ALIAS %s = %s ====", newName, original);
 }
 
 class ImplementSection : Section {
@@ -386,6 +433,17 @@ class ImplementSection : Section {
 	override void AddCall(string call) {
 		if (!called.canFind(call)) called ~= call;
 	}
+
+	override string toString() {
+		string str;
+		str ~= "==== FUNCTION DEFINITION ====\n";
+		str ~= format("Calls:  %s\n", called);
+		str ~= format("Type:   %s\n", type);
+		str ~= format("Method: %s\n", method);
+		str ~= "Assembly:\n";
+		str ~= '\t' ~ assembly.replace("\n", "\n\t") ~ '\n';
+		return str;
+	}
 }
 
 class LetSection : Section {
@@ -412,6 +470,17 @@ class LetSection : Section {
 		type  = file.ReadString();
 		name  = file.ReadString();
 	}
+
+	override string toString() {
+		string str;
+		str ~= "==== LET ====\n";
+		str ~= format("Array: %s\n", array);
+		str ~= format("Size:  %s\n", size);
+		str ~= format("Ptr:   %s\n", ptr);
+		str ~= format("Type:  %s\n", type);
+		str ~= format("Name:  %s\n", name);
+		return str;
+	}
 }
 
 struct ModStructEntry {
@@ -421,6 +490,11 @@ struct ModStructEntry {
 	SectionInt size;
 	SectionInt offset;
 	string     name;
+
+	string toString() => format(
+		"MEMBER %s %s %s %s OFFSET %d",
+		array? "array" : "", array? text(size) : "", ptr? "ptr" : "", type, name, offset
+	);
 }
 
 class StructSection : Section {
@@ -471,6 +545,17 @@ class StructSection : Section {
 			WriteEntry(file, entry);
 		}
 	}
+
+	override string toString() {
+		string str;
+		str ~= format("==== STRUCT %s ====\n", name);
+		str ~= format("Size: %s\n", size);
+
+		foreach (ref entry ; entries) {
+			str ~= entry.toString();
+		}
+		return str;
+	}
 }
 
 class BSSSection : Section {
@@ -487,6 +572,14 @@ class BSSSection : Section {
 	}
 
 	override void WriteAsm(string code) => cast(void) (assembly ~= code);
+
+	override string toString() {
+		string str;
+		str ~= "==== BSS ====\n";
+		str ~= "Assembly:\n";
+		str ~= '\t' ~ assembly.replace("\n", "\n\t") ~ '\n';
+		return str;
+	}
 }
 
 class DataSection : Section {
@@ -503,4 +596,12 @@ class DataSection : Section {
 	}
 
 	override void WriteAsm(string code) => cast(void) (assembly ~= code);
+
+	override string toString() {
+		string str;
+		str ~= "==== DATA ====\n";
+		str ~= "Assembly:\n";
+		str ~= '\t' ~ assembly.replace("\n", "\n\t") ~ '\n';
+		return str;
+	}
 }

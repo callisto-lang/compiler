@@ -529,15 +529,16 @@ class BackendX86_64 : CompilerBackend {
 
 			if (array.global) {
 				output ~= format(
-					"%s: %s %d, %d, __array_%d\n",
+					"%s: %s %d, %d, %s\n",
 					Label("__array_", "%d_meta", i),
 					useGas? ".quad" : "dq",
 					array.values.length,
 					array.type.Size(),
-					i
+					Label("__array_", "%d", i)
 				);
 			}
 		}
+		output.FinishSection();
 	}
 
 	void PushGlobalValue(
@@ -759,9 +760,15 @@ class BackendX86_64 : CompilerBackend {
 					}
 
 					if (crash) {
-						output ~= format("lea rax, __global_%s\n", Sanitise("_cal_exception"));
+						output ~= format(
+							"lea rax, %s\n",
+							Label("__global_", "%s", Sanitise("_cal_exception"))
+						);
 						output ~= "cmp $(QWORD) [rax], 0\n";
-						output ~= format("jne __func__%s\n", Sanitise("__x86_64_exception"));
+						output ~= format(
+							"jne %s\n",
+							Label("__func__", "%s", Sanitise("__x86_64_exception"))
+						);
 					}
 					else {
 						string temp = TempLabel();
@@ -1065,10 +1072,10 @@ class BackendX86_64 : CompilerBackend {
 			}
 			variables = oldVars;
 
-			output ~= format("jmp __if_%d_end\n", blockNum);
+			output ~= format("jmp %s\n", Label("__if_", "%d_end", blockNum));
 
 			++ condCounter;
-			output ~= format("__if_%d_%d:\n", blockNum, condCounter);
+			output ~= format("%s:\n", Label("__if_", "%d_%d", blockNum, condCounter));
 		}
 
 		if (node.hasElse) {
@@ -1799,7 +1806,7 @@ class BackendX86_64 : CompilerBackend {
 
 		// set exception error
 		output ~= format(
-			"lea rbx, __global_%s\n", Label("__global_", "%s", Sanitise("_cal_exception"))
+			"lea rbx, %s\n", Label("__global_", "%s", Sanitise("_cal_exception"))
 		);
 		output ~= "mov rax, 0xFFFFFFFFFFFFFFFF\n";
 		output ~= "mov [rbx], rax\n";

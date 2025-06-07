@@ -2,10 +2,12 @@ module callisto.app;
 
 import std.conv;
 import std.file;
+import std.path;
 import std.stdio;
 import std.string;
 import std.process;
 import std.algorithm;
+import callisto.test;
 import callisto.error;
 import callisto.output;
 import callisto.linker;
@@ -85,7 +87,7 @@ int main(string[] args) {
 	}
 
 	string          file;
-	string          outFile = "out";
+	string          outFile = "DEFAULT";
 	bool            orgSet;
 	string[]        includeDirs;
 	bool            optimise;
@@ -125,6 +127,7 @@ int main(string[] args) {
 	if (args.length > 1) {
 		switch (args[1]) {
 			case "link": return LinkerProgram(args[2 .. $]);
+			case "test": return TestProgram();
 			default: break;
 		}
 	}
@@ -344,9 +347,17 @@ int main(string[] args) {
 	}
 
 	if (makeMod) {
+		if (outFile == "DEFAULT") {
+			outFile = baseName(file).stripExtension();
+		}
+
 		backend.output = new Output(file, modCPU, modOS, file, outFile ~ ".mod");
 	}
 	else {
+		if (outFile == "DEFAULT") {
+			outFile = "out";
+		}
+
 		backend.output = new Output(outFile);
 	}
 

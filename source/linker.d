@@ -19,7 +19,8 @@ class Linker {
 
 int LinkerProgram(string[] args) {
 	string[] modules;
-	string   outFile;
+	string   outFile = "out";
+	string[] linkerOptions;
 
 	for (size_t i = 0; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -33,6 +34,17 @@ int LinkerProgram(string[] args) {
 					}
 
 					outFile = args[i];
+					break;
+				}
+				case "-lo": {
+					++ i;
+
+					if (i >= args.length) {
+						stderr.writeln("-lo expects OPTION parameter");
+						return 1;
+					}
+
+					linkerOptions ~= args[i];
 					break;
 				}
 				default: {
@@ -52,8 +64,6 @@ int LinkerProgram(string[] args) {
 	foreach (i, ref path ; modules) {
 		auto mod = new Module();
 		mod.ReadHeader(path);
-
-		writeln(mod.header);
 
 		if (i == 0) {
 			cpu = mod.header.cpu;
@@ -80,7 +90,15 @@ int LinkerProgram(string[] args) {
 		}
 	}
 
-	linker.os = os;
+	linker.os      = os;
+	linker.outFile = outFile;
+
+	foreach (ref opt ; linkerOptions) {
+		if (!linker.HandleOption(opt)) {
+			stderr.writefln("Linker: unknown option '%s'", opt);
+			return 1;
+		}
+	}
 
 	foreach (ref path ; modules) {
 		auto mod = new Module();

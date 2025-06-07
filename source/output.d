@@ -159,6 +159,41 @@ class Output {
 				else        output ~= input.Sanitise();
 				i = input.length + i + 2;
 			}
+			else if (text[i .. $].startsWith("&{")) {
+				if (text[i .. $].length == 2) {
+					Error(text, "Incomplete identifier statement");
+				}
+
+				string input = text[i + 2 .. $];
+
+				if (!input.canFind('}')) {
+					Error(text, "Incomplete identifier statement");
+				}
+
+				input = input[0 .. input.indexOf('}')];
+
+				auto parts = input.split();
+				if (parts.length != 2) {
+					Error(text, "Identifier statement requires 2 parts");
+				}
+
+				switch (parts[0]) {
+					case "global": {
+						if (useMod) sect.WriteAsm(format(
+							"%s%s%s", "__global_", GetModPrefix(), parts[1].Sanitise()
+						));
+						break;
+					}
+					default: {
+						Error(
+							text, "Identifier statement: unknown operation '%s'",
+							parts[0]
+						);
+					}
+				}
+
+				i = input.length + i + 2;
+			}
 			else if (useMod) {
 				sect.WriteAsm([text[i]]);
 			}
