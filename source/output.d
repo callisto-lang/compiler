@@ -86,6 +86,8 @@ class Output {
 		sect = null;
 	}
 
+	T ThisSection(T)() => cast(T) sect;
+
 	void AddSection(Section psect) {
 		if (!useMod) return;
 

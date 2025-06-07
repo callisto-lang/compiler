@@ -16,6 +16,8 @@ class Module {
 	HeaderSection header;
 	Section[]     sections;
 
+	private File file;
+
 	this() {
 		header = new HeaderSection();
 	}
@@ -26,14 +28,14 @@ class Module {
 		}
 		name = path.baseName().stripExtension();
 
-		auto file = File(path, "rb");
+		file = File(path, "rb");
 
 		header = new HeaderSection();
 		header.Read(file, false);
 	}
 
 	void Read(string path, bool skip) {
-		ReadHeader();
+		ReadHeader(path);
 
 		foreach (i ; 0 .. header.sectionNum) {
 			Section sect;

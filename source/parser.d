@@ -143,7 +143,7 @@ class FuncDefNode : Node {
 		ret ~= " ->";
 
 		foreach (ref type ; returnTypes) {
-			ret ~= format(" %s", type);
+			ret ~= format(" %s <ret>", type);
 		}
 
 		ret ~= " begin\n";
@@ -181,7 +181,15 @@ class AsmNode : Node {
 		code  = pcode;
 	}
 
-	override string toString() => format("asm %s", code);
+	override string toString() {
+		string str = "asm\n";
+
+		foreach (ref line ; code.split("\n")) {
+			str ~= format("    \"%s\"\n", line);
+		}
+
+		return str ~ "end\n";
+	}
 }
 
 class IfNode : Node {

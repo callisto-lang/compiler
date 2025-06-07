@@ -2,6 +2,7 @@ module callisto.mod.sections;
 
 import std.conv;
 import std.stdio;
+import std.format;
 import std.bitmanip;
 import std.algorithm;
 
@@ -72,14 +73,20 @@ private SectionInt ReadInt(File file) {
 }
 
 private ubyte ReadByte(File file) {
-	return file.rawRead(new ubyte[1])[0];
+	auto res = file.rawRead(new ubyte[1]);
+
+	if (res.length == 0) {
+		throw new SectionException("Unexpected EOF");
+	}
+	
+	return res[0];
 }
 
 private string ReadString(File file) {
 	string res;
 
 	while (true) {
-		auto ch = file.rawRead(new ubyte[1])[0];
+		auto ch = file.ReadByte();
 
 		if (ch == 0) return res;
 		else         res ~= ch;
@@ -170,6 +177,16 @@ class HeaderSection : Section {
 		sectionNum = file.ReadInt();
 		source     = file.ReadString();
 	}
+
+	override string toString() {
+		string str;
+		str ~= format("Version:  %s\n", ver);
+		str ~= format("CPU:      %s\n", cpu);
+		str ~= format("OS:       %s\n", os);
+		str ~= format("Sections: %d\n", sectionNum);
+		str ~= format("Source:   %s\n", source);
+		return str;
+	}
 }
 
 class TopLevelSection : Section {
@@ -197,6 +214,7 @@ class TopLevelSection : Section {
 
 class FuncDefSection : Section {
 	bool       pub;
+	bool       inline;
 	string[]   calls;
 	string     assembly;
 	string     name;
@@ -206,7 +224,7 @@ class FuncDefSection : Section {
 	override SectionType GetType() => SectionType.FuncDef;
 
 	override void Write(File file) {
-		file.WriteByte(pub? 1 : 0);
+		file.WriteByte((pub? 1 : 0) | (inline? 2 : 0));
 		file.WriteStringArray(calls);
 		file.WriteString(assembly);
 		file.WriteString(name);
@@ -215,7 +233,10 @@ class FuncDefSection : Section {
 	}
 
 	override void Read(File file, bool skip) {
-		pub      = file.ReadByte() != 0;
+		auto flags = file.ReadByte();
+
+		pub      = (flags & 1) != 0;
+		inline   = (flags & 2) != 0;
 		calls    = file.ReadStringArray();
 		assembly = file.ReadOrSkipString(skip);
 		name     = file.ReadString();

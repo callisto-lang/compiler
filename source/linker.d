@@ -3,7 +3,7 @@ module callisto.linker;
 import std.path;
 import std.stdio;
 import callisto.mod.mod;
-import callisto.mod.section;
+import callisto.mod.sections;
 import callisto.linkers.x86_64;
 
 // NOT an object file linker, this is for linking module files
@@ -53,6 +53,8 @@ int LinkerProgram(string[] args) {
 		auto mod = new Module();
 		mod.ReadHeader(path);
 
+		writeln(mod.header);
+
 		if (i == 0) {
 			cpu = mod.header.cpu;
 			os  = mod.header.os;
@@ -69,7 +71,6 @@ int LinkerProgram(string[] args) {
 	}
 
 	Linker linker;
-	linker.os = os;
 
 	switch (cpu) {
 		case ModCPU.x86_64: linker = new LinkerX86_64(); break;
@@ -79,6 +80,8 @@ int LinkerProgram(string[] args) {
 		}
 	}
 
+	linker.os = os;
+
 	foreach (ref path ; modules) {
 		auto mod = new Module();
 		mod.Read(path, false);
@@ -86,4 +89,5 @@ int LinkerProgram(string[] args) {
 	}
 
 	linker.Link();
+	return 0;
 }

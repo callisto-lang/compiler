@@ -1,8 +1,10 @@
 module callisto.linkers.x86_64;
 
+import std.stdio;
+import callisto.error;
 import callisto.linker;
 import callisto.mod.mod;
-import callisto.mod.section;
+import callisto.mod.sections;
 
 // TODO: link time optimisation
 class LinkerX86_64 : Linker {
@@ -11,22 +13,26 @@ class LinkerX86_64 : Linker {
 	string bssAsm;
 	string dataAsm;
 	bool   useGas;
+	bool   useLibc;
 
-	abstract bool HandleOption(string opt) {
+	override bool HandleOption(string opt) {
 		switch (opt) {
 			case "use-gas": {
 				useGas = true;
-				break;
+				return true;
 			}
-			default: {
-				return false;
+			case "use-libc": {
+				useLibc = true;
+				return true;
 			}
+			default: return false;
 		}
 	}
 
 	override void Add(Module mod) {
 		foreach (ref isect ; mod.sections) {
-			switch (isect.type) {
+			writeln(isect.GetType()); /*
+			switch (isect.GetType()) {
 				case SectionType.TopLevel: {
 					auto sect  = cast(TopLevelSection) isect;
 					tlcAsm    ~= sect.assembly;
@@ -53,7 +59,7 @@ class LinkerX86_64 : Linker {
 					break;
 				}
 				default: break;
-			}
+			}*/
 		}
 	}
 

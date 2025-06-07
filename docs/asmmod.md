@@ -89,9 +89,10 @@ The following tables will include the type byte mentioned before
 
 ### Flags
 Flags are OR'd together
-| Number  | Description                      |
-| ------- | -------------------------------- |
-| 1       | Public                           |
+| Number  | Description                            |
+| ------- | -------------------------------------- |
+| 1       | Public                                 |
+| 2       | Inline (the assembly is callisto code) |
 
 # Public import
 | Offset (bytes) | Size (bytes) | Description                                        |

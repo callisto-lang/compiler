@@ -876,15 +876,33 @@ class BackendX86_64 : CompilerBackend {
 			params ~= UsedType(GetType(type.name), type.ptr);
 		}
 
+		output.StartSection(SectionType.FuncDef);
+		if (output.useMod) {
+			auto sect   = output.ThisSection!FuncDefSection();
+			sect.pub    = true; // TODO: add private functions
+			sect.inline = node.inline;
+			sect.calls  = []; // TODO: add this for inline functions (IMPORTANT)
+			sect.name   = node.name;
+			sect.params = params.length;
+			sect.ret    = node.returnTypes.length;
+		}
+
 		if (node.inline) {
 			words[node.name] = Word(
 				WordType.Callisto, true, node.nodes, node.errors, params
 			);
+
+			if (output.useMod) {
+				auto sect = output.ThisSection!FuncDefSection();
+
+				foreach (ref inode ; node.nodes) {
+					sect.assembly ~= inode.toString() ~ '\n';
+				}
+			}
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
-			output.StartSection(SectionType.FuncDef);
 
 			words[node.name] = Word(
 				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors,
@@ -1000,9 +1018,9 @@ class BackendX86_64 : CompilerBackend {
 			//output    ~= format("__func_end__%s:\n", node.name.Sanitise());
 			inScope    = false;
 			variables  = [];
-
-			output.FinishSection();
 		}
+
+		output.FinishSection();
 	}
 	
 	override void CompileIf(IfNode node) {
