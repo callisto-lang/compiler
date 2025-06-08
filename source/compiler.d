@@ -418,6 +418,19 @@ class CompilerBackend {
 
 		return size;
 	}
+
+	string Label(string label) {
+		return format("%s%s", output.GetModPrefix(), label);
+	}
+
+	string Label(string prefix, string label) {
+		return format("%s%s%s", prefix, output.GetModPrefix(), label);
+	}
+
+	string Label(Char, A...)(string prefix, in Char[] fmt, A args) {
+		return Label(prefix, format(fmt, args));
+	}
+
 }
 
 class CompilerError : Exception {

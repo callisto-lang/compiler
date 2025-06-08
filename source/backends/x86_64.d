@@ -302,18 +302,6 @@ class BackendX86_64 : CompilerBackend {
 		}
 	}
 
-	string Label(string label) {
-		return format("%s%s", output.GetModPrefix(), label);
-	}
-
-	string Label(string prefix, string label) {
-		return format("%s%s%s", prefix, output.GetModPrefix(), label);
-	}
-
-	string Label(Char, A...)(string prefix, in Char[] fmt, A args) {
-		return Label(prefix, format(fmt, args));
-	}
-
 	override void BeginMain() {
 		output.StartSection(SectionType.TopLevel);
 		if (!output.useMod) {

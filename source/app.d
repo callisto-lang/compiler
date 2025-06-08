@@ -346,6 +346,19 @@ int main(string[] args) {
 		}
 	}
 
+	if (os == "DEFAULT") {
+		os = backend.defaultOS;
+
+		switch (os) {
+			case "linux":      modOS = ModOS.Linux;   break;
+			case "osx":        modOS = ModOS.macOS;   break;
+			case "bare-metal": modOS = ModOS.None;    break;
+			case "dos":        modOS = ModOS.DOS;     break;
+			case "freebsd":    modOS = ModOS.FreeBSD; break;
+			default:           assert(0);
+		}
+	}
+
 	if (makeMod) {
 		if (outFile == "DEFAULT") {
 			outFile = baseName(file).stripExtension();
@@ -365,19 +378,6 @@ int main(string[] args) {
 		ErrorNoInfo("No backend selected");
 	}
 	backend.output.outFile = outFile;
-
-	if (os == "DEFAULT") {
-		os = backend.defaultOS;
-
-		switch (os) {
-			case "linux":      modOS = ModOS.Linux;   break;
-			case "osx":        modOS = ModOS.macOS;   break;
-			case "bare-metal": modOS = ModOS.None;    break;
-			case "dos":        modOS = ModOS.DOS;     break;
-			case "freebsd":    modOS = ModOS.FreeBSD; break;
-			default:           assert(0);
-		}
-	}
 
 	auto preproc = new Preprocessor();
 	foreach (ref opt ; backendOpts) {

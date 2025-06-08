@@ -5,6 +5,7 @@ import std.stdio;
 import callisto.mod.mod;
 import callisto.mod.sections;
 import callisto.linkers.x86_64;
+import callisto.linkers.arm64;
 
 // NOT an object file linker, this is for linking module files
 
@@ -84,6 +85,7 @@ int LinkerProgram(string[] args) {
 
 	switch (cpu) {
 		case ModCPU.x86_64: linker = new LinkerX86_64(); break;
+		case ModCPU.ARM64: linker = new LinkerARM64(); break;
 		default: {
 			stderr.writefln("Unsupported architecture '%s'", cpu);
 			return 1;
