@@ -56,6 +56,7 @@ Flags:
   -scf        - Show functions in stack checker
   --help      - Shows this help text
   -m          - Generates a module file instead of an executable
+  -stub       - Generates a stub module
 
 Backends and their operating systems:
   rm86   - Real mode x86, for bare-metal, DOS
@@ -110,6 +111,7 @@ int main(string[] args) {
 	bool            makeMod;
 	ModCPU          modCPU;
 	ModOS           modOS;
+	bool            makeStub;
 
 	// choose default backend
 	version (X86_64) {
