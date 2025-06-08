@@ -158,11 +158,13 @@ class HeaderSection : Section {
 	ModOS      os;
 	SectionInt sectionNum;
 	string     source;
+	bool       stub;
 
 	override SectionType GetType() => assert(0);
 
 	override void Write(File file) {
 		file.rawWrite(cast(ubyte[]) "MOD");
+		//file.WriteByte(stub? 1 : 0);
 		file.WriteInt(ver);
 		file.WriteInt(cast(SectionInt) cpu);
 		file.WriteInt(cast(SectionInt) os);
@@ -172,6 +174,7 @@ class HeaderSection : Section {
 
 	override void Read(File file, bool skip) {
 		file.rawRead(new ubyte[3]);
+		//stub       = file.ReadByte() != 0;
 		ver        = file.ReadInt();
 		cpu        = cast(ModCPU) file.ReadInt();
 		os         = cast(ModOS)  file.ReadInt();
@@ -185,6 +188,7 @@ class HeaderSection : Section {
 		str ~= format("Version:  %s\n", ver);
 		str ~= format("CPU:      %s\n", cpu);
 		str ~= format("OS:       %s\n", os);
+		str ~= format("Stub:     %s\n", stub);
 		str ~= format("Sections: %d\n", sectionNum);
 		str ~= format("Source:   %s\n", source);
 		return str;

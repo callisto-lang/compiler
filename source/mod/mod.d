@@ -38,6 +38,7 @@ class Module {
 		ReadHeader(path);
 
 		foreach (i ; 0 .. header.sectionNum) {
+			writefln("Reading section %d", i);
 			Section sect;
 			auto    type = file.rawRead(new ubyte[1])[0];
 

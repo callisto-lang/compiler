@@ -2,6 +2,7 @@ module callisto.linker;
 
 import std.path;
 import std.stdio;
+import callisto.error;
 import callisto.mod.mod;
 import callisto.mod.sections;
 import callisto.linkers.x86_64;
@@ -21,6 +22,7 @@ int LinkerProgram(string[] args) {
 	string[] modules;
 	string   outFile = "out";
 	string[] linkerOptions;
+	bool     printSections;
 
 	for (size_t i = 0; i < args.length; ++ i) {
 		if (args[i][0] == '-') {
@@ -47,6 +49,10 @@ int LinkerProgram(string[] args) {
 					linkerOptions ~= args[i];
 					break;
 				}
+				case "-ps": {
+					printSections = true;
+					break;
+				}
 				default: {
 					stderr.writefln("Unknown flag: %s", args[i]);
 					return 1;
@@ -65,13 +71,17 @@ int LinkerProgram(string[] args) {
 		auto mod = new Module();
 		mod.ReadHeader(path);
 
+		if (mod.header.stub) {
+			ErrorNoInfo("Module '%s' is a stub and cannot be linked", path.baseName());
+		}
+
 		if (i == 0) {
 			cpu = mod.header.cpu;
 			os  = mod.header.os;
 		}
 		else {
 			if ((mod.header.cpu != cpu) || (mod.header.os != os)) {
-				stderr.writefln(
+				ErrorNoInfo(
 					"Module '%s' architecture does not match other modules",
 					path.baseName()
 				);
@@ -103,6 +113,15 @@ int LinkerProgram(string[] args) {
 	foreach (ref path ; modules) {
 		auto mod = new Module();
 		mod.Read(path, false);
+
+		if (printSections) {
+			writeln(mod.header);
+
+			foreach (ref sect ; mod.sections) {
+				writeln(sect);
+			}
+		}
+
 		linker.Add(mod);
 	}
 

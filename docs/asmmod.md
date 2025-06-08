@@ -27,11 +27,11 @@ Integers are little endian. Strings are null-terminated.
 | Offset (bytes) | Size (bytes) | Description                                             |
 | -------------- | ------------ | ------------------------------------------------------- |
 | 0              | 3            | ASCII magic bytes containing "MOD"                      |
-| 3              | 8            | Version number, currently 0x0000                        |
+| 3              | 1            | Flags                                                   |
+| 4              | 8            | Version number, currently 0x0000                        |
 | 11             | 8            | CPU architecture ID (see below)                         |
 | 19             | 8            | Operating system ID (see below)                         |
-| 27             | 1            | Flags                                                   |
-| 28             | 8            | Number of sections                                      |
+| 27             | 8            | Number of sections                                      |
 | 35             | ?            | String containing full path of the original source file |
 
 #### Flags
