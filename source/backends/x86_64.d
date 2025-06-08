@@ -748,6 +748,8 @@ class BackendX86_64 : CompilerBackend {
 						"call %s\n", Label("__func__", "%s", node.name.Sanitise())
 					);
 
+					output.AddCall(node.name);
+
 					if (word.error && words[thisFunc].error) {
 						output ~= "pop r14\n";
 					}
