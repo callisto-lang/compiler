@@ -477,11 +477,13 @@ class BackendX86_64 : CompilerBackend {
 
 		// create global variables
 		output.StartSection(SectionType.BSS);
-		if (useGas) {
-			output ~= ".section .bss\n";
-		}
-		else {
-			output ~= "section .bss\n";
+		if (!output.useMod) {
+			if (useGas) {
+				output ~= ".section .bss\n";
+			}
+			else {
+				output ~= "section .bss\n";
+			}
 		}
 
 		foreach (var ; globals) {
@@ -509,7 +511,11 @@ class BackendX86_64 : CompilerBackend {
 
 		// create array source
 		output.StartSection(SectionType.Data);
-		output ~= format("%ssection .data\n", useGas? "." : "");
+
+		if (!output.useMod) {
+			output ~= format("%ssection .data\n", useGas? "." : "");
+		}
+
 		foreach (i, ref array ; arrays) {
 			output ~= format("%s: ", Label("__array_", "%d", i));
 
