@@ -1214,7 +1214,7 @@ class BackendX86_64 : CompilerBackend {
 				output ~= "mov [r15], rsp\n";
 				output ~= "add r15, 8\n";
 				output ~= format(
-					"call %s", Label("__type_init_", "%s", var.type.name.Sanitise())
+					"call %s\n", Label("__type_init_", "%s", var.type.name.Sanitise())
 				);
 			}
 		}
