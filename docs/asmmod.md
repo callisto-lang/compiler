@@ -29,10 +29,10 @@ Integers are little endian. Strings are null-terminated.
 | 0              | 3            | ASCII magic bytes containing "MOD"                      |
 | 3              | 1            | Flags                                                   |
 | 4              | 8            | Version number, currently 0x0000                        |
-| 11             | 8            | CPU architecture ID (see below)                         |
-| 19             | 8            | Operating system ID (see below)                         |
-| 27             | 8            | Number of sections                                      |
-| 35             | ?            | String containing full path of the original source file |
+| 12             | 8            | CPU architecture ID (see below)                         |
+| 20             | 8            | Operating system ID (see below)                         |
+| 28             | 8            | Number of sections                                      |
+| 36             | 8            | String containing full path of the original source file |
 
 #### Flags
 | Bit | Value                                                |
@@ -120,6 +120,7 @@ Flags are OR'd together
 | 0              | 1            | Type - set to 0x05                                 |
 | 1              | 8            | Number of enum values                              |
 | 9              | ?            | Enum name                                          |
+| ?              | ?            | String - enum type                                 |
 
 Enum entries follow this header.
 

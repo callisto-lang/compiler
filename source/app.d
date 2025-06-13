@@ -8,6 +8,7 @@ import std.string;
 import std.process;
 import std.algorithm;
 import callisto.test;
+import callisto.stub;
 import callisto.error;
 import callisto.output;
 import callisto.linker;
@@ -324,10 +325,11 @@ int main(string[] args) {
 					os = args[i];
 					break;
 				}
-				case "-sc":  onlyStackCheck = true;        break;
-				case "-nsc": noStackCheck = true;          break;
-				case "-scf": stackCheckerFunctions = true; break;
-				case "-m":   makeMod = true;               break;
+				case "-sc":   onlyStackCheck = true;        break;
+				case "-nsc":  noStackCheck = true;          break;
+				case "-scf":  stackCheckerFunctions = true; break;
+				case "-m":    makeMod = true;               break;
+				case "-stub": makeStub = true;              break;
 				case "--help": {
 					writeln(usage.strip());
 					return 0;
@@ -452,7 +454,17 @@ int main(string[] args) {
 	nodes = preproc.Run(nodes);
 	if (!preproc.success) return 1;
 
+	if (makeMod && makeStub) {
+		auto stubComp = new StubCompiler(file, modCPU, modOS, file, outFile ~ ".mod");
+		stubComp.Compile(nodes);
+		return 0;
+	}
+
 	if (optimise) {
+		if (makeMod) {
+			ErrorNoInfo("Dead code removal on modules should be done at compile time");
+			return 1;
+		}
 		auto codeRemover = new CodeRemover();
 		codeRemover.Run(nodes);
 		nodes = codeRemover.res;

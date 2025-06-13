@@ -19,7 +19,7 @@ struct StructEntry {
 	UsedType type;
 	string   name;
 	bool     array;
-	private size_t size;
+	size_t   size;
 	size_t   offset;
 
 	size_t Size() => array? size * type.Size() : type.Size();

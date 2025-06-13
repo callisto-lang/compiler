@@ -73,6 +73,16 @@ class Output {
 		}
 	}
 
+	void StartSection(Section psect) {
+		if (!useMod) return;
+
+		if (sect !is null) {
+			throw new ModuleException("Unfinished section");
+		}
+
+		sect = psect;
+	}
+
 	void AddCall(string call) {
 		if (!useMod) return;
 

@@ -85,11 +85,11 @@ class Module {
 class WriteModule {
 	string name;
 
-	private size_t sectionNum;
-	private File   file;
+	private SectionInt sectionNum;
+	private File       file;
 
 	this(string path, ModCPU cpu, ModOS os, string source, string dest) {
-		file = File(dest, "wb");
+		file = File(dest, "wb+");
 		name = path.baseName().stripExtension();
 
 		auto header   = new HeaderSection();
@@ -106,7 +106,21 @@ class WriteModule {
 	}
 
 	void Finish() {
-		file.seek(27, SEEK_SET);
-		file.rawWrite(nativeToLittleEndian(cast(SectionInt) sectionNum));
+		writefln("Writing section count %d", sectionNum);
+		file.seek(28, SEEK_SET);
+
+		auto bytes = nativeToLittleEndian(sectionNum);
+		writeln(bytes);
+		writeln(file.tell);
+		file.rawWrite(bytes);
+		writeln(file.tell);
+
+		file.seek(28);
+		ubyte[8] bytes2;
+		file.rawRead(bytes2);
+		auto v = littleEndianToNative!(SectionInt, 8)(bytes2);
+		writeln(v);
+
+		file.close();
 	}
 }
