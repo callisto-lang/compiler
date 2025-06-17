@@ -55,9 +55,10 @@ class BackendLua : CompilerBackend {
 
 		// built in integer types
 		types ~= Type("addr",  1, false);
-		types ~= Type("size",  1, true);
+		types ~= Type("isize", 1, true);
 		types ~= Type("usize", 1, false);
 		types ~= Type("cell",  1, false);
+		types ~= Type("icell", 1, true);
 		types ~= Type("bool",  1, false);
 
 		// built in structs

@@ -70,9 +70,10 @@ class BackendARM64 : CompilerBackend {
 		types ~= Type("u64",   8, false);
 		types ~= Type("i64",   8, true);
 		types ~= Type("addr",  8, false);
-		types ~= Type("size",  8, true);
+		types ~= Type("isize", 8, true);
 		types ~= Type("usize", 8, false);
 		types ~= Type("cell",  8, false);
+		types ~= Type("icell", 8, true);
 		types ~= Type("bool",  8, false);
 
 		// built in structs
@@ -397,14 +398,25 @@ class BackendARM64 : CompilerBackend {
 			output ~= "ldr x9, [x9]\n";
 		}
 
-		switch (size) {
-			case 1: output ~= format("ldrb w9, [x9, #%d]\n", offset); break;
-			case 2: output ~= format("ldrh w9, [x9, #%d]\n", offset); break;
-			case 4: output ~= format("ldr w9, [x9, #%d]\n", offset); break;
-			case 8: output ~= format("ldr x9, [x9, #%d]\n", offset); break;
-			default: Error(node.error, "Bad variable type size");
+		if (var.type.isSigned) {
+			switch (size) {
+				case 1: output ~= format("ldrsb x9, [x9, #%d]\n", offset); break;
+				case 2: output ~= format("ldrsh x9, [x9, #%d]\n", offset); break;
+				case 4: output ~= format("ldrsw x9, [x9, #%d]\n", offset); break;
+				case 8: output ~= format("ldr x9, [x9, #%d]\n", offset); break;
+				default: Error(node.error, "Bad variable type size");
+			}
 		}
-
+		else {
+			switch (size) {
+				case 1: output ~= format("ldrb w9, [x9, #%d]\n", offset); break;
+				case 2: output ~= format("ldrh w9, [x9, #%d]\n", offset); break;
+				case 4: output ~= format("ldr w9, [x9, #%d]\n", offset); break;
+				case 8: output ~= format("ldr x9, [x9, #%d]\n", offset); break;
+				default: Error(node.error, "Bad variable type size");
+			}
+		}
+	
 		output ~= "str x9, [x19], #8\n";
 	}
 
@@ -425,12 +437,23 @@ class BackendARM64 : CompilerBackend {
 			base = "x20";
 		}
 
-		switch (size) {
-			case 1: output ~= format("ldrb w9, [%s, #%d]\n", base, offset); break;
-			case 2: output ~= format("ldrh w9, [%s, #%d]\n", base, offset); break;
-			case 4: output ~= format("ldr w9, [%s, #%d]\n", base, offset); break;
-			case 8: output ~= format("ldr x9, [%s, #%d]\n", base, offset); break;
-			default: Error(node.error, "Bad variable type size");
+		if (var.type.isSigned) {
+			switch (size) {
+				case 1: output ~= format("ldrsb x9, [%s, #%d]\n", base, offset); break;
+				case 2: output ~= format("ldrsh x9, [%s, #%d]\n", base, offset); break;
+				case 4: output ~= format("ldrsw x9, [%s, #%d]\n", base, offset); break;
+				case 8: output ~= format("ldr x9, [%s, #%d]\n", base, offset); break;
+				default: Error(node.error, "Bad variable type size");
+			}
+		}
+		else {
+			switch (size) {
+				case 1: output ~= format("ldrb w9, [%s, #%d]\n", base, offset); break;
+				case 2: output ~= format("ldrh w9, [%s, #%d]\n", base, offset); break;
+				case 4: output ~= format("ldr w9, [%s, #%d]\n", base, offset); break;
+				case 8: output ~= format("ldr x9, [%s, #%d]\n", base, offset); break;
+				default: Error(node.error, "Bad variable type size");
+			}
 		}
 
 		output ~= "str x9, [x19], #8\n";

@@ -43,9 +43,10 @@ class BackendUXN : CompilerBackend {
 		types ~= Type("u16",   2, false);
 		types ~= Type("i16",   2, true);
 		types ~= Type("addr",  2, false);
-		types ~= Type("size",  2, true);
+		types ~= Type("isize", 2, true);
 		types ~= Type("usize", 2, false);
 		types ~= Type("cell",  2, false);
+		types ~= Type("icell", 2, true);
 		types ~= Type("bool",  2, false);
 
 		// built in structs
@@ -287,9 +288,16 @@ class BackendUXN : CompilerBackend {
 		}
 
 		switch (size) {
-			case 1: output ~= "LDA NIP\n"; break;
+			case 1: output ~= "LDA\n"; break;
 			case 2: output ~= "LDA2\n"; break;
 			default: Error(node.error, "Bad variable type size");
+		}
+
+		if ((size == 1) && var.type.isSigned) {
+			output ~= "DUP #7f GTH #ff MUL SWP\n";
+		}
+		else if (size == 1) {
+			output ~= "#00 SWP\n";
 		}
 	}
 
@@ -312,9 +320,16 @@ class BackendUXN : CompilerBackend {
 		}
 
 		switch (size) {
-			case 1: output ~= "LDA NIP\n"; break;
+			case 1: output ~= "LDA\n"; break;
 			case 2: output ~= "LDA2\n"; break;
 			default: Error(node.error, "Bad variable type size");
+		}
+
+		if ((size == 1) && var.type.isSigned) {
+			output ~= "DUP #7f GTH #ff MUL SWP\n";
+		}
+		else if (size == 1) {
+			output ~= "#00 SWP\n";
 		}
 	}
 
