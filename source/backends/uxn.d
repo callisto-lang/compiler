@@ -66,6 +66,16 @@ class BackendUXN : CompilerBackend {
 		NewConst("Exception.bool",   0);
 		NewConst("Exception.msg",    2);
 		NewConst("Exception.sizeOf", 6 + 2);
+		
+		types ~= Type("Allocator", 2 * 3, false, true, [
+			StructEntry(UsedType(GetType("addr"), false), "alloc", false, 2, 0),
+			StructEntry(UsedType(GetType("addr"), false), "realloc", false, 2, 2),
+			StructEntry(UsedType(GetType("addr"), false), "free", false, 2, 4)
+		]);
+		NewConst("Allocator.alloc",   0);
+		NewConst("Allocator.realloc", 2);
+		NewConst("Allocator.free",    4);
+		NewConst("Allocator.sizeOf",  2 * 3);
 
 		foreach (ref type ; types) {
 			NewConst(format("%s.sizeOf", type.name), cast(long) type.size);

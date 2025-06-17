@@ -93,6 +93,16 @@ class BackendARM64 : CompilerBackend {
 		NewConst("Exception.bool",   0);
 		NewConst("Exception.msg",    8);
 		NewConst("Exception.sizeOf", 24 + 8);
+		
+		types ~= Type("Allocator", 24, false, true, [
+			StructEntry(UsedType(GetType("addr"), false), "alloc", false, 8, 0),
+			StructEntry(UsedType(GetType("addr"), false), "realloc", false, 8, 8),
+			StructEntry(UsedType(GetType("addr"), false), "free", false, 8, 16)
+		]);
+		NewConst("Allocator.alloc",   0);
+		NewConst("Allocator.realloc", 8);
+		NewConst("Allocator.free",    16);
+		NewConst("Allocator.sizeOf",  8 * 3);
 
 		globals ~= Global(
 			"_cal_exception", UsedType(GetType("Exception"), false), false, 0
