@@ -87,7 +87,7 @@ class BackendUXN : CompilerBackend {
 		"IO", "Exit"
 	];
 
-	override string[] FinalCommands() => output.useMod? [] : [
+	override string[] FinalCommands() => output.mode == OutputMode.Module? [] : [
 		format("mv %s %s.tal", compiler.outFile, compiler.outFile),
 		format("%s %s.tal %s", assembler, compiler.outFile, compiler.outFile),
 		keepAssembly? "" : format("rm %s.tal", compiler.outFile)

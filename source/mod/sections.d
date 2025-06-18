@@ -569,7 +569,7 @@ struct ModStructEntry {
 	string     name;
 
 	string toString() => format(
-		"MEMBER %s %s %s %s OFFSET %d",
+		"MEMBER %s %s %s %s %s OFFSET %d",
 		array? "array" : "", array? text(size) : "", ptr? "ptr" : "", type, name, offset
 	);
 }

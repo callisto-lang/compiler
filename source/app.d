@@ -350,7 +350,19 @@ int main(string[] args) {
 		}
 	}
 
-	if (makeMod) {
+	if (makeStub && !makeMod) {
+		stderr.writeln("Pass -m to make a stub module");
+		return 1;
+	}
+
+	if (makeStub) {
+		if (outFile == "DEFAULT") {
+			outFile = baseName(file).stripExtension();
+		}
+
+		backend.output = new Output();
+	}
+	else if (makeMod) {
 		if (outFile == "DEFAULT") {
 			outFile = baseName(file).stripExtension();
 		}

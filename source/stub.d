@@ -30,7 +30,7 @@ class StubCompiler {
 
 		compiler         = new Compiler();
 		backend.compiler = compiler;
-		backend.output   = new Output(path, cpu, os, source, dest);
+		backend.output   = new Output();
 	}
 
 	void CompileFuncDef(FuncDefNode node) => mod.Add(FuncDefSection.FromNode(node));

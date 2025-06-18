@@ -169,7 +169,7 @@ class BackendX86_64 : CompilerBackend {
 	}
 
 	override string[] FinalCommands() {
-		if (output.useMod) return [];
+		if (output.mode == OutputMode.Module) return [];
 
 		string objFormat;
 
@@ -316,7 +316,7 @@ class BackendX86_64 : CompilerBackend {
 
 	override void BeginMain() {
 		output.StartSection(SectionType.TopLevel);
-		if (!output.useMod) {
+		if (output.mode != OutputMode.Module) {
 			if (useGas && useDebug) {
 				output ~= ".type __calmain, @function\n";
 			}
@@ -370,7 +370,7 @@ class BackendX86_64 : CompilerBackend {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
 		}
 
-		if (output.useMod) return;
+		if (output.mode == OutputMode.Module) return;
 
 		if (useGas) {
 			output ~= ".intel_syntax noprefix\n";
@@ -452,7 +452,7 @@ class BackendX86_64 : CompilerBackend {
 			}
 		}
 
-		if (!output.useMod) {
+		if (output.mode != OutputMode.Module) {
 			// exit program
 			if ("__x86_64_program_exit" in words) {
 				CallFunction("__x86_64_program_exit");
@@ -477,7 +477,7 @@ class BackendX86_64 : CompilerBackend {
 
 		// create global variables
 		output.StartSection(SectionType.BSS);
-		if (!output.useMod) {
+		if (output.mode != OutputMode.Module) {
 			if (useGas) {
 				output ~= ".section .bss\n";
 			}
@@ -512,7 +512,7 @@ class BackendX86_64 : CompilerBackend {
 		// create array source
 		output.StartSection(SectionType.Data);
 
-		if (!output.useMod) {
+		if (output.mode != OutputMode.Module) {
 			output ~= format("%ssection .data\n", useGas? "." : "");
 		}
 
@@ -892,7 +892,7 @@ class BackendX86_64 : CompilerBackend {
 		}
 
 		output.StartSection(SectionType.FuncDef);
-		if (output.useMod) {
+		if (output.mode == OutputMode.Module) {
 			auto sect   = output.ThisSection!FuncDefSection();
 			sect.pub    = true; // TODO: add private functions
 			sect.inline = node.inline;
@@ -907,7 +907,7 @@ class BackendX86_64 : CompilerBackend {
 				WordType.Callisto, true, node.nodes, node.errors, params
 			);
 
-			if (output.useMod) {
+			if (output.mode == OutputMode.Module) {
 				auto sect = output.ThisSection!FuncDefSection();
 
 				foreach (ref inode ; node.nodes) {
@@ -1563,7 +1563,7 @@ class BackendX86_64 : CompilerBackend {
 		inScope = true;
 
 		output.StartSection(SectionType.Implement);
-		if (output.useMod) {
+		if (output.mode == OutputMode.Module) {
 			auto sect   = cast(ImplementSection) output.sect;
 			sect.type   = type.name;
 			sect.method = node.method;

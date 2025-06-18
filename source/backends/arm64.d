@@ -127,7 +127,7 @@ class BackendARM64 : CompilerBackend {
 	}
 
 	override string[] FinalCommands() {
-		if (output.useMod) return [];
+		if (output.mode == OutputMode.Module) return [];
 
 		// TODO: allow user to specify commands manually?
 		version (AArch64) {

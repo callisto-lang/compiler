@@ -94,7 +94,7 @@ class BackendRM86 : CompilerBackend {
 		"IO"
 	] ~ (os == "dos"? ["DOS", "Args", "Exit"] : os == "bare-metal"? ["BareMetal"] : []);
 
-	override string[] FinalCommands() => output.useMod? [] : [
+	override string[] FinalCommands() => output.mode == OutputMode.Module? [] : [
 		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
 		format("nasm -f bin %s.asm -o %s", compiler.outFile, compiler.outFile),
 		keepAssembly? "" : format("rm %s.asm", compiler.outFile)
