@@ -10,6 +10,7 @@ import std.algorithm;
 import callisto.test;
 import callisto.stub;
 import callisto.error;
+import callisto.state;
 import callisto.output;
 import callisto.linker;
 import callisto.mod.mod;
@@ -76,6 +77,8 @@ Backend options:
 
 Programs:
   cac link <MODULES...> - Links MODULES... together into one executable
+    Flags:
+      -ps - Print all sections in modules
 ";
 
 int main(string[] args) {
@@ -349,6 +352,8 @@ int main(string[] args) {
 			file = args[i];
 		}
 	}
+
+	state = new State();
 
 	if (makeStub && !makeMod) {
 		stderr.writeln("Pass -m to make a stub module");

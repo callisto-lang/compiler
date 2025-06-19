@@ -37,7 +37,8 @@ enum NodeType {
 	Set,
 	TryCatch,
 	Unsafe,
-	Anon
+	Anon,
+	Import
 }
 
 class Node {
@@ -601,6 +602,18 @@ class AnonNode : Node {
 	override string toString() => array?
 		format("anon array %d %s", arraySize, varType) :
 		format("anon %s", varType);
+}
+
+class ImportNode : Node {
+	string mod;
+
+	this(ErrorInfo perror, string pmod) {
+		type  = NodeType.Import;
+		error = perror;
+		mod   = pmod;
+	}
+
+	override string toString() => format("import %s", mod);
 }
 
 class ParserError : Exception {
@@ -1413,6 +1426,13 @@ class Parser {
 		return ret;
 	}
 
+	Node ParseImport() {
+		Next();
+		Expect(TokenType.Identifier);
+
+		return new ImportNode(GetError(), tokens[i].contents);
+	}
+
 	Node ParseStatement() {
 		switch (tokens[i].type) {
 			case TokenType.Integer: {
@@ -1447,6 +1467,7 @@ class Parser {
 					case "->":         return ParseSet();
 					case "unsafe":     return ParseUnsafe();
 					case "anon":       return ParseAnon();
+					case "import":     return ParseImport();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}
