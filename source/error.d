@@ -75,7 +75,7 @@ void ErrorNoInfo(Char, A...)(in Char[] fmt, A args) {
 		stderr.writefln("error: ", format(fmt, args));
 	}
 	else {
-		stderr.writefln("\x1b[31merror:\x1b[0m ", format(fmt, args));
+		stderr.writefln("\x1b[31merror:\x1b[0m %s", format(fmt, args));
 	}
 	exit(1);
 }

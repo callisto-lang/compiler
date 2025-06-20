@@ -162,6 +162,10 @@ class BackendX86_64 : CompilerBackend {
 				if (useLibc) ret ~= "Heap";
 				break;
 			}
+			case "tacos": {
+				ret ~= ["TacOS", "IO", "Exit"];
+				break;
+			}
 			default: break;
 		}
 
@@ -344,7 +348,7 @@ class BackendX86_64 : CompilerBackend {
 		output.macros["WORD"]  = useGas? "word ptr"  : "word";
 		output.macros["BYTE"]  = useGas? "byte ptr"  : "byte";
 
-		string[] oses = ["linux", "bare-metal", "osx", "freebsd"];
+		string[] oses = ["linux", "bare-metal", "osx", "freebsd", "tacos"];
 		if (!oses.canFind(os)) {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
 		}
