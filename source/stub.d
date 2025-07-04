@@ -71,7 +71,7 @@ class StubCompiler {
 	void CompileUnion(UnionNode node) {
 		auto sect = new UnionSection();
 
-		backend.CompileUnion(node);
+		backend.CompileUnion(node, mod.name);
 		auto type = backend.GetType(node.name);
 
 		sect.name = node.name;

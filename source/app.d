@@ -10,9 +10,9 @@ import std.algorithm;
 import callisto.test;
 import callisto.stub;
 import callisto.error;
-import callisto.state;
 import callisto.output;
 import callisto.linker;
+import callisto.summary;
 import callisto.mod.mod;
 import callisto.compiler;
 import callisto.language;
@@ -353,8 +353,6 @@ int main(string[] args) {
 		}
 	}
 
-	state = new State();
-
 	if (makeStub && !makeMod) {
 		stderr.writeln("Pass -m to make a stub module");
 		return 1;
@@ -400,7 +398,9 @@ int main(string[] args) {
 		}
 	}
 
-	auto preproc = new Preprocessor();
+	auto preproc    = new Preprocessor();
+	auto summary    = Summary();
+	preproc.summary = summary;
 	foreach (ref opt ; backendOpts) {
 		if (!backend.HandleOption(opt, versions, preproc)) {
 			stderr.writefln("Unknown option '%s'", opt);
@@ -515,7 +515,8 @@ int main(string[] args) {
 		return 0;
 	}
 
-	compiler.versions = preproc.versions;
+	compiler.backend.summary = summary;
+	compiler.versions        = preproc.versions;
 	
 	compiler.Compile(nodes);
 	if (!compiler.success) return 1;

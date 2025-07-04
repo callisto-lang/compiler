@@ -190,6 +190,9 @@ class LinkerX86_64 : Linker {
 		}
 		file.write(bssAsm);
 
+		// create exception
+		file.writeln(useGas? "__exception: .skip 32" : "__exception: resb 32");
+
 		if (useGas) {
 			file.writeln(".section .data");
 		}

@@ -10,8 +10,10 @@ import callisto.util;
 import callisto.error;
 import callisto.parser;
 import callisto.output;
+import callisto.summary;
 import callisto.language;
 import callisto.preprocessor;
+import callisto.mod.sections;
 
 ubyte addrSize; // in bytes, set by backend
 
@@ -32,6 +34,7 @@ struct StructVariable {
 }
 
 struct Type {
+	string        mod;
 	string        name;
 	ulong         size;
 	bool          isSigned;
@@ -39,6 +42,8 @@ struct Type {
 	StructEntry[] structure;
 	bool          hasInit;
 	bool          hasDeinit;
+
+	string FullName() => format("%s.%s", mod, name);
 }
 
 struct UsedType {
@@ -63,6 +68,7 @@ struct Variable {
 }
 
 struct Global {
+	string   mod;
 	string   name;
 	UsedType type;
 	bool     array;
@@ -73,7 +79,9 @@ struct Global {
 }
 
 struct Constant {
-	Node value;
+	string mod;
+	string name;
+	Node   value;
 }
 
 struct Array {
@@ -100,17 +108,26 @@ class CompilerBackend {
 	Global[]         globals;
 	Array[]          arrays;
 	Type[]           types;
-	Constant[string] consts;
+	Constant[]       consts;
+	Summary          summary;
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
 	abstract long     MaxInt();
-	abstract void     NewConst(string name, long value, ErrorInfo error = ErrorInfo.init);
 	abstract string   DefaultHeader();
 	abstract bool     HandleOption(string opt, ref string[] versions, Preprocessor preproc);
 
+	void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
+		consts ~= Constant(output.GetModName(), name, new SignedIntNode(error, value));
+	}
+
+	void NewConst(string mod, string name, long value, ErrorInfo error = ErrorInfo.init) {
+		consts ~= Constant(mod, name, new SignedIntNode(error, value));
+	}
+
 	void BeforeCompile(Node node) {}
 
+	abstract void ImportFuncs();
 	abstract void BeginMain();
 
 	abstract void Init();
@@ -210,48 +227,49 @@ class CompilerBackend {
 		}
 
 		NewConst(format("%s.sizeOf", node.name), offset);
-		types ~= Type(node.name, offset, false, true, entries);
+		types ~= Type(output.GetModName(), node.name, offset, false, true, entries);
 
 		foreach (ref me ; copiesOfMe) {
 			*me = UsedType(types[$ - 1], true);
 		}
 	}
 
-	void CompileEnum(EnumNode node) {
+	void CompileEnum(EnumNode node, string mod) {
 		if (!TypeExists(node.enumType)) {
 			Error(node.error, "Enum base type '%s' doesn't exist", node.enumType);
 		}
-		if (TypeExists(node.name)) {
+		if (CountTypes(node.enumType) > 1) {
+			Error(node.error, "Multiple types named '%s' exist", node.enumType);
+		}
+		if (TypeExistsHere(node.name)) {
 			Error(node.error, "Enum name is already used by type '%s'", node.enumType);
 		}
 
 		auto baseType  = GetType(node.enumType);
+		baseType.mod   = mod;
 		baseType.name  = node.name;
 		types         ~= baseType;
 
 		foreach (i, ref name ; node.names) {
-			NewConst(format("%s.%s", node.name, name), node.values[i]);
+			NewConst(mod, format("%s.%s", node.name, name), node.values[i]);
 		}
 
-		NewConst(format("%s.min", node.name), node.values.minElement());
-		NewConst(format("%s.max", node.name), node.values.maxElement());
-		NewConst(format("%s.sizeOf", node.name), GetType(node.name).size);
+		NewConst(mod, format("%s.min", node.name), node.values.minElement());
+		NewConst(mod, format("%s.max", node.name), node.values.maxElement());
+		NewConst(mod, format("%s.sizeOf", node.name), GetType(node.name).size);
 	}
 
 	void CompileConst(ConstNode node) {
-		if (node.name in consts) {
+		if (ConstExists(node.name)) {
 			Error(node.error, "Constant '%s' already defined", node.name);
 		}
 		
 		NewConst(node.name, node.value);
 	}
 
-	void CompileUnion(UnionNode node) {
+	void CompileUnion(UnionNode node, string mod) {
+		AssertTypeMatch(node.error, node.name);
 		size_t maxSize = 0;
-
-		if (TypeExists(node.name)) {
-			Error(node.error, "Type '%s' already exists", node.name);
-		}
 
 		string[] unionTypes;
 
@@ -261,17 +279,15 @@ class CompilerBackend {
 			}
 			unionTypes ~= type;
 
-			if (!TypeExists(type)) {
-				Error(node.error, "Type '%s' doesn't exist", type);
-			}
+			AssertTypeMatch(node.error, type);
 
 			if (GetType(type).size > maxSize) {
 				maxSize = GetType(type).size;
 			}
 		}
 
-		types ~= Type(node.name, maxSize);
-		NewConst(format("%s.sizeOf", node.name), cast(long) maxSize);
+		types ~= Type(mod, node.name, maxSize);
+		NewConst(mod, format("%s.sizeOf", node.name), cast(long) maxSize);
 	}
 
 	void CompileAlias(AliasNode node) {
@@ -316,9 +332,28 @@ class CompilerBackend {
 
 	final bool TypeExists(string name) => types.any!(v => v.name == name);
 
+	final bool TypeExistsHere(string name) {
+		if (output.mode == OutputMode.Module) {
+			foreach (ref type ; types) {
+				if ((type.mod == output.GetModName()) && (type.name == name)) {
+					return true;
+				}
+			}
+
+			return false;
+		}
+		else {
+			return TypeExists(name);
+		}
+	}
+
+	final bool MatchMod(string thisMod, string thisName, string toMatch) {
+		return (thisName == toMatch) || (format("%s.%s", thisMod, thisName) == toMatch);
+	}
+
 	final Type GetType(string name) {
 		foreach (ref type ; types) {
-			if (type.name == name) {
+			if (MatchMod(type.mod, type.name, name)) {
 				return type;
 			}
 		}
@@ -326,9 +361,32 @@ class CompilerBackend {
 		assert(0);
 	}
 
+	final size_t CountTypes(string name) {
+		size_t ret;
+
+		foreach (ref type ; types) {
+			if (MatchMod(type.mod, type.name, name)) {
+				++ ret;
+			}
+		}
+
+		return ret;
+	}
+
+	final void AssertTypeMatch(ErrorInfo error, string type) {
+		size_t num = CountTypes(type);
+
+		if (num > 1) {
+			Error(error, "More than one matches for type '%s'", type);
+		}
+		if (num == 0) {
+			Error(error, "No matches for type '%s'", type);
+		}
+	}
+
 	final void SetType(string name, Type ptype) {
 		foreach (i, ref type ; types) {
-			if (type.name == name) {
+			if (MatchMod(type.mod, type.name, name)) {
 				types[i] = ptype;
 				return;
 			}
@@ -337,11 +395,17 @@ class CompilerBackend {
 		assert(0);
 	}
 
-	final bool GlobalExists(string name) => globals.any!(v => v.name == name);
+	final bool GlobalExists(string name) {
+		return globals.any!(v => MatchMod(v.mod, v.name, name));
+	}
+
+	final bool GlobalExistsHere(string name) {
+		return globals.any!(v => (v.mod == output.GetModName()) && (v.name == name));
+	}
 
 	final Global GetGlobal(string name) {
 		foreach (ref global ; globals) {
-			if (global.name == name) {
+			if (MatchMod(global.mod, global.name, name)) {
 				return global;
 			}
 		}
@@ -349,11 +413,52 @@ class CompilerBackend {
 		assert(0);
 	}
 
+	final size_t CountGlobals(string name) {
+		size_t ret;
+
+		foreach (ref global ; globals) {
+			if (MatchMod(global.mod, global.name, name)) {
+				++ ret;
+			}
+		}
+
+		return ret;
+	}
+
+	final bool ConstExists(string name) {
+		return consts.any!(v => MatchMod(v.mod, v.name, name));
+	}
+
+	final Constant GetConst(string name) {
+		foreach (ref v ; consts) {
+			if (MatchMod(v.mod, v.name, name)) {
+				return v;
+			}
+		}
+
+		assert(0);
+	}
+
+	final size_t CountConsts(string name) {
+		size_t ret;
+
+		foreach (ref v ; consts) {
+			if (MatchMod(v.mod, v.name, name)) {
+				++ ret; // TODO: try using an std.algorithm function for all these
+				// count functions
+			}
+		}
+
+		return ret;
+	}
+
 	final bool IsStructMember(string identifier) {
 		string[] parts = identifier.split(".");
 
 		if (parts.length < 2) return false;
 
+		// this is not gonna work on globals in other modules ughh
+		// TODO: i guess?
 		if (VariableExists(parts[0]))    return GetVariable(parts[0]).type.isStruct;
 		else if (GlobalExists(parts[0])) return GetGlobal(parts[0]).type.isStruct;
 		else                             return false;
@@ -535,8 +640,14 @@ class Compiler {
 			case NodeType.String:    backend.CompileString(cast(StringNode) inode); break;
 			case NodeType.Struct:    backend.CompileStruct(cast(StructNode) inode); break;
 			case NodeType.Const:     backend.CompileConst(cast(ConstNode) inode); break;
-			case NodeType.Enum:      backend.CompileEnum(cast(EnumNode) inode); break;
-			case NodeType.Union:     backend.CompileUnion(cast(UnionNode) inode); break;
+			case NodeType.Enum: {
+				backend.CompileEnum(cast(EnumNode) inode, backend.output.GetModName());
+				break;
+			}
+			case NodeType.Union: {
+				backend.CompileUnion(cast(UnionNode) inode, backend.output.GetModName());
+				break;
+			}
 			case NodeType.Alias:     backend.CompileAlias(cast(AliasNode) inode); break;
 			case NodeType.Extern:    backend.CompileExtern(cast(ExternNode) inode); break;
 			case NodeType.Addr:      backend.CompileAddr(cast(AddrNode) inode); break;
@@ -562,6 +673,34 @@ class Compiler {
 				backend.CompileLet(let);
 				break;
 			}
+			case NodeType.Import: {
+				if (backend.output.mode != OutputMode.Module) {
+					backend.Error(
+						inode.error,
+						"Import statement used in a program that is not being compiled to a module file"
+					);
+				}
+
+				backend.output.AddSection(
+					ImportSection.FromNode(cast(ImportNode) inode)
+				);
+				break;
+			}
+			case NodeType.Module: {
+				if (backend.output.mode != OutputMode.Module) {
+					backend.Error(
+						inode.error,
+						"Module statement used in a program that is not being compiled to a module file"
+					);
+				}
+
+				if (backend.output.mod.main) {
+					backend.Error(inode.error, "Main module set multiple times");
+				}
+
+				backend.output.mod.main = true;
+				break;
+			}
 			default: {
 				backend.Error(inode.error, "Unimplemented node '%s'", inode.type);
 			}
@@ -584,6 +723,50 @@ class Compiler {
 		backend.compiler = this;
 		backend.Init();
 
+		// import summary
+		backend.ImportFuncs();
+		foreach (ref iconst ; backend.summary.consts) {
+			backend.consts ~= Constant(
+				iconst.inMod, iconst.name, new SignedIntNode(ErrorInfo.init, iconst.value)
+			);
+		}
+		foreach (ref ienum ; backend.summary.enums) {
+			auto enumNode     = new EnumNode(ErrorInfo.init);
+			enumNode.name     = ienum.name;
+			enumNode.enumType = ienum.enumType;
+
+			foreach (ref entry ; ienum.entries) {
+				enumNode.names  ~= entry.name;
+				enumNode.values ~= cast(long) entry.value;
+			}
+			backend.CompileEnum(enumNode, ienum.inMod);
+		}
+		foreach (ref iunion ; backend.summary.unions) {
+			backend.types ~= Type(
+				iunion.inMod, iunion.name, cast(ulong) iunion.size, false, false,
+				[], false, false
+			);
+		}
+		foreach (ref ialias ; backend.summary.aliases) {
+			if (!backend.TypeExists(ialias.original)) {
+				ErrorNoInfo("Error on import: Type '%s' does not exist", ialias.original);
+			}
+			if (backend.CountTypes(ialias.original) > 1) {
+				ErrorNoInfo(
+					"Error on import: Multiple matches for type '%s'", ialias.original
+				);
+			}
+			if (backend.TypeExistsHere(ialias.newName)) {
+				ErrorNoInfo(
+					"Error on import: Alias type '%s' already exists in module",
+					ialias.newName
+				);
+			}
+		}
+		foreach (ref implement ; backend.summary.implements) {
+			auto type = format("%s.%s", implement.inMod, implement.type);
+		}
+
 		backend.NewConst("true",  backend.MaxInt(), ErrorInfo.init);
 		backend.NewConst("false", 0, ErrorInfo.init);
 
@@ -603,7 +786,9 @@ class Compiler {
 				case NodeType.Union:
 				case NodeType.Alias:
 				case NodeType.Extern:
-				case NodeType.Implement: {
+				case NodeType.Implement:
+				case NodeType.Import:
+				case NodeType.Module: {
 					header ~= node;
 					break;
 				}

@@ -8,7 +8,7 @@ It is made up of sections, each one has a byte describing what kind of section i
 | ---- | -------------------- |
 | 0x00 | Top-level code       |
 | 0x01 | Function definition  |
-| 0x02 | Public import        |
+| 0x02 | Import               |
 | 0x03 | Enable statement     |
 | 0x04 | Const statement      |
 | 0x05 | Enum statement       |
@@ -35,9 +35,10 @@ Integers are little endian. Strings are null-terminated.
 | 36             | 8            | String containing full path of the original source file |
 
 #### Flags
-| Bit | Value                                                |
-| --- | ---------------------------------------------------- |
-| 0   | 1 - this module is a stub, 0 - this is a full module |
+| Bit | Value                                                      |
+| --- | ---------------------------------------------------------- |
+| 0   | 1 - this module is a stub, 0 - this is a full module       |
+| 1   | 1 - this is the main module, 0 - it is not the main module |
 
 ### CPU architectures
 "None" is used for transpiled languages (like when Callisto compiles to Lua)
@@ -93,12 +94,14 @@ Flags are OR'd together
 | ------- | -------------------------------------- |
 | 1       | Public                                 |
 | 2       | Inline (the assembly is callisto code) |
+| 4       | Throws errors                          |
 
-# Public import
+# Import
 | Offset (bytes) | Size (bytes) | Description                                        |
 | -------------- | ------------ | -------------------------------------------------- |
 | 0              | 1            | Type - set to 0x02                                 |
-| 1              | ?            | String containing name of module                   |
+| 1              | 1            | Boolean - public?
+| 2              | ?            | String containing name of module                   |
 
 ## Enable statement
 | Offset (bytes) | Size (bytes) | Description                                        |

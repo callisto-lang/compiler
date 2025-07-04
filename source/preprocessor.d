@@ -8,9 +8,13 @@ import std.algorithm;
 import callisto.util;
 import callisto.error;
 import callisto.parser;
+import callisto.summary;
+import callisto.mod.mod;
 import callisto.language;
+import callisto.mod.sections;
 
 class Preprocessor {
+	Summary  summary;
 	string[] includeDirs;
 	string[] included;
 	string[] versions;
@@ -23,6 +27,30 @@ class Preprocessor {
 		stderr.writeln(format(fmt, args));
 		PrintErrorLine(error);
 		success = false;
+	}
+
+	private void Import(ErrorInfo error, string name) {
+		auto fileName = format("%s.mod", name);
+
+		string path;
+		bool   found = false;
+		foreach (ref ipath ; includeDirs) {
+			path = format("%s/%s", ipath, fileName);
+
+			if (exists(path)) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			Error(error, "Can't find module '%s'", name);
+		}
+
+		auto mod = new Module();
+		mod.Read(path, true);
+		summary.modules[name]  = mod;
+		summary.sections      ~= mod.sections;
 	}
 
 	Node[] Run(Node[] nodes) {
@@ -141,6 +169,13 @@ class Preprocessor {
 					node.elements = Run(node.elements);
 
 					ret ~= node;
+					break;
+				}
+				case NodeType.Import: {
+					auto node = cast(ImportNode) inode;
+
+					Import(node.error, node.mod);
+					ret ~= inode;
 					break;
 				}
 				default: {

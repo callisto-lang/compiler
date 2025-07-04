@@ -57,6 +57,8 @@ class SectionException : Exception {
 }
 
 class Section {
+	string inMod;
+
 	abstract SectionType GetType();
 	abstract void        Write(File file);
 	abstract void        Read(File file, bool skip);
@@ -161,12 +163,15 @@ class HeaderSection : Section {
 	SectionInt sectionNum;
 	string     source;
 	bool       stub;
+	bool       main;
 
 	override SectionType GetType() => assert(0);
 
+	ubyte FlagsByte() => (stub? 1 : 0) | (main? 2 : 0);
+
 	override void Write(File file) {
 		file.rawWrite(cast(ubyte[]) "MOD");
-		file.WriteByte(stub? 1 : 0);
+		file.WriteByte(FlagsByte());
 		file.WriteInt(ver);
 		file.WriteInt(cast(SectionInt) cpu);
 		file.WriteInt(cast(SectionInt) os);
@@ -176,7 +181,9 @@ class HeaderSection : Section {
 
 	override void Read(File file, bool skip) {
 		file.rawRead(new ubyte[3]);
-		stub       = file.ReadByte() != 0;
+		auto flags = file.ReadByte();
+		stub       = (flags & 1)? true : false;
+		main       = (flags & 2)? true : false;
 		ver        = file.ReadInt();
 		cpu        = cast(ModCPU) file.ReadInt();
 		os         = cast(ModOS)  file.ReadInt();
@@ -232,6 +239,7 @@ class TopLevelSection : Section {
 class FuncDefSection : Section {
 	bool       pub;
 	bool       inline;
+	bool       error;
 	string[]   calls;
 	string     assembly;
 	string     name;
@@ -244,6 +252,7 @@ class FuncDefSection : Section {
 		auto ret   = new FuncDefSection();
 		ret.pub    = true; // TODO: public functions
 		ret.inline = node.inline;
+		ret.error  = node.errors;
 		ret.name   = node.name;
 		ret.params = node.paramTypes.length;
 		ret.ret    = node.returnTypes.length;
@@ -251,7 +260,7 @@ class FuncDefSection : Section {
 	}
 
 	override void Write(File file) {
-		file.WriteByte((pub? 1 : 0) | (inline? 2 : 0));
+		file.WriteByte((pub? 1 : 0) | (inline? 2 : 0) | (error? 4 : 0));
 		file.WriteStringArray(calls);
 		file.WriteString(assembly);
 		file.WriteString(name);
@@ -264,6 +273,7 @@ class FuncDefSection : Section {
 
 		pub      = (flags & 1) != 0;
 		inline   = (flags & 2) != 0;
+		error    = (flags & 4) != 0;
 		calls    = file.ReadStringArray();
 		assembly = file.ReadOrSkipString(skip);
 		name     = file.ReadString();
@@ -294,13 +304,30 @@ class FuncDefSection : Section {
 
 class ImportSection : Section {
 	string mod;
+	bool   pub;
 
-	// TODO: FromNode
+	static ImportSection FromNode(ImportNode node) {
+		auto ret = new ImportSection();
+		ret.mod  = node.mod;
+		ret.pub  = node.pub;
+		return ret;
+	}
 
 	override SectionType GetType() => SectionType.Import;
-	override void        Write(File file) => file.WriteString(mod);
-	override void        Read(File file, bool skip) => cast(void) (mod = file.ReadString());
-	override string      toString() => format("==== IMPORT %s ====", mod);
+
+	override void Write(File file) {
+		file.WriteByte(pub? 1 : 0);
+		file.WriteString(mod);
+	}
+
+	override void Read(File file, bool skip) {
+		pub = file.ReadByte() != 0;
+		mod = file.ReadString();
+	}
+
+	override string toString() {
+		return format("==== IMPORT %s %s ====", pub? "public" : "private", mod);
+	}
 }
 
 class EnableSection : Section {

@@ -64,7 +64,8 @@ class Module {
 			}
 
 			sect.Read(file, skip);
-			sections ~= sect;
+			sect.inMod  = name;
+			sections   ~= sect;
 		}
 	}
 
@@ -84,12 +85,13 @@ class Module {
 // smaller version that uses less memory, just used for writing
 class WriteModule {
 	string name;
+	bool   main;
 
 	private SectionInt sectionNum;
 	private File       file;
 
 	this(string path, ModCPU cpu, ModOS os, string source, string dest) {
-		file = File(dest, "wb");
+		file = File(dest, "wb+");
 		name = path.baseName().stripExtension();
 
 		auto header   = new HeaderSection();
@@ -107,10 +109,16 @@ class WriteModule {
 
 	void Finish() {
 		file.flush();
-		file.seek(28, SEEK_SET);
+
+		if (main) {
+			file.seek(3, SEEK_SET);
+			file.rawWrite(cast(ubyte[]) [2]);
+		}
 
 		auto bytes = nativeToLittleEndian(sectionNum);
+		file.seek(28, SEEK_SET);
 		file.rawWrite(bytes);
+		file.flush();
 		file.close();
 	}
 }

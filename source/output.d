@@ -57,6 +57,8 @@ class Output {
 		exit(1);
 	}
 
+	string GetModName() => mode == OutputMode.Module? mod.name : "";
+
 	string GetModPrefix() {
 		return mode == OutputMode.Module? format("%s__sep__", mod.name) : "";
 	}
@@ -84,6 +86,8 @@ class Output {
 			case SectionType.BSS:       sect = new BSSSection();       break;
 			case SectionType.Data:      sect = new DataSection();      break;
 		}
+
+		sect.inMod = mod.name;
 	}
 
 	void StartSection(Section psect) {
@@ -93,7 +97,8 @@ class Output {
 			throw new ModuleException("Unfinished section");
 		}
 
-		sect = psect;
+		sect       = psect;
+		sect.inMod = mod.name;
 	}
 
 	void AddCall(string call) {
@@ -118,6 +123,7 @@ class Output {
 			throw new ModuleException("Unfinished section");
 		}
 
+		psect.inMod = mod.name;
 		mod.Add(psect);
 	}
 

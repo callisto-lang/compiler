@@ -38,7 +38,8 @@ enum NodeType {
 	TryCatch,
 	Unsafe,
 	Anon,
-	Import
+	Import,
+	Module
 }
 
 class Node {
@@ -606,6 +607,12 @@ class AnonNode : Node {
 
 class ImportNode : Node {
 	string mod;
+	bool   pub;
+
+	this(ErrorInfo perror) {
+		type    = NodeType.Module;
+		error   = perror;
+	}
 
 	this(ErrorInfo perror, string pmod) {
 		type  = NodeType.Import;
@@ -614,6 +621,24 @@ class ImportNode : Node {
 	}
 
 	override string toString() => format("import %s", mod);
+}
+
+class ModuleNode : Node {
+	string modType;
+	bool   pub;
+
+	this(ErrorInfo perror) {
+		type    = NodeType.Module;
+		error   = perror;
+	}
+
+	this(ErrorInfo perror, string ptype) {
+		type    = NodeType.Module;
+		error   = perror;
+		modType = ptype;
+	}
+
+	override string toString() => format("module %s", modType);
 }
 
 class ParserError : Exception {
@@ -1427,10 +1452,35 @@ class Parser {
 	}
 
 	Node ParseImport() {
+		auto ret = new ImportNode(GetError());
 		Next();
 		Expect(TokenType.Identifier);
 
-		return new ImportNode(GetError(), tokens[i].contents);
+		if (tokens[i].contents == "public") {
+			ret.pub = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
+		ret.mod = tokens[i].contents;
+		return ret;
+	}
+
+	Node ParseModule() {
+		auto ret = new ModuleNode(GetError());
+		Next();
+		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "public") {
+			ret.pub = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
+		ret.modType = tokens[i].contents;
+		return ret;
 	}
 
 	Node ParseStatement() {
@@ -1468,6 +1518,7 @@ class Parser {
 					case "unsafe":     return ParseUnsafe();
 					case "anon":       return ParseAnon();
 					case "import":     return ParseImport();
+					case "module":     return ParseModule();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

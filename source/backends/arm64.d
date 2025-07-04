@@ -59,51 +59,47 @@ class BackendARM64 : CompilerBackend {
 		}
 
 		// built in integer types
-		types ~= Type("u8",    1, false);
-		types ~= Type("i8",    1, true);
-		types ~= Type("u16",   2, false);
-		types ~= Type("i16",   2, true);
-		types ~= Type("u32",   4, false);
-		types ~= Type("i32",   4, true);
-		types ~= Type("u64",   8, false);
-		types ~= Type("i64",   8, true);
-		types ~= Type("addr",  8, false);
-		types ~= Type("isize", 8, true);
-		types ~= Type("usize", 8, false);
-		types ~= Type("cell",  8, false);
-		types ~= Type("icell", 8, true);
-		types ~= Type("bool",  8, false);
+		types ~= Type("core", "u8",    1, false);
+		types ~= Type("core", "i8",    1, true);
+		types ~= Type("core", "u16",   2, false);
+		types ~= Type("core", "i16",   2, true);
+		types ~= Type("core", "u32",   4, false);
+		types ~= Type("core", "i32",   4, true);
+		types ~= Type("core", "u64",   8, false);
+		types ~= Type("core", "i64",   8, true);
+		types ~= Type("core", "addr",  8, false);
+		types ~= Type("core", "isize", 8, true);
+		types ~= Type("core", "usize", 8, false);
+		types ~= Type("core", "cell",  8, false);
+		types ~= Type("core", "icell", 8, true);
+		types ~= Type("core", "bool",  8, false);
 
 		// built in structs
-		types ~= Type("Array", 24, false, true, [
+		types ~= Type("core", "Array", 24, false, true, [
 			StructEntry(UsedType(GetType("usize"), false), "length", false, 8, 0),
 			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 8, 8),
 			StructEntry(UsedType(GetType("addr"), false),  "elements", false, 8, 16)
 		]);
-		NewConst("Array.length",     0);
-		NewConst("Array.memberSize", 8);
-		NewConst("Array.elements",   16);
-		NewConst("Array.sizeOf",     8 * 3);
+		NewConst("core", "Array.length",     0);
+		NewConst("core", "Array.memberSize", 8);
+		NewConst("core", "Array.elements",   16);
+		NewConst("core", "Array.sizeOf",     8 * 3);
 
-		types ~= Type("Exception", 24 + 8, false, true, [
+		types ~= Type("core", "Exception", 24 + 8, false, true, [
 			StructEntry(UsedType(GetType("bool"), false),  "error", false, 8, 0),
 			StructEntry(UsedType(GetType("Array"), false), "msg", false, 8 * 3, 8)
 		]);
-		NewConst("Exception.bool",   0);
-		NewConst("Exception.msg",    8);
-		NewConst("Exception.sizeOf", 24 + 8);
+		NewConst("core", "Exception.bool",   0);
+		NewConst("core", "Exception.msg",    8);
+		NewConst("core", "Exception.sizeOf", 24 + 8);
 
 		globals ~= Global(
-			"_cal_exception", UsedType(GetType("Exception"), false), false, 0
+			"core", "_cal_exception", UsedType(GetType("Exception"), false), false, 0
 		);
 
 		foreach (ref type ; types) {
 			NewConst(format("%s.sizeOf", type.name), cast(long) type.size);
 		}
-	}
-
-	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
-		consts[name] = Constant(new IntegerNode(error, value));
 	}
 
 	override string[] GetVersions() {
@@ -219,6 +215,10 @@ class BackendARM64 : CompilerBackend {
 			}
 			default: return false;
 		}
+	}
+
+	override void ImportFuncs() {
+		assert(0);
 	}
 
 	override void BeginMain() {
@@ -607,11 +607,11 @@ class BackendARM64 : CompilerBackend {
 				PushVariableValue(node, var, structVar.size, structVar.offset, true, var.type.ptr);
 			}
 		}
-		else if (node.name in consts) {
-			auto value  = consts[node.name].value;
+		else if (ConstExists(node.name)) {
+			auto value  = GetConst(node.name).value;
 			value.error = node.error;
 
-			compiler.CompileNode(consts[node.name].value);
+			compiler.CompileNode(value);
 		}
 		else {
 			Error(node.error, "Undefined identifier '%s'", node.name);
