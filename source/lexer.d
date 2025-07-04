@@ -231,7 +231,10 @@ class Lexer {
 					}
 					case '{':
 					case '}':
-					case ',': break; // ignored characters
+					case ',': { // ignored characters
+						AddReading();
+						break;
+					}
 					default: {
 						reading ~= code[i];
 					}
