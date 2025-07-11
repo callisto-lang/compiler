@@ -14,6 +14,7 @@ import callisto.output;
 import callisto.compiler;
 import callisto.language;
 import callisto.preprocessor;
+import callisto.mod.sections;
 
 private struct GlobalExtra {
 	ulong addr;
@@ -164,7 +165,7 @@ class BackendLua : CompilerBackend {
 		output ~= "calmain();\n";
 	}
 
-	override void ImportFuncs() {
+	override void ImportFunc(FuncDefSection sect) {
 		assert(0);
 	}
 

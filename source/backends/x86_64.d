@@ -372,14 +372,12 @@ class BackendX86_64 : CompilerBackend {
 		return ExtLabel(word.mod, "__func__", "%s", Sanitise(word.name));
 	}
 
-	override void ImportFuncs() {
-		foreach (ref func ; summary.funcs) {
-			words ~= Word(
-				func.inMod, func.name, WordType.Callisto, func.inline,
-				func.inline? ParseText(func.assembly) : [], func.error,
-				replicate([UsedType.init], func.params)
-			);
-		}
+	override void ImportFunc(FuncDefSection sect) {
+		words ~= Word(
+			sect.inMod, sect.name, WordType.Callisto, sect.inline,
+			sect.inline? ParseText(sect.assembly) : [], sect.error,
+			replicate([UsedType.init], sect.params)
+		);
 	}
 
 	override void BeginMain() {

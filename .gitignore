@@ -17,3 +17,4 @@ cac-test-*
 /out
 /out.*
 *.mod
+/test*

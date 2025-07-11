@@ -610,7 +610,7 @@ class ImportNode : Node {
 	bool   pub;
 
 	this(ErrorInfo perror) {
-		type    = NodeType.Module;
+		type    = NodeType.Import;
 		error   = perror;
 	}
 

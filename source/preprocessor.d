@@ -49,8 +49,7 @@ class Preprocessor {
 
 		auto mod = new Module();
 		mod.Read(path, true);
-		summary.modules[name]  = mod;
-		summary.sections      ~= mod.sections;
+		summary.sections ~= mod.sections;
 	}
 
 	Node[] Run(Node[] nodes) {

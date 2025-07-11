@@ -12,6 +12,7 @@ import callisto.output;
 import callisto.compiler;
 import callisto.language;
 import callisto.preprocessor;
+import callisto.mod.sections;
 
 private struct Word {
 	bool       raw;
@@ -110,7 +111,7 @@ class BackendRM86 : CompilerBackend {
 		}
 	}
 	
-	override void ImportFuncs() {
+	override void ImportFunc(FuncDefSection sect) {
 		assert(0);
 	}
 

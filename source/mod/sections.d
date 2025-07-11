@@ -200,6 +200,8 @@ class HeaderSection : Section {
 		str ~= format("Stub:     %s\n", stub);
 		str ~= format("Sections: %d\n", sectionNum);
 		str ~= format("Source:   %s\n", source);
+		str ~= format("Stub:     %s\n", stub);
+		str ~= format("Main:     %s\n", main);
 		return str;
 	}
 }

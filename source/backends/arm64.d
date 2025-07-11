@@ -15,6 +15,7 @@ import callisto.parser;
 import callisto.compiler;
 import callisto.language;
 import callisto.preprocessor;
+import callisto.mod.sections;
 
 private enum WordType {
 	Callisto,
@@ -217,7 +218,7 @@ class BackendARM64 : CompilerBackend {
 		}
 	}
 
-	override void ImportFuncs() {
+	override void ImportFunc(FuncDefSection sect) {
 		assert(0);
 	}
 

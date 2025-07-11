@@ -127,7 +127,7 @@ class CompilerBackend {
 
 	void BeforeCompile(Node node) {}
 
-	abstract void ImportFuncs();
+	abstract void ImportFunc(FuncDefSection sect);
 	abstract void BeginMain();
 
 	abstract void Init();
@@ -299,6 +299,7 @@ class CompilerBackend {
 		}
 
 		auto baseType  = GetType(node.from);
+		baseType.mod   = output.GetModName();
 		baseType.name  = node.to;
 		types         ~= baseType;
 
@@ -716,6 +717,121 @@ class Compiler {
 		}
 	}
 
+	void ImportConst(ConstSection sect) {
+		backend.consts ~= Constant(
+			sect.inMod, sect.name, new SignedIntNode(ErrorInfo.init, sect.value)
+		);
+	}
+
+	void ImportEnum(EnumSection sect) {
+		auto enumNode     = new EnumNode(ErrorInfo.init);
+		enumNode.name     = sect.name;
+		enumNode.enumType = sect.enumType;
+
+		foreach (ref entry ; sect.entries) {
+			enumNode.names  ~= entry.name;
+			enumNode.values ~= cast(long) entry.value;
+		}
+		backend.CompileEnum(enumNode, sect.inMod);
+	}
+
+	void ImportUnion(UnionSection sect) {
+		backend.types ~= Type(
+			sect.inMod, sect.name, cast(ulong) sect.size, false, false,
+			[], false, false
+		);
+	}
+
+	void ImportAlias(AliasSection sect) {
+		if (!backend.TypeExists(sect.original)) {
+			ErrorNoInfo("Error on import: Type '%s' does not exist", sect.original);
+		}
+		if (backend.CountTypes(sect.original) > 1) {
+			ErrorNoInfo(
+				"Error on import: Multiple matches for type '%s'", sect.original
+			);
+		}
+		if (backend.TypeExistsHere(sect.newName)) {
+			ErrorNoInfo(
+				"Error on import: Alias type '%s' already exists in module",
+				sect.newName
+			);
+		}
+
+		auto oldType   = backend.GetType(sect.original);
+		oldType.mod    = sect.inMod;
+		oldType.name   = sect.newName;
+		backend.types ~= oldType;
+	}
+
+	void ImportImplement(ImplementSection sect) {
+		size_t amount = backend.CountTypes(sect.type);
+		if (amount == 0) {
+			ErrorNoInfo("Error on import: Type '%s' does not exist", sect.type);
+		}
+		else if (amount > 1) {
+			ErrorNoInfo("Error on import: Multiple matches for type '%s'", sect.type);
+		}
+
+		auto type = backend.GetType(sect.type);
+		if (type.mod != sect.inMod) {
+			ErrorNoInfo("Error on import: Implement section implements method for type outside of this module");
+		}
+
+		switch (sect.method) {
+			case "init":   type.hasInit   = true; break;
+			case "deinit": type.hasDeinit = true; break;
+			default: {
+				ErrorNoInfo("Error on import: Unknown implement method '%s'", sect.method);
+			}
+		}
+
+		backend.SetType(sect.type, type);
+	}
+
+	void ImportLet(LetSection sect) {
+		size_t amount = backend.CountTypes(sect.type);
+		if (amount == 0) {
+			ErrorNoInfo("Error on import: Type '%s' does not exist", sect.type);
+		}
+		else if (amount > 1) {
+			ErrorNoInfo("Error on import: Multiple matches for type '%s'", sect.type);
+		}
+
+		auto type = backend.GetType(sect.type);
+
+		backend.globals ~= Global(
+			sect.inMod, sect.name, UsedType(type, sect.ptr), sect.array,
+			cast(ulong) sect.size, null
+		);
+	}
+
+	void ImportStruct(StructSection sect) {
+		Type type;
+		type.mod      = sect.inMod;
+		type.name     = sect.name;
+		type.size     = cast(ulong) sect.size;
+		type.isStruct = true;
+
+		foreach (ref entry ; sect.entries) {
+			size_t amount = backend.CountTypes(entry.type);
+
+			if (amount == 0) {
+				ErrorNoInfo("Error on import: Type '%s' does not exist", entry.type);
+			}
+			else if (amount > 1) {
+				ErrorNoInfo("Error on import: Multiple matches for type '%s'", entry.type);
+			}
+
+			type.structure ~= StructEntry(
+				UsedType(backend.GetType(entry.type), entry.ptr), entry.name, entry.array,
+				cast(size_t) entry.size, cast(size_t) entry.offset
+			);
+		}
+
+		backend.types ~= type;
+	}
+
 	void Compile(Node[] nodes) {
 		assert(backend !is null);
 		assert(addrSize != 0);
@@ -724,47 +840,24 @@ class Compiler {
 		backend.Init();
 
 		// import summary
-		backend.ImportFuncs();
-		foreach (ref iconst ; backend.summary.consts) {
-			backend.consts ~= Constant(
-				iconst.inMod, iconst.name, new SignedIntNode(ErrorInfo.init, iconst.value)
-			);
-		}
-		foreach (ref ienum ; backend.summary.enums) {
-			auto enumNode     = new EnumNode(ErrorInfo.init);
-			enumNode.name     = ienum.name;
-			enumNode.enumType = ienum.enumType;
-
-			foreach (ref entry ; ienum.entries) {
-				enumNode.names  ~= entry.name;
-				enumNode.values ~= cast(long) entry.value;
+		foreach (ref sect ; backend.summary.sections) {
+			switch (sect.GetType()) {
+				case SectionType.FuncDef: {
+					backend.ImportFunc(cast(FuncDefSection) sect);
+					break;
+				}
+				case SectionType.Const: ImportConst(cast(ConstSection) sect); break;
+				case SectionType.Enum:  ImportEnum(cast(EnumSection) sect); break;
+				case SectionType.Union: ImportUnion(cast(UnionSection) sect); break;
+				case SectionType.Alias: ImportAlias(cast(AliasSection) sect); break;
+				case SectionType.Implement: {
+					ImportImplement(cast(ImplementSection) sect);
+					break;
+				}
+				case SectionType.Let:    ImportLet(cast(LetSection) sect); break;
+				case SectionType.Struct: ImportStruct(cast(StructSection) sect); break;
+				default: break;
 			}
-			backend.CompileEnum(enumNode, ienum.inMod);
-		}
-		foreach (ref iunion ; backend.summary.unions) {
-			backend.types ~= Type(
-				iunion.inMod, iunion.name, cast(ulong) iunion.size, false, false,
-				[], false, false
-			);
-		}
-		foreach (ref ialias ; backend.summary.aliases) {
-			if (!backend.TypeExists(ialias.original)) {
-				ErrorNoInfo("Error on import: Type '%s' does not exist", ialias.original);
-			}
-			if (backend.CountTypes(ialias.original) > 1) {
-				ErrorNoInfo(
-					"Error on import: Multiple matches for type '%s'", ialias.original
-				);
-			}
-			if (backend.TypeExistsHere(ialias.newName)) {
-				ErrorNoInfo(
-					"Error on import: Alias type '%s' already exists in module",
-					ialias.newName
-				);
-			}
-		}
-		foreach (ref implement ; backend.summary.implements) {
-			auto type = format("%s.%s", implement.inMod, implement.type);
 		}
 
 		backend.NewConst("true",  backend.MaxInt(), ErrorInfo.init);

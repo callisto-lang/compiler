@@ -398,9 +398,7 @@ int main(string[] args) {
 		}
 	}
 
-	auto preproc    = new Preprocessor();
-	auto summary    = Summary();
-	preproc.summary = summary;
+	auto preproc = new Preprocessor();
 	foreach (ref opt ; backendOpts) {
 		if (!backend.HandleOption(opt, versions, preproc)) {
 			stderr.writefln("Unknown option '%s'", opt);
@@ -515,7 +513,7 @@ int main(string[] args) {
 		return 0;
 	}
 
-	compiler.backend.summary = summary;
+	compiler.backend.summary = preproc.summary;
 	compiler.versions        = preproc.versions;
 	
 	compiler.Compile(nodes);
