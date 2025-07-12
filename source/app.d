@@ -78,7 +78,9 @@ Backend options:
 Programs:
   cac link <MODULES...> - Links MODULES... together into one executable
     Flags:
-      -ps - Print all sections in modules
+      -ps     - Print all sections in the first given module
+      -o FILE - Sets executable path
+      -lo OPT - Adds binutil linker option
 ";
 
 int main(string[] args) {

@@ -216,6 +216,7 @@ class Output {
 								"%s%s%s", "__global_", GetModPrefix(),
 								parts[1].Sanitise()
 							));
+							writefln("Writing global with prefix '%s'", GetModPrefix());
 						}
 						else {
 							output ~= format("__global_%s", parts[1].Sanitise());
