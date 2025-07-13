@@ -1323,6 +1323,7 @@ class BackendX86_64 : CompilerBackend {
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
 			global.name        = node.name;
+			global.mod         = output.GetModName();
 			globals           ~= global;
 
 			if (global.name == "") {
@@ -1898,7 +1899,7 @@ class BackendX86_64 : CompilerBackend {
 			}
 		}
 		else {
-			output ~= format("call %s\n", Label("__func__", "%s", node.func.Sanitise()));
+			output ~= format("call %s\n", Label(word));
 		}
 
 		output ~= "pop r14\n";
