@@ -540,6 +540,7 @@ class Compiler {
 	string[]        versions;
 	bool            assemblyLines;
 	bool            success = true;
+	StructSection[] inheritedStructs;
 
 	this() {
 		
@@ -717,6 +718,10 @@ class Compiler {
 		}
 	}
 
+	void ErrorSect(Char, A...)(Section sect, in Char[] fmt, A args) {
+		ErrorNoInfo("In module '%s': %s", sect.inMod, format(fmt, args));
+	}
+
 	void ImportConst(ConstSection sect) {
 		backend.consts ~= Constant(
 			sect.inMod, sect.name, new SignedIntNode(ErrorInfo.init, sect.value)
@@ -744,16 +749,16 @@ class Compiler {
 
 	void ImportAlias(AliasSection sect) {
 		if (!backend.TypeExists(sect.original)) {
-			ErrorNoInfo("Error on import: Type '%s' does not exist", sect.original);
+			ErrorSect(sect, "Error on import: Type '%s' does not exist", sect.original);
 		}
 		if (backend.CountTypes(sect.original) > 1) {
-			ErrorNoInfo(
-				"Error on import: Multiple matches for type '%s'", sect.original
+			ErrorSect(
+				sect, "Error on import: Multiple matches for type '%s'", sect.original
 			);
 		}
 		if (backend.TypeExistsHere(sect.newName)) {
-			ErrorNoInfo(
-				"Error on import: Alias type '%s' already exists in module",
+			ErrorSect(
+				sect, "Error on import: Alias type '%s' already exists in module",
 				sect.newName
 			);
 		}
@@ -767,15 +772,15 @@ class Compiler {
 	void ImportImplement(ImplementSection sect) {
 		size_t amount = backend.CountTypes(sect.type);
 		if (amount == 0) {
-			ErrorNoInfo("Error on import: Type '%s' does not exist", sect.type);
+			ErrorSect(sect, "Error on import: Type '%s' does not exist", sect.type);
 		}
 		else if (amount > 1) {
-			ErrorNoInfo("Error on import: Multiple matches for type '%s'", sect.type);
+			ErrorSect(sect, "Error on import: Multiple matches for type '%s'", sect.type);
 		}
 
 		auto type = backend.GetType(sect.type);
 		if (type.mod != sect.inMod) {
-			ErrorNoInfo("Error on import: Implement section implements method for type outside of this module");
+			ErrorSect(sect, "Error on import: Implement section implements method for type outside of this module");
 		}
 
 		switch (sect.method) {
@@ -792,10 +797,10 @@ class Compiler {
 	void ImportLet(LetSection sect) {
 		size_t amount = backend.CountTypes(sect.type);
 		if (amount == 0) {
-			ErrorNoInfo("Error on import: Type '%s' does not exist", sect.type);
+			ErrorSect(sect, "Error on import: Type '%s' does not exist", sect.type);
 		}
 		else if (amount > 1) {
-			ErrorNoInfo("Error on import: Multiple matches for type '%s'", sect.type);
+			ErrorSect(sect, "Error on import: Multiple matches for type '%s'", sect.type);
 		}
 
 		auto type = backend.GetType(sect.type);
@@ -814,19 +819,32 @@ class Compiler {
 		type.isStruct = true;
 
 		foreach (ref entry ; sect.entries) {
-			size_t amount = backend.CountTypes(entry.type);
+			Type membType;
 
-			if (amount == 0) {
-				ErrorNoInfo("Error on import: Type '%s' does not exist", entry.type);
+			if (entry.type == sect.name) {
+				membType = type;
 			}
-			else if (amount > 1) {
-				ErrorNoInfo("Error on import: Multiple matches for type '%s'", entry.type);
+			else {
+				size_t amount = backend.CountTypes(entry.type);
+
+				if (amount == 0) {
+					ErrorSect(sect, "Error on import: Type '%s' does not exist", entry.type);
+				}
+				else if (amount > 1) {
+					ErrorSect(sect, "Error on import: Multiple matches for type '%s'", entry.type);
+				}
+
+				membType = backend.GetType(entry.type);
 			}
 
 			type.structure ~= StructEntry(
-				UsedType(backend.GetType(entry.type), entry.ptr), entry.name, entry.array,
+				UsedType(membType, entry.ptr), entry.name, entry.array,
 				cast(size_t) entry.size, cast(size_t) entry.offset
 			);
+		}
+
+		if (sect.inherits != "") {
+			inheritedStructs ~= sect;
 		}
 
 		backend.types ~= type;
@@ -840,23 +858,40 @@ class Compiler {
 		backend.Init();
 
 		// import summary
-		foreach (ref sect ; backend.summary.sections) {
-			switch (sect.GetType()) {
-				case SectionType.FuncDef: {
-					backend.ImportFunc(cast(FuncDefSection) sect);
-					break;
+		if (backend.output.mode == OutputMode.Module) {
+			foreach (ref sect ; backend.summary.sections) {
+				switch (sect.GetType()) {
+					case SectionType.FuncDef: {
+						backend.ImportFunc(cast(FuncDefSection) sect);
+						break;
+					}
+					case SectionType.Const: ImportConst(cast(ConstSection) sect); break;
+					case SectionType.Enum:  ImportEnum(cast(EnumSection) sect); break;
+					case SectionType.Union: ImportUnion(cast(UnionSection) sect); break;
+					case SectionType.Alias: ImportAlias(cast(AliasSection) sect); break;
+					case SectionType.Implement: {
+						ImportImplement(cast(ImplementSection) sect);
+						break;
+					}
+					case SectionType.Let:    ImportLet(cast(LetSection) sect); break;
+					case SectionType.Struct: ImportStruct(cast(StructSection) sect); break;
+					default: break;
 				}
-				case SectionType.Const: ImportConst(cast(ConstSection) sect); break;
-				case SectionType.Enum:  ImportEnum(cast(EnumSection) sect); break;
-				case SectionType.Union: ImportUnion(cast(UnionSection) sect); break;
-				case SectionType.Alias: ImportAlias(cast(AliasSection) sect); break;
-				case SectionType.Implement: {
-					ImportImplement(cast(ImplementSection) sect);
-					break;
+			}
+
+			foreach (ref sect ; inheritedStructs) {
+				auto type = backend.GetType(format("%s.%s", sect.inMod, sect.name));
+
+				if (!backend.TypeExists(sect.inherits)) {
+					ErrorSect(
+						sect, "Parent type '%s' not found, try importing it publicly?",
+						sect.inherits
+					);
 				}
-				case SectionType.Let:    ImportLet(cast(LetSection) sect); break;
-				case SectionType.Struct: ImportStruct(cast(StructSection) sect); break;
-				default: break;
+
+				auto inherited = backend.GetType(sect.inherits);
+				type.structure = inherited.structure ~ type.structure;
+				backend.SetType(format("%s.%s", sect.inMod, sect.name), type);
 			}
 		}
 

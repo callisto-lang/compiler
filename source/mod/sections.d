@@ -606,6 +606,7 @@ struct ModStructEntry {
 class StructSection : Section {
 	SectionInt       size;
 	string           name;
+	string           inherits;
 	ModStructEntry[] entries;
 
 	override SectionType GetType() => SectionType.Struct;
@@ -633,8 +634,9 @@ class StructSection : Section {
 	}
 
 	override void Read(File file, bool skip) {
-		size = file.ReadInt();
-		name = file.ReadString();
+		size     = file.ReadInt();
+		name     = file.ReadString();
+		inherits = file.ReadString();
 
 		auto num = file.ReadInt();
 		foreach (i ; 0 .. num) {
@@ -645,6 +647,7 @@ class StructSection : Section {
 	override void Write(File file) {
 		file.WriteInt(size);
 		file.WriteString(name);
+		file.WriteString(inherits);
 		file.WriteInt(cast(SectionInt) entries.length);
 
 		foreach (ref entry ; entries) {

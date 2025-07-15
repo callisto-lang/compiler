@@ -468,6 +468,8 @@ int main(string[] args) {
 	preproc.includeDirs ~= includeDirs;
 	preproc.versions    ~= versions;
 
+	if (makeMod) preproc.versions ~= "Module";
+
 	nodes = preproc.Run(nodes);
 	if (!preproc.success) return 1;
 

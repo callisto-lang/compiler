@@ -179,6 +179,7 @@ Enum entries follow this header.
 | 0              | 1            | Type - set to 0x0B                                 |
 | 1              | 8            | Size of structure                                  |
 | 9              | ?            | Structure name                                     |
+| ?              | ?            | String - parent structure, empty if none           |
 | ?              | 8            | Number of structure entries                        |
 | ?              | ?            | Structure entries                                  |
 
