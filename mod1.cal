@@ -1,6 +1,0 @@
-include "cores/select.cal"
-include "std/io.cal"
-
-func hello begin
-	c"Hello!" print_str
-end
