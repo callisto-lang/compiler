@@ -182,7 +182,23 @@ class LinkerX86_64 : Linker {
 		file.write(funcAsm);
 
 		// data
+		if (useGas) {
+			file.writeln(".section .bss");
+		}
+		else {
+			file.writeln("section .bss");
+		}
 		file.write(bssAsm);
+
+		// create exception
+		file.writeln(useGas? "__exception: .skip 32" : "__exception: resb 32");
+
+		if (useGas) {
+			file.writeln(".section .data");
+		}
+		else {
+			file.writeln("section .data");
+		}
 		file.write(dataAsm);
 		file.flush();
 		file.close();

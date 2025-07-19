@@ -8,7 +8,7 @@ It is made up of sections, each one has a byte describing what kind of section i
 | ---- | -------------------- |
 | 0x00 | Top-level code       |
 | 0x01 | Function definition  |
-| 0x02 | Public import        |
+| 0x02 | Import               |
 | 0x03 | Enable statement     |
 | 0x04 | Const statement      |
 | 0x05 | Enum statement       |
@@ -27,17 +27,18 @@ Integers are little endian. Strings are null-terminated.
 | Offset (bytes) | Size (bytes) | Description                                             |
 | -------------- | ------------ | ------------------------------------------------------- |
 | 0              | 3            | ASCII magic bytes containing "MOD"                      |
-| 3              | 8            | Version number, currently 0x0000                        |
-| 11             | 8            | CPU architecture ID (see below)                         |
-| 19             | 8            | Operating system ID (see below)                         |
-| 27             | 1            | Flags                                                   |
+| 3              | 1            | Flags                                                   |
+| 4              | 8            | Version number, currently 0x0000                        |
+| 12             | 8            | CPU architecture ID (see below)                         |
+| 20             | 8            | Operating system ID (see below)                         |
 | 28             | 8            | Number of sections                                      |
-| 35             | ?            | String containing full path of the original source file |
+| 36             | 8            | String containing full path of the original source file |
 
 #### Flags
-| Bit | Value                                                |
-| --- | ---------------------------------------------------- |
-| 0   | 1 - this module is a stub, 0 - this is a full module |
+| Bit | Value                                                      |
+| --- | ---------------------------------------------------------- |
+| 0   | 1 - this module is a stub, 0 - this is a full module       |
+| 1   | 1 - this is the main module, 0 - it is not the main module |
 
 ### CPU architectures
 "None" is used for transpiled languages (like when Callisto compiles to Lua)
@@ -93,12 +94,14 @@ Flags are OR'd together
 | ------- | -------------------------------------- |
 | 1       | Public                                 |
 | 2       | Inline (the assembly is callisto code) |
+| 4       | Throws errors                          |
 
-# Public import
+# Import
 | Offset (bytes) | Size (bytes) | Description                                        |
 | -------------- | ------------ | -------------------------------------------------- |
 | 0              | 1            | Type - set to 0x02                                 |
-| 1              | ?            | String containing name of module                   |
+| 1              | 1            | Boolean - public?
+| 2              | ?            | String containing name of module                   |
 
 ## Enable statement
 | Offset (bytes) | Size (bytes) | Description                                        |
@@ -120,6 +123,7 @@ Flags are OR'd together
 | 0              | 1            | Type - set to 0x05                                 |
 | 1              | 8            | Number of enum values                              |
 | 9              | ?            | Enum name                                          |
+| ?              | ?            | String - enum type                                 |
 
 Enum entries follow this header.
 
@@ -175,6 +179,7 @@ Enum entries follow this header.
 | 0              | 1            | Type - set to 0x0B                                 |
 | 1              | 8            | Size of structure                                  |
 | 9              | ?            | Structure name                                     |
+| ?              | ?            | String - parent structure, empty if none           |
 | ?              | 8            | Number of structure entries                        |
 | ?              | ?            | Structure entries                                  |
 

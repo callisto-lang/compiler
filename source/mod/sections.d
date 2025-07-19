@@ -6,6 +6,8 @@ import std.stdio;
 import std.format;
 import std.bitmanip;
 import std.algorithm;
+import callisto.parser;
+import callisto.compiler;
 
 alias SectionInt = ulong;
 
@@ -55,6 +57,8 @@ class SectionException : Exception {
 }
 
 class Section {
+	string inMod;
+
 	abstract SectionType GetType();
 	abstract void        Write(File file);
 	abstract void        Read(File file, bool skip);
@@ -158,11 +162,16 @@ class HeaderSection : Section {
 	ModOS      os;
 	SectionInt sectionNum;
 	string     source;
+	bool       stub;
+	bool       main;
 
 	override SectionType GetType() => assert(0);
 
+	ubyte FlagsByte() => (stub? 1 : 0) | (main? 2 : 0);
+
 	override void Write(File file) {
 		file.rawWrite(cast(ubyte[]) "MOD");
+		file.WriteByte(FlagsByte());
 		file.WriteInt(ver);
 		file.WriteInt(cast(SectionInt) cpu);
 		file.WriteInt(cast(SectionInt) os);
@@ -172,6 +181,9 @@ class HeaderSection : Section {
 
 	override void Read(File file, bool skip) {
 		file.rawRead(new ubyte[3]);
+		auto flags = file.ReadByte();
+		stub       = (flags & 1)? true : false;
+		main       = (flags & 2)? true : false;
 		ver        = file.ReadInt();
 		cpu        = cast(ModCPU) file.ReadInt();
 		os         = cast(ModOS)  file.ReadInt();
@@ -185,8 +197,11 @@ class HeaderSection : Section {
 		str ~= format("Version:  %s\n", ver);
 		str ~= format("CPU:      %s\n", cpu);
 		str ~= format("OS:       %s\n", os);
+		str ~= format("Stub:     %s\n", stub);
 		str ~= format("Sections: %d\n", sectionNum);
 		str ~= format("Source:   %s\n", source);
+		str ~= format("Stub:     %s\n", stub);
+		str ~= format("Main:     %s\n", main);
 		return str;
 	}
 }
@@ -226,6 +241,7 @@ class TopLevelSection : Section {
 class FuncDefSection : Section {
 	bool       pub;
 	bool       inline;
+	bool       error;
 	string[]   calls;
 	string     assembly;
 	string     name;
@@ -234,8 +250,19 @@ class FuncDefSection : Section {
 
 	override SectionType GetType() => SectionType.FuncDef;
 
+	static FuncDefSection FromNode(FuncDefNode node) {
+		auto ret   = new FuncDefSection();
+		ret.pub    = true; // TODO: public functions
+		ret.inline = node.inline;
+		ret.error  = node.errors;
+		ret.name   = node.name;
+		ret.params = node.paramTypes.length;
+		ret.ret    = node.returnTypes.length;
+		return ret;
+	}
+
 	override void Write(File file) {
-		file.WriteByte((pub? 1 : 0) | (inline? 2 : 0));
+		file.WriteByte((pub? 1 : 0) | (inline? 2 : 0) | (error? 4 : 0));
 		file.WriteStringArray(calls);
 		file.WriteString(assembly);
 		file.WriteString(name);
@@ -248,6 +275,7 @@ class FuncDefSection : Section {
 
 		pub      = (flags & 1) != 0;
 		inline   = (flags & 2) != 0;
+		error    = (flags & 4) != 0;
 		calls    = file.ReadStringArray();
 		assembly = file.ReadOrSkipString(skip);
 		name     = file.ReadString();
@@ -278,15 +306,40 @@ class FuncDefSection : Section {
 
 class ImportSection : Section {
 	string mod;
+	bool   pub;
+
+	static ImportSection FromNode(ImportNode node) {
+		auto ret = new ImportSection();
+		ret.mod  = node.mod;
+		ret.pub  = node.pub;
+		return ret;
+	}
 
 	override SectionType GetType() => SectionType.Import;
-	override void        Write(File file) => file.WriteString(mod);
-	override void        Read(File file, bool skip) => cast(void) (mod = file.ReadString());
-	override string      toString() => format("==== IMPORT %s ====", mod);
+
+	override void Write(File file) {
+		file.WriteByte(pub? 1 : 0);
+		file.WriteString(mod);
+	}
+
+	override void Read(File file, bool skip) {
+		pub = file.ReadByte() != 0;
+		mod = file.ReadString();
+	}
+
+	override string toString() {
+		return format("==== IMPORT %s %s ====", pub? "public" : "private", mod);
+	}
 }
 
 class EnableSection : Section {
 	string ver;
+
+	static EnableSection FromNode(EnableNode node) {
+		auto ret = new EnableSection();
+		ret.ver  = node.ver;
+		return ret;
+	}
 
 	override SectionType GetType() => SectionType.Enable;
 	override void        Write(File file) => file.WriteString(ver);
@@ -297,6 +350,13 @@ class EnableSection : Section {
 class ConstSection : Section {
 	SectionInt value;
 	string     name;
+
+	static ConstSection FromNode(ConstNode node) {
+		auto ret  = new ConstSection();
+		ret.value = cast(SectionInt) node.value;
+		ret.name  = node.name;
+		return ret;
+	}
 
 	override SectionType GetType() => SectionType.Const;
 
@@ -322,13 +382,26 @@ struct ModEnumEntry {
 
 class EnumSection : Section {
 	string         name;
+	string         enumType;
 	ModEnumEntry[] entries;
+
+	static EnumSection FromNode(EnumNode node) {
+		auto ret     = new EnumSection();
+		ret.name     = node.name;
+		ret.enumType = node.enumType;
+
+		foreach (i, ref name ; node.names) {
+			ret.entries ~= ModEnumEntry(cast(SectionInt) node.values[i], name);
+		}
+		return ret;
+	}
 
 	override SectionType GetType() => SectionType.Enum;
 
 	override void Write(File file) {
 		file.WriteInt(cast(SectionInt) entries.length);
 		file.WriteString(name);
+		file.WriteString(enumType);
 
 		foreach (ref entry ; entries) {
 			file.WriteInt(entry.value);
@@ -338,7 +411,8 @@ class EnumSection : Section {
 
 	override void Read(File file, bool skip) {
 		auto length = file.ReadInt();
-		name = file.ReadString();
+		name        = file.ReadString();
+		enumType    = file.ReadString();
 
 		foreach (i ; 0 .. length) {
 			ModEnumEntry entry;
@@ -361,6 +435,12 @@ class EnumSection : Section {
 
 class RestrictSection : Section {
 	string ver;
+
+	static RestrictSection FromNode(RestrictNode node) {
+		auto ret = new RestrictSection();
+		ret.ver  = node.ver;
+		return ret;
+	}
 
 	override SectionType GetType() => SectionType.Restrict;
 	override void        Write(File file) => file.WriteString(ver);
@@ -391,6 +471,15 @@ class AliasSection : Section {
 	string original;
 	string newName;
 
+	static AliasSection FromNode(AliasNode node) {
+		assert(!node.overwrite);
+
+		auto ret     = new AliasSection();
+		ret.original = node.from;
+		ret.newName  = node.to;
+		return ret;
+	}
+
 	override SectionType GetType() => SectionType.Alias;
 
 	override void Write(File file) {
@@ -411,6 +500,13 @@ class ImplementSection : Section {
 	string   method;
 	string[] called;
 	string   assembly;
+
+	static ImplementSection FromNode(ImplementNode node) {
+		auto ret   = new ImplementSection();
+		ret.type   = node.structure;
+		ret.method = node.method;
+		return ret;
+	}
 
 	override SectionType GetType() => SectionType.Implement;
 
@@ -453,6 +549,16 @@ class LetSection : Section {
 	string     type;
 	string     name;
 
+	static LetSection FromGlobal(Global var) {
+		auto ret  = new LetSection();
+		ret.array = var.array;
+		ret.size  = var.Size();
+		ret.ptr   = var.type.ptr;
+		ret.type  = var.type.name;
+		ret.name  = ret.name;
+		return ret;
+	}
+
 	override SectionType GetType() => SectionType.Let;
 
 	override void Write(File file) {
@@ -492,7 +598,7 @@ struct ModStructEntry {
 	string     name;
 
 	string toString() => format(
-		"MEMBER %s %s %s %s OFFSET %d",
+		"MEMBER %s %s %s %s %s OFFSET %d",
 		array? "array" : "", array? text(size) : "", ptr? "ptr" : "", type, name, offset
 	);
 }
@@ -500,6 +606,7 @@ struct ModStructEntry {
 class StructSection : Section {
 	SectionInt       size;
 	string           name;
+	string           inherits;
 	ModStructEntry[] entries;
 
 	override SectionType GetType() => SectionType.Struct;
@@ -527,8 +634,9 @@ class StructSection : Section {
 	}
 
 	override void Read(File file, bool skip) {
-		size = file.ReadInt();
-		name = file.ReadString();
+		size     = file.ReadInt();
+		name     = file.ReadString();
+		inherits = file.ReadString();
 
 		auto num = file.ReadInt();
 		foreach (i ; 0 .. num) {
@@ -539,6 +647,7 @@ class StructSection : Section {
 	override void Write(File file) {
 		file.WriteInt(size);
 		file.WriteString(name);
+		file.WriteString(inherits);
 		file.WriteInt(cast(SectionInt) entries.length);
 
 		foreach (ref entry ; entries) {

@@ -10,19 +10,12 @@ class Language {
 	static const string[] bannedNames = ["return"];
 }
 
-Node[] ParseFile(string path) {
+Node[] ParseText(string txt, string file = "UNKNOWN") {
 	auto lexer  = new Lexer();
 	auto parser = new Parser();
 
-	lexer.file = path;
-
-	try {
-		lexer.code = readText(path);
-	}
-	catch (Exception e) {
-		stderr.writefln("Failed to read '%s': %s", path, e.msg);
-		exit(1);
-	}
+	lexer.file = file;
+	lexer.code = txt;
 
 	lexer.Lex();
 	if (!lexer.success) exit(1);
@@ -37,4 +30,18 @@ Node[] ParseFile(string path) {
 	}
 
 	return parser.nodes;
+}
+
+Node[] ParseFile(string path) {
+	string code;
+
+	try {
+		code = readText(path);
+	}
+	catch (Exception e) {
+		stderr.writefln("Failed to read '%s': %s", path, e.msg);
+		exit(1);
+	}
+
+	return ParseText(code, path);
 }

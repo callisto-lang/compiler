@@ -12,6 +12,7 @@ import callisto.output;
 import callisto.compiler;
 import callisto.language;
 import callisto.preprocessor;
+import callisto.mod.sections;
 
 private struct Word {
 	bool       raw;
@@ -39,52 +40,48 @@ class BackendRM86 : CompilerBackend {
 		addrSize  = 2;
 		defaultOS = "dos";
 
-		types ~= Type("u8",    1, false);
-		types ~= Type("i8",    1, true);
-		types ~= Type("u16",   2, false);
-		types ~= Type("i16",   2, true);
-		types ~= Type("addr",  2, false);
-		types ~= Type("isize", 2, true);
-		types ~= Type("usize", 2, false);
-		types ~= Type("cell",  2, false);
-		types ~= Type("icell", 2, true);
-		types ~= Type("bool",  2, false);
+		types ~= Type("core", "u8",    1, false);
+		types ~= Type("core", "i8",    1, true);
+		types ~= Type("core", "u16",   2, false);
+		types ~= Type("core", "i16",   2, true);
+		types ~= Type("core", "addr",  2, false);
+		types ~= Type("core", "isize", 2, true);
+		types ~= Type("core", "usize", 2, false);
+		types ~= Type("core", "cell",  2, false);
+		types ~= Type("core", "icell", 2, true);
+		types ~= Type("core", "bool",  2, false);
 
 		// built in structs
-		types ~= Type("Array", 6, false, true, [
+		types ~= Type("core", "Array", 6, false, true, [
 			StructEntry(UsedType(GetType("usize"), false), "length", false, 2, 0),
 			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 2, 2),
 			StructEntry(UsedType(GetType("addr"), false),  "elements", false, 2, 4)
 		]);
-		NewConst("Array.length",     0);
-		NewConst("Array.memberSize", 2);
-		NewConst("Array.elements",   4);
-		NewConst("Array.sizeOf",     2 * 3);
+		NewConst("core", "Array.length",     0);
+		NewConst("core", "Array.memberSize", 2);
+		NewConst("core", "Array.elements",   4);
+		NewConst("core", "Array.sizeOf",     2 * 3);
 
-		types ~= Type("Exception", 6 + 2, false, true, [
+		types ~= Type("core", "Exception", 6 + 2, false, true, [
 			StructEntry(UsedType(GetType("bool"), false),  "error", false, 2, 0),
 			StructEntry(UsedType(GetType("Array"), false), "msg", false, 6, 2)
 		]);
-		NewConst("Exception.bool",   0);
-		NewConst("Exception.msg",    2);
-		NewConst("Exception.sizeOf", 6 + 2);
+		NewConst("core", "Exception.bool",   0);
+		NewConst("core", "Exception.msg",    2);
+		NewConst("core", "Exception.sizeOf", 6 + 2);
 
 		foreach (ref type ; types) {
-			NewConst(format("%s.sizeOf", type.name), cast(long) type.size);
+			NewConst("core", format("%s.sizeOf", type.name), cast(long) type.size);
 		}
 
 		globals ~= Global(
-			"_cal_exception", UsedType(GetType("Exception"), false), false, 0
+			"core", "_cal_exception", UsedType(GetType("Exception"), false), false, 0
 		);
 	}
 
 	string TempLabel() {
 		++ tempLabelNum;
 		return format("__temp_%d", tempLabelNum);
-	}
-
-	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
-		consts[name] = Constant(new IntegerNode(error, value));
 	}
 
 	override string[] GetVersions() => [
@@ -94,7 +91,7 @@ class BackendRM86 : CompilerBackend {
 		"IO"
 	] ~ (os == "dos"? ["DOS", "Args", "Exit"] : os == "bare-metal"? ["BareMetal"] : []);
 
-	override string[] FinalCommands() => output.useMod? [] : [
+	override string[] FinalCommands() => output.mode == OutputMode.Module? [] : [
 		format("mv %s %s.asm", compiler.outFile, compiler.outFile),
 		format("nasm -f bin %s.asm -o %s", compiler.outFile, compiler.outFile),
 		keepAssembly? "" : format("rm %s.asm", compiler.outFile)
@@ -112,6 +109,10 @@ class BackendRM86 : CompilerBackend {
 			}
 			default: return false;
 		}
+	}
+	
+	override void ImportFunc(FuncDefSection sect) {
+		assert(0);
 	}
 
 	override void BeginMain() {
@@ -410,11 +411,11 @@ class BackendRM86 : CompilerBackend {
 				);
 			}
 		}
-		else if (node.name in consts) {
-			auto value  = consts[node.name].value;
+		else if (ConstExists(node.name)) {
+			auto value  = GetConst(node.name).value;
 			value.error = node.error;
 
-			compiler.CompileNode(consts[node.name].value);
+			compiler.CompileNode(value);
 		}
 		else {
 			Error(node.error, "Undefined identifier '%s'", node.name);

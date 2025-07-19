@@ -16,11 +16,17 @@ class OutputException : Exception {
 	mixin basicExceptionCtors;
 }
 
+enum OutputMode {
+	None,
+	Assembly,
+	Module
+}
+
 // this will eventually be used for generating ASMMod files
 // but for now i'm using it because GNU Assembler is the worst piece of software to
 // ever exist
 class Output {
-	bool           useMod;
+	OutputMode     mode;
 	string         output;
 	string         outFile;
 	string[string] macros;
@@ -29,12 +35,17 @@ class Output {
 	WriteModule mod;
 	Section     sect;
 
+	this() {
+		mode = OutputMode.None;
+	}
+
 	this(string dest) {
 		outFile = dest;
+		mode    = OutputMode.Assembly;
 	}
 
 	this(string inFile, ModCPU cpu, ModOS os, string source, string dest) {
-		useMod  = true;
+		mode    = OutputMode.Module;
 		outFile = dest;
 
 		mod = new WriteModule(inFile, cpu, os, source, dest);
@@ -46,10 +57,14 @@ class Output {
 		exit(1);
 	}
 
-	string GetModPrefix() => useMod? format("%s__sep__", mod.name) : "";
+	string GetModName() => mode == OutputMode.Module? mod.name : "";
+
+	string GetModPrefix() {
+		return mode == OutputMode.Module? format("%s__sep__", mod.name) : "";
+	}
 
 	void StartSection(SectionType type) {
-		if (!useMod) return;
+		if (mode != OutputMode.Module) return;
 
 		if (sect !is null) {
 			throw new ModuleException("Unfinished section");
@@ -71,16 +86,29 @@ class Output {
 			case SectionType.BSS:       sect = new BSSSection();       break;
 			case SectionType.Data:      sect = new DataSection();      break;
 		}
+
+		sect.inMod = mod.name;
+	}
+
+	void StartSection(Section psect) {
+		if (mode != OutputMode.Module) return;
+
+		if (sect !is null) {
+			throw new ModuleException("Unfinished section");
+		}
+
+		sect       = psect;
+		sect.inMod = mod.name;
 	}
 
 	void AddCall(string call) {
-		if (!useMod) return;
+		if (mode != OutputMode.Module) return;
 
 		sect.AddCall(call);
 	}
 
 	void FinishSection() {
-		if (!useMod) return;
+		if (mode != OutputMode.Module) return;
 
 		mod.Add(sect);
 		sect = null;
@@ -89,17 +117,18 @@ class Output {
 	T ThisSection(T)() => cast(T) sect;
 
 	void AddSection(Section psect) {
-		if (!useMod) return;
+		if (mode != OutputMode.Module) return;
 
 		if (sect !is null) {
 			throw new ModuleException("Unfinished section");
 		}
 
+		psect.inMod = mod.name;
 		mod.Add(psect);
 	}
 
 	void AddGlobal(Global global) {
-		if (!useMod) return;
+		if (mode != OutputMode.Module) return;
 
 		auto section = new LetSection();
 		section.array = global.array;
@@ -111,15 +140,18 @@ class Output {
 	}
 
 	void opOpAssign(string op: "~")(char ch) {
-		if (useMod) {
-			sect.WriteAsm(cast(string) [ch]);
-		}
-		else {
-			output ~= ch;
+		final switch (mode) {
+			case OutputMode.None:     return;
+			case OutputMode.Assembly: output ~= ch; return;
+			case OutputMode.Module:   sect.WriteAsm(cast(string) [ch]); return;
 		}
 	}
 
 	void opOpAssign(string op: "~")(string text) {
+		if (mode == OutputMode.None) return;
+
+		bool useMod = mode == OutputMode.Module;
+
 		for (size_t i = 0; i < text.length; ++ i) {
 			if (text[i .. $].startsWith("$(")) {
 				if (text[i .. $].length == 2) {
@@ -179,9 +211,15 @@ class Output {
 
 				switch (parts[0]) {
 					case "global": {
-						if (useMod) sect.WriteAsm(format(
-							"%s%s%s", "__global_", GetModPrefix(), parts[1].Sanitise()
-						));
+						if (mode == OutputMode.Module) {
+							sect.WriteAsm(format(
+								"%s%s%s", "__global_", GetModPrefix(),
+								parts[1].Sanitise()
+							));
+						}
+						else {
+							output ~= format("__global_%s", parts[1].Sanitise());
+						}
 						break;
 					}
 					default: {
@@ -194,7 +232,7 @@ class Output {
 
 				i = input.length + i + 2;
 			}
-			else if (useMod) {
+			else if (mode == OutputMode.Module) {
 				sect.WriteAsm([text[i]]);
 			}
 			else {
@@ -204,11 +242,10 @@ class Output {
 	}
 
 	void Finish() {
-		if (useMod) {
-			mod.Finish();
-		}
-		else {
-			std.file.write(outFile, output);
+		final switch (mode) {
+			case OutputMode.None:     return;
+			case OutputMode.Assembly: std.file.write(outFile, output); return;
+			case OutputMode.Module:   mod.Finish(); return;
 		}
 	}
 }

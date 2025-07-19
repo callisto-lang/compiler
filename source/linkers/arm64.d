@@ -154,7 +154,11 @@ class LinkerARM64 : Linker {
 		file.write(funcAsm);
 
 		// data
+		file.writeln(".bss");
 		file.write(bssAsm);
+		file.writeln(".lcomm __exception, 32");
+
+		file.writeln(".data");
 		file.write(dataAsm);
 		file.flush();
 		file.close();

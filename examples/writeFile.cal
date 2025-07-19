@@ -12,6 +12,4 @@ end
 let Array str
 "meow\n" &str a<
 
-&file
-&str Array.elements + @
-&str Array.length + @ file!
+&file str.elements str.length file!

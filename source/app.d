@@ -8,9 +8,11 @@ import std.string;
 import std.process;
 import std.algorithm;
 import callisto.test;
+import callisto.stub;
 import callisto.error;
 import callisto.output;
 import callisto.linker;
+import callisto.summary;
 import callisto.mod.mod;
 import callisto.compiler;
 import callisto.language;
@@ -56,6 +58,7 @@ Flags:
   -scf        - Show functions in stack checker
   --help      - Shows this help text
   -m          - Generates a module file instead of an executable
+  -stub       - Generates a stub module
 
 Backends and their operating systems:
   rm86   - Real mode x86, for bare-metal, DOS
@@ -74,6 +77,10 @@ Backend options:
 
 Programs:
   cac link <MODULES...> - Links MODULES... together into one executable
+    Flags:
+      -ps     - Print all sections in the first given module
+      -o FILE - Sets executable path
+      -lo OPT - Adds binutil linker option
 ";
 
 int main(string[] args) {
@@ -110,6 +117,7 @@ int main(string[] args) {
 	bool            makeMod;
 	ModCPU          modCPU;
 	ModOS           modOS;
+	bool            makeStub;
 
 	// choose default backend
 	version (X86_64) {
@@ -322,10 +330,11 @@ int main(string[] args) {
 					os = args[i];
 					break;
 				}
-				case "-sc":  onlyStackCheck = true;        break;
-				case "-nsc": noStackCheck = true;          break;
-				case "-scf": stackCheckerFunctions = true; break;
-				case "-m":   makeMod = true;               break;
+				case "-sc":   onlyStackCheck = true;        break;
+				case "-nsc":  noStackCheck = true;          break;
+				case "-scf":  stackCheckerFunctions = true; break;
+				case "-m":    makeMod = true;               break;
+				case "-stub": makeStub = true;              break;
 				case "--help": {
 					writeln(usage.strip());
 					return 0;
@@ -359,7 +368,19 @@ int main(string[] args) {
 		}
 	}
 
-	if (makeMod) {
+	if (makeStub && !makeMod) {
+		stderr.writeln("Pass -m to make a stub module");
+		return 1;
+	}
+
+	if (makeStub) {
+		if (outFile == "DEFAULT") {
+			outFile = baseName(file).stripExtension();
+		}
+
+		backend.output = new Output();
+	}
+	else if (makeMod) {
 		if (outFile == "DEFAULT") {
 			outFile = baseName(file).stripExtension();
 		}
@@ -447,10 +468,22 @@ int main(string[] args) {
 	preproc.includeDirs ~= includeDirs;
 	preproc.versions    ~= versions;
 
+	if (makeMod) preproc.versions ~= "Module";
+
 	nodes = preproc.Run(nodes);
 	if (!preproc.success) return 1;
 
+	if (makeMod && makeStub) {
+		auto stubComp = new StubCompiler(file, modCPU, modOS, file, outFile ~ ".mod");
+		stubComp.Compile(nodes);
+		return 0;
+	}
+
 	if (optimise) {
+		if (makeMod) {
+			ErrorNoInfo("Dead code removal on modules should be done at compile time");
+			return 1;
+		}
 		auto codeRemover = new CodeRemover();
 		codeRemover.Run(nodes);
 		nodes = codeRemover.res;
@@ -484,7 +517,8 @@ int main(string[] args) {
 		return 0;
 	}
 
-	compiler.versions = preproc.versions;
+	compiler.backend.summary = preproc.summary;
+	compiler.versions        = preproc.versions;
 	
 	compiler.Compile(nodes);
 	if (!compiler.success) return 1;

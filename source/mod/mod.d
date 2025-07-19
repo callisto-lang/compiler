@@ -5,6 +5,7 @@ import std.stdio;
 import std.bitmanip;
 import std.algorithm;
 import std.exception;
+import core.stdc.stdlib;
 import callisto.mod.sections;
 
 class ModuleException : Exception {
@@ -63,7 +64,8 @@ class Module {
 			}
 
 			sect.Read(file, skip);
-			sections ~= sect;
+			sect.inMod  = name;
+			sections   ~= sect;
 		}
 	}
 
@@ -83,12 +85,13 @@ class Module {
 // smaller version that uses less memory, just used for writing
 class WriteModule {
 	string name;
+	bool   main;
 
-	private size_t sectionNum;
-	private File   file;
+	private SectionInt sectionNum;
+	private File       file;
 
 	this(string path, ModCPU cpu, ModOS os, string source, string dest) {
-		file = File(dest, "wb");
+		file = File(dest, "wb+");
 		name = path.baseName().stripExtension();
 
 		auto header   = new HeaderSection();
@@ -105,7 +108,17 @@ class WriteModule {
 	}
 
 	void Finish() {
-		file.seek(27, SEEK_SET);
-		file.rawWrite(nativeToLittleEndian(cast(SectionInt) sectionNum));
+		file.flush();
+
+		if (main) {
+			file.seek(3, SEEK_SET);
+			file.rawWrite(cast(ubyte[]) [2]);
+		}
+
+		auto bytes = nativeToLittleEndian(sectionNum);
+		file.seek(28, SEEK_SET);
+		file.rawWrite(bytes);
+		file.flush();
+		file.close();
 	}
 }

@@ -14,6 +14,7 @@ import callisto.output;
 import callisto.compiler;
 import callisto.language;
 import callisto.preprocessor;
+import callisto.mod.sections;
 
 private struct GlobalExtra {
 	ulong addr;
@@ -52,45 +53,41 @@ class BackendLua : CompilerBackend {
 		addrSize = 1;
 
 		// built in integer types
-		types ~= Type("addr",  1, false);
-		types ~= Type("isize", 1, true);
-		types ~= Type("usize", 1, false);
-		types ~= Type("cell",  1, false);
-		types ~= Type("icell", 1, true);
-		types ~= Type("bool",  1, false);
+		types ~= Type("core", "addr",  1, false);
+		types ~= Type("core", "isize", 1, true);
+		types ~= Type("core", "usize", 1, false);
+		types ~= Type("core", "cell",  1, false);
+		types ~= Type("core", "icell", 1, true);
+		types ~= Type("core", "bool",  1, false);
 
 		// built in structs
-		types ~= Type("Array", 3, false, true, [
+		types ~= Type("core", "Array", 3, false, true, [
 			StructEntry(UsedType(GetType("usize"), false), "length", false, 1, 0),
 			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 1, 1),
 			StructEntry(UsedType(GetType("addr"), false),  "elements", false, 1, 2)
 		]);
-		NewConst("Array.length",     0);
-		NewConst("Array.memberSize", 1);
-		NewConst("Array.elements",   2);
-		NewConst("Array.sizeOf",     3);
+		NewConst("core", "Array.length",     0);
+		NewConst("core", "Array.memberSize", 1);
+		NewConst("core", "Array.elements",   2);
+		NewConst("core", "Array.sizeOf",     3);
 
-		types ~= Type("Exception", 3 + 1, false, true, [
+		types ~= Type("core", "Exception", 3 + 1, false, true, [
 			StructEntry(UsedType(GetType("bool"), false),  "error", false, 1, 0),
 			StructEntry(UsedType(GetType("Array"), false), "msg", false, 3, 1)
 		]);
-		NewConst("Exception.bool",   0);
-		NewConst("Exception.msg",    1);
-		NewConst("Exception.sizeOf", 3 + 1);
+		NewConst("core", "Exception.bool",   0);
+		NewConst("core", "Exception.msg",    1);
+		NewConst("core", "Exception.sizeOf", 3 + 1);
 
 		foreach (ref type ; types) {
 			NewConst(format("%s.sizeOf", type.name), cast(long) type.size);
 		}
 
 		globals ~= Global(
-			"_cal_exception", UsedType(GetType("Exception"), false), false, 0,
+			"core", "_cal_exception", UsedType(GetType("Exception"), false), false, 0,
 			new GlobalExtra(globalStack)
 		);
 		globalStack += globals[$ - 1].Size();
-	}
-
-	override void NewConst(string name, long value, ErrorInfo error = ErrorInfo.init) {
-		consts[name] = Constant(new IntegerNode(error, value));
 	}
 
 	override string[] GetVersions() => ["Lua", "CallistoScript", "IO", "Time", "Exit"];
@@ -166,6 +163,10 @@ class BackendLua : CompilerBackend {
 
 		output ~= "regA = 0\n";
 		output ~= "calmain();\n";
+	}
+
+	override void ImportFunc(FuncDefSection sect) {
+		assert(0);
 	}
 
 	override void BeginMain() {
@@ -310,11 +311,11 @@ class BackendLua : CompilerBackend {
 				);
 			}
 		}
-		else if (node.name in consts) {
-			auto value  = consts[node.name].value;
+		else if (ConstExists(node.name)) {
+			auto value  = GetConst(node.name).value;
 			value.error = node.error;
 
-			compiler.CompileNode(consts[node.name].value);
+			compiler.CompileNode(value);
 		}
 		else {
 			Error(node.error, "Unknown identifier '%s'", node.name);
