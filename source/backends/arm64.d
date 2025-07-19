@@ -24,6 +24,8 @@ private enum WordType {
 }
 
 private struct Word {
+	string     mod;
+	string     name;
 	WordType   type;
 	bool       inline;
 	Node[]     inlineNodes;
@@ -37,7 +39,7 @@ private struct Word {
 }
 
 class BackendARM64 : CompilerBackend {
-	Word[string]     words;
+	Word[]           words;
 	string           thisFunc;
 	bool             inScope;
 	uint             blockCounter;
@@ -94,13 +96,54 @@ class BackendARM64 : CompilerBackend {
 		NewConst("core", "Exception.msg",    8);
 		NewConst("core", "Exception.sizeOf", 24 + 8);
 
-		globals ~= Global(
-			"core", "_cal_exception", UsedType(GetType("Exception"), false), false, 0
-		);
-
 		foreach (ref type ; types) {
-			NewConst(format("%s.sizeOf", type.name), cast(long) type.size);
+			NewConst("core", format("%s.sizeOf", type.name), cast(long) type.size);
 		}
+	}
+
+	size_t CountWords(string name) {
+		size_t ret = 0;
+
+		foreach (ref word ; words) {
+			if (MatchMod(word.mod, word.name, name)) ++ ret;
+		}
+
+		return ret;
+	}
+
+	size_t CountAll(string name) {
+		return
+			CountWords(name) + CountTypes(name) + CountGlobals(name) + CountConsts(name);
+	}
+
+	Word GetWord(string name) {
+		foreach (ref word ; words) {
+			if (MatchMod(word.mod, word.name, name)) return word;
+		}
+
+		assert(0);
+	}
+
+	bool WordExists(string name) {
+		return words.any!(v => MatchMod(v.mod, v.name, name));
+	}
+
+	bool WordExistsHere(string name) {
+		return words.any!(v => (v.mod == output.GetModName()) && (v.name == name));
+	}
+
+	bool FullWordExists(string name) {
+		return words.any!(v => format("%s.%s", v.mod, v.name) == name);
+	}
+
+	string[] WordMatches(string name) {
+		string[] ret;
+
+		foreach (ref word ; words) {
+			if (MatchMod(word.mod, word.name, name)) ret ~= word.name;
+		}
+
+		return ret;
 	}
 
 	override string[] GetVersions() {
@@ -218,25 +261,58 @@ class BackendARM64 : CompilerBackend {
 		}
 	}
 
+	string Label(string label) {
+		return format("%s%s", output.GetModPrefix(), label);
+	}
+
+	string Label(string prefix, string label) {
+		return format("%s%s%s", prefix, output.GetModPrefix(), label);
+	}
+
+	string Label(Char, A...)(string prefix, in Char[] fmt, A args) {
+		return Label(prefix, format(fmt, args));
+	}
+
+	string ExtLabel(string mod, string prefix, string label) {
+		auto modPrefix = output.mode == OutputMode.Module? format("%s__sep__", mod) : "";
+		return format("%s%s%s", prefix, modPrefix, label);
+	}
+
+	string ExtLabel(Char, A...)(string mod, string prefix, in Char[] fmt, A args) {
+		return ExtLabel(mod, prefix, format(fmt, args));
+	}
+
+	string Label(Word word) {
+		return ExtLabel(word.mod, "__func__", "%s", Sanitise(word.name));
+	}
+
 	override void ImportFunc(FuncDefSection sect) {
-		assert(0);
+		words ~= Word(
+			sect.inMod, sect.name, WordType.Callisto, sect.inline,
+			sect.inline? ParseText(sect.assembly) : [], sect.error,
+			replicate([UsedType.init], sect.params)
+		);
 	}
 
 	override void BeginMain() {
-		output ~= "__calmain:\n";
+		output.StartSection(SectionType.TopLevel);
+		if (output.mode != OutputMode.Module) {
+			output ~= "__calmain:\n";
+		}
 
 		// call constructors
 		foreach (global ; globals) {
 			if (global.type.hasInit && !global.type.ptr) {
-				LoadAddress("x9", format("__global_%s", global.name.Sanitise()));
+				LoadAddress("x9", Label("__global_", global.name.Sanitise()));
 				output ~= "str x9, [x19], #8\n";
-				output ~= format("bl __type_init_%s\n", global.type.name.Sanitise());
+				output ~= format("bl %s\n", Label("__type_init_", global.type.name.Sanitise()));
 			}
 		}
 	}
 
 	void CallFunction(string name) {
-		auto word = words[name];
+		assert(CountWords(name) == 1);
+		auto word = GetWord(name);
 
 		if (word.inline) {
 			foreach (inode ; word.inlineNodes) {
@@ -259,6 +335,8 @@ class BackendARM64 : CompilerBackend {
 		if (!oses.canFind(os)) {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
 		}
+
+		if (output.mode == OutputMode.Module) return;
 
 		output ~= ".text\n";
 		if (os == "osx") {
@@ -302,52 +380,79 @@ class BackendARM64 : CompilerBackend {
 		// call destructors
 		foreach (global ; globals) {
 			if (global.type.hasDeinit && !global.type.ptr) {
-				LoadAddress("x9", format("__global_%s", global.name.Sanitise()));
+				LoadAddress("x9", Label("__global_", global.name.Sanitise()));
 				output ~= "str x9, [x19], #8\n";
-				output ~= format("bl __type_deinit_%s\n", global.type.name.Sanitise());
+				output ~= format("bl %s\n", Label("__type_deinit_", global.type.name.Sanitise()));
 			}
 		}
 
-		// exit program
-		if ("__arm64_program_exit" in words) {
-			CallFunction("__arm64_program_exit");
-		}
-		else {
-			WarnNoInfo("No exit function available, expect bugs");
+		if (output.mode != OutputMode.Module) {
+			// exit program
+			string exit = "__arm64_program_exit";
+
+			if (WordExists(exit)) {
+				if (CountWords(exit) > 1) {
+					ErrorNoInfo("Multiple matches for program exit word");
+				}
+
+				CallFunction(exit);
+			}
+			else {
+				WarnNoInfo("No exit function available, expect bugs");
+			}
+
+			// init program
+			output ~= "__init:\n";
+			string init = "__arm64_program_init";
+			if (WordExists(init)) {
+				if (CountWords(exit) > 1) {
+					ErrorNoInfo("Multiple matches for program init word");
+				}
+
+				CallFunction(init);
+			}
+			else {
+				WarnNoInfo("No program init function available");
+			}
+			output ~= "ret\n";
 		}
 
-		output ~= "ret\n";
-
-		// run init function
-		output ~= "__init:\n";
-		if ("__arm64_program_init" in words) {
-			CallFunction("__arm64_program_init");
-		}
-		else {
-			WarnNoInfo("No program init function available");
-		}
-		output ~= "ret\n";
+		// end of top level code
+		output.FinishSection();
 
 		// create global variables
-		output ~= ".bss\n";
+		output.StartSection(SectionType.BSS);
 
-		foreach (var ; globals) {
-			output ~= format(".lcomm __global_%s, %d\n", var.name.Sanitise(), var.Size());
-
-			if (exportSymbols) {
-				output ~= format(".global __global_%s\n", var.name.Sanitise());
-			}
+		if (output.mode != OutputMode.Module) {
+			output ~= ".bss\n";
+			output ~= ".lcomm __exception, 32\n";
 		}
 
+		foreach (var ; globals) {
+			output ~= format(".lcomm %s, %d\n", Label("__global_", var.name.Sanitise()), var.Size());
+
+			if (exportSymbols) {
+				output ~= format(".global %s\n", Label("__global_", var.name.Sanitise()));
+			}
+		}
+		output.FinishSection();
+
 		// create arrays
-		output ~= ".data\n";
+		output.StartSection(SectionType.Data);
+
+		if (output.mode != OutputMode.Module) {
+			output ~= ".data\n";
+		}
+
 		foreach (i, ref array ; arrays) {
+			string arrayLabel = Label("__array_", "%d", i);
+
 			output ~= ".align 8\n";
 			if (exportSymbols) {
-				output ~= format(".global __array_%d\n", i);
+				output ~= format(".global %s\n", arrayLabel);
 			}
 
-			output ~= format("__array_%d: ", i);
+			output ~= format("%s: ", arrayLabel);
 
 			switch (array.type.Size()) {
 				case 1:  output ~= ".byte "; break;
@@ -366,13 +471,15 @@ class BackendARM64 : CompilerBackend {
 			if (array.global) {
 				output ~= ".align 8\n";
 				output ~= format(
-					"__array_%d_meta: .8byte %d, %d, __array_%d\n", i,
+					"%s_meta: .8byte %d, %d, %s\n",
+					arrayLabel,
 					array.values.length,
 					array.type.Size(),
-					i
+					arrayLabel,
 				);
 			}
 		}
+		output.FinishSection();
 	}
 
 	void PushGlobalValue(
@@ -383,7 +490,7 @@ class BackendARM64 : CompilerBackend {
 			size = var.type.Size();
 		}
 
-		LoadAddress("x9", format("__global_%s", var.name.Sanitise()));
+		LoadAddress("x9", ExtLabel(var.mod, "__global_", var.name.Sanitise()));
 
 		if (deref) {
 			output ~= "ldr x9, [x9]\n";
@@ -451,8 +558,12 @@ class BackendARM64 : CompilerBackend {
 	}
 
 	override void CompileWord(WordNode node) {
-		if (node.name in words) {
-			auto word = words[node.name];
+		if (CountAll(node.name) > 1) {
+			Error(node.error, "Multiple matches for identifier '%s'", node.name);
+		}
+
+		if (WordExists(node.name)) {
+			auto word = GetWord(node.name);
 
 			if (word.inline) {
 				foreach (inode ; word.inlineNodes) {
@@ -528,7 +639,7 @@ class BackendARM64 : CompilerBackend {
 					output ~= "mov sp, x9\n";
 				}
 				else {
-					if (word.error && words[thisFunc].error) {
+					if (word.error && GetWord(thisFunc).error) {
 						size_t paramSize = word.params.length * 8;
 
 						if (paramSize != 0) {
@@ -540,30 +651,33 @@ class BackendARM64 : CompilerBackend {
 						}
 					}
 					
-					output ~= format("bl __func__%s\n", node.name.Sanitise());
+					output ~= format("bl %s\n", Label(word));
+					output.AddCall(node.name);
 
-					if (word.error && words[thisFunc].error) {
+					if (word.error && GetWord(thisFunc).error) {
 						output ~= "ldr x15, [x20], #8\n";
 					}
 				}
 			}
 
 			if (word.error) {
-				if ("__arm64_exception" in words) {
+				size_t num = CountWords("__arm64_exception");
+				if (num == 1) {
 					bool crash;
 
 					if (inScope) {
-						crash = !words[thisFunc].error;
+						crash = !GetWord(thisFunc).error;
 					}
 					else {
 						crash = true;
 					}
 
-					LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
+					LoadAddress("x9", "__exception");
 					output ~= "ldr x9, [x9]\n";
 					output ~= "cmp x9, #0\n";
 					if (crash) {
-						output ~= format("bne __func__%s\n", Sanitise("__arm64_exception"));
+						auto handler = GetWord("__arm64_exception");
+						output ~= format("bne %s\n", Label(handler));
 					}
 					else {
 						output ~= "beq 1f\n";
@@ -571,6 +685,9 @@ class BackendARM64 : CompilerBackend {
 						CompileReturn(node);
 						output ~= "1:\n";
 					}
+				}
+				else if (num > 1) {
+					Error(node.error, "Multiple exception handlers");
 				}
 				else {
 					Warn(node.error, "No exception handler");
@@ -595,6 +712,10 @@ class BackendARM64 : CompilerBackend {
 			string name    = node.name[0 .. node.name.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.name);
 
+			if (CountAll(name)) {
+				Error(node.error, "Multiple matches for identifier '%s'", name);
+			}
+
 			if (structVar.structure) {
 				Error(node.error, "Can't push the value of an array or structure");
 			}
@@ -606,6 +727,9 @@ class BackendARM64 : CompilerBackend {
 			else if (VariableExists(name)) {
 				auto var = GetVariable(name);
 				PushVariableValue(node, var, structVar.size, structVar.offset, true, var.type.ptr);
+			}
+			else {
+				Error(node.error, "Unknown identifier '%s'", name);
 			}
 		}
 		else if (ConstExists(node.name)) {
@@ -630,14 +754,14 @@ class BackendARM64 : CompilerBackend {
 	}
 	
 	override void CompileFuncDef(FuncDefNode node) {
-		if (node.name in words) {
+		if (WordExistsHere(node.name)) {
 			Error(node.error, "Function name '%s' already used", node.name);
 		}
 		if (Language.bannedNames.canFind(node.name)) {
 			Error(node.error, "Name '%s' can't be used", node.name);
 		}
 
-		thisFunc = node.name;
+		thisFunc = format("%s.%s", output.GetModName(), node.name);
 
 		UsedType[] params;
 
@@ -649,28 +773,49 @@ class BackendARM64 : CompilerBackend {
 			params ~= UsedType(GetType(type.name), type.ptr);
 		}
 
+		output.StartSection(SectionType.FuncDef);
+		if (output.mode == OutputMode.Module) {
+			auto sect   = output.ThisSection!FuncDefSection();
+			// TODO: the stuff that x86_64 says
+			sect.pub    = true;
+			sect.inline = node.inline;
+			sect.calls  = [];
+			sect.name   = node.name;
+			sect.params = params.length;
+			sect.ret    = node.returnTypes.length;
+		}
+
 		if (node.inline) {
 			if (node.errors) {
-				LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
+				LoadAddress("x9", Label("__global_", Sanitise("_cal_exception")));
 				output ~= "mov x10, #0\n";
 				output ~= "str x10, [x9]\n";
 			}
 
-			words[node.name] = Word(
+			words ~= Word(
+				output.GetModName(), node.name,
 				WordType.Callisto, true, node.nodes, node.errors, params
 			);
+
+			if (output.mode == OutputMode.Module) {
+				auto sect = output.ThisSection!FuncDefSection();
+
+				foreach (ref inode ; node.nodes) {
+					sect.assembly ~= inode.toString() ~ '\n';
+				}
+			}
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(
-				node.raw? WordType.Raw : WordType.Callisto , false, [], node.errors,
-				params,
+			words ~= Word(
+				output.GetModName(), node.name, node.raw? WordType.Raw : WordType.Callisto,
+				false, [], node.errors, params,
 			);
 
 			string symbol =
-				node.raw? node.name : format("__func__%s", node.name.Sanitise());
+				node.raw? node.name : Label("__func__", node.name.Sanitise());
 
 			if (exportSymbols) {
 				output ~= format(".global %s\n", symbol);
@@ -680,7 +825,7 @@ class BackendARM64 : CompilerBackend {
 			output ~= "str lr, [x20, #-8]!\n";
 
 			if (node.errors) {
-				LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
+				LoadAddress("x9", "__exception");
 				output ~= "mov x10, #0\n";
 				output ~= "str x10, [x9]\n";
 			}
@@ -748,7 +893,7 @@ class BackendARM64 : CompilerBackend {
 				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format("add x9, x20, #%d\n", var.offset);
 					output ~= "str x9, [x19], #8\n";
-					output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
+					output ~= format("bl %s\n", ExtLabel(var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()));
 				}
 			}
 			if (scopeSize > 0) {
@@ -760,6 +905,8 @@ class BackendARM64 : CompilerBackend {
 			inScope    = false;
 			variables  = [];
 		}
+
+		output.FinishSection();
 	}
 	
 	override void CompileIf(IfNode node) {
@@ -773,7 +920,7 @@ class BackendARM64 : CompilerBackend {
 			}
 			output ~= "ldr x9, [x19, #-8]!\n";
 			output ~= "cmp x9, #0\n";
-			output ~= format("beq __if_%d_%d\n", blockNum, condCounter + 1);
+			output ~= format("beq %s\n", Label("__if_", "%d_%d", blockNum, condCounter + 1));
 
 			// create scope
 			auto oldVars = variables.dup;
@@ -790,17 +937,17 @@ class BackendARM64 : CompilerBackend {
 
 				output ~= format("add x9, x20, #%d\n", var.offset);
 				output ~= "str x9, [x19], #8\n";
-				output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
+				output ~= format("bl %s\n", ExtLabel(var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()));
 			}
 			if (GetStackSize() - oldSize > 0) {
 				OffsetLocalsStack(GetStackSize() - oldSize, false);
 			}
 			variables = oldVars;
 
-			output ~= format("b __if_%d_end\n", blockNum);
+			output ~= format("b %s\n", Label("__if_", "%d_end", blockNum));
 
 			++ condCounter;
-			output ~= format("__if_%d_%d:\n", blockNum, condCounter);
+			output ~= format("%s:\n", Label("__if_", "%d_%d", blockNum, condCounter));
 		}
 
 		if (node.hasElse) {
@@ -819,7 +966,7 @@ class BackendARM64 : CompilerBackend {
 
 				output ~= format("add x9, x20, #%d\n", var.offset);
 				output ~= "str x9, [x19], #8\n";
-				output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
+				output ~= format("bl %s\n", ExtLabel(var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()));
 			}
 			if (GetStackSize() - oldSize > 0) {
 				OffsetLocalsStack(GetStackSize() - oldSize, false);
@@ -827,7 +974,7 @@ class BackendARM64 : CompilerBackend {
 			variables = oldVars;
 		}
 
-		output ~= format("__if_%d_end:\n", blockNum);
+		output ~= format("%s:\n", Label("__if_", "%d_end", blockNum));
 	}
 	
 	override void CompileWhile(WhileNode node) {
@@ -835,8 +982,8 @@ class BackendARM64 : CompilerBackend {
 		uint blockNum = blockCounter;
 		currentLoop   = blockNum;
 
-		output ~= format("b __while_%d_condition\n", blockNum);
-		output ~= format("__while_%d:\n", blockNum);
+		output ~= format("b %s\n", Label("__while_", "%d_condition", blockNum));
+		output ~= format("%s:\n", Label("__while_", "%d", blockNum));
 
 		// make scope
 		auto oldVars = variables.dup;
@@ -850,14 +997,14 @@ class BackendARM64 : CompilerBackend {
 		}
 
 		// restore scope
-		output ~= format("__while_%d_next:\n", blockNum);
+		output ~= format("%s:\n", Label("__while", "%d_next", blockNum));
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
 			if (!var.type.hasDeinit || var.type.ptr) continue;
 
 			output ~= format("add x9, x20, #%d\n", var.offset);
 			output ~= "str x9, [x19], #8\n";
-			output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
+			output ~= format("bl %s\n", ExtLabel(var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()));
 		}
 		if (GetStackSize() - oldSize > 0) {
 			OffsetLocalsStack(GetStackSize() - oldSize, false);
@@ -866,7 +1013,7 @@ class BackendARM64 : CompilerBackend {
 
 		inWhile = false;
 
-		output ~= format("__while_%d_condition:\n", blockNum);
+		output ~= format("%s:\n", Label("__while_", "%d_condition", blockNum));
 		
 		foreach (ref inode ; node.condition) {
 			compiler.CompileNode(inode);
@@ -874,16 +1021,19 @@ class BackendARM64 : CompilerBackend {
 
 		output ~= "ldr x9, [x19, #-8]!\n";
 		output ~= "cmp x9, #0\n";
-		output ~= format("bne __while_%d\n", blockNum);
-		output ~= format("__while_%d_end:\n", blockNum);
+		output ~= format("bne %s\n", Label("__while_", "%d", blockNum));
+		output ~= format("%s:\n", Label("__while_", "%d_end", blockNum));
 	}
 
 	override void CompileLet(LetNode node) {
 		if (!TypeExists(node.varType.name)) {
 			Error(node.error, "Undefined type '%s'", node.varType.name);
 		}
+		if (CountTypes(node.varType.name) > 1) {
+			Error(node.error, "Multiple matches for type '%s'", node.varType.name);
+		}
 		if (node.name != "") {
-			if (VariableExists(node.name) || (node.name in words)) {
+			if (VariableExists(node.name) || (WordExistsHere(node.name))) {
 				Error(node.error, "Variable name '%s' already used", node.name);
 			}
 			if (Language.bannedNames.canFind(node.name)) {
@@ -920,11 +1070,11 @@ class BackendARM64 : CompilerBackend {
 
 			if (var.type.hasInit && !var.type.ptr) { // call constructor
 				output ~= "str x20, [x19], #8\n";
-				output ~= format("bl __type_init_%s\n", var.type.name.Sanitise());
+				output ~= format("bl %s\n", ExtLabel(var.type.mod, "__type_init_", "%s", var.type.name.Sanitise()));
 			}
 		}
 		else {
-			if (GlobalExists(node.name)) {
+			if (GlobalExistsHere(node.name)) {
 				Error(node.error, "Global '%s' already exists", node.name);
 			}
 
@@ -934,12 +1084,17 @@ class BackendARM64 : CompilerBackend {
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
 			global.name        = node.name;
+			global.mod         = output.GetModName();
 			globals           ~= global;
 
 			if (global.name == "") {
-				LoadAddress("x9", format("__global_%s", global.name.Sanitise()));
-				output ~= "str x9, [x19], #8\n";
+				Error(
+					node.error,
+					"Anonymous variables can only be created inside a function"
+				);
 			}
+
+			output.AddGlobal(global);
 		}
 	}
 	
@@ -967,6 +1122,9 @@ class BackendARM64 : CompilerBackend {
 		if (!TypeExists(node.arrayType.name)) {
 			Error(node.error, "Type '%s' doesn't exist", node.arrayType.name);
 		}
+		if (CountTypes(node.arrayType.name) > 1) {
+			Error(node.error, "Multiple matches for type '%s'", node.arrayType.name);
+		}
 
 		array.type.type  = GetType(node.arrayType.name);
 		array.type.ptr   = node.arrayType.ptr;
@@ -974,14 +1132,14 @@ class BackendARM64 : CompilerBackend {
 		arrays          ~= array;
 
 		if (!inScope || node.constant) {
-			LoadAddress("x9", format("__array_%d_meta", arrays.length - 1));
+			LoadAddress("x9", Label("__array_", "%d_meta", arrays.length - 1));
 			output ~= "str x9, [x19], #8\n";
 		}
 		else {
 			// allocate a copy of this array
 			OffsetLocalsStack(array.Size(), true);
 			output ~= "mov x9, x20\n";
-			LoadAddress("x10", format("__array_%d", arrays.length - 1));
+			LoadAddress("x10", Label("__array_", "%d", arrays.length - 1));
 			output ~= format("ldr x11, =%d\n", array.Size());
 			output ~= "1:\n";
 			output ~= "ldrb w12, [x10], #1\n";
@@ -1002,7 +1160,7 @@ class BackendARM64 : CompilerBackend {
 			variables ~= var;
 
 			// create metadata variable
-			var.type.type = GetType("Array");
+			var.type.type = UsedType(GetType("core.Array"), false);
 			var.type.ptr  = false;
 			var.offset    = 0;
 			var.array     = false;
@@ -1052,7 +1210,7 @@ class BackendARM64 : CompilerBackend {
 			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format("add x9, x20, #%d\n", var.offset);
 				output ~= "str x9, [x19], #8\n";
-				output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
+				output ~= format("bl %s\n", ExtLabel(var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()));
 			}
 		}
 		if (scopeSize > 0) {
@@ -1068,7 +1226,7 @@ class BackendARM64 : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format("b __while_%d_end\n", currentLoop);
+		output ~= format("b %s\n", Label("__while_", "%d_end", currentLoop));
 	}
 
 	override void CompileContinue(WordNode node) {
@@ -1076,7 +1234,7 @@ class BackendARM64 : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format("b __while_%d_next\n", currentLoop);
+		output ~= format("b %s\n", Label("__while_", "%d_next", currentLoop));
 	}
 
 	override void CompileExtern(ExternNode node) {
@@ -1094,6 +1252,9 @@ class BackendARM64 : CompilerBackend {
 					if (!TypeExists(param.name)) {
 						Error(node.error, "Unknown type '%s'", param.name);
 					}
+					if (CountTypes(param.name) > 1) {
+						Error(node.error, "Multiple matches for type '%s'", param.name);
+					}
 
 					word.params ~= UsedType(GetType(param.name), param.ptr);
 				}
@@ -1104,6 +1265,12 @@ class BackendARM64 : CompilerBackend {
 				else {
 					if (!TypeExists(node.retType.name)) {
 						Error(node.error, "Unknown type '%s'", node.retType.name);
+					}
+					if (CountTypes(node.retType.name) > 1) {
+						Error(
+							node.error, "Multiple matches for type '%s'",
+							node.retType.name
+						);
 					}
 
 					word.ret = UsedType(GetType(node.retType.name), node.retType.ptr);
@@ -1122,7 +1289,8 @@ class BackendARM64 : CompilerBackend {
 			output ~= format(".extern %s\n", ExternSymbol(node.func));
 		}
 
-		words[funcName] = word;
+		word.name  = funcName;
+		words     ~= word;
 	}
 
 	override void CompileCall(WordNode node) {
@@ -1131,10 +1299,15 @@ class BackendARM64 : CompilerBackend {
 	}
 
 	override void CompileAddr(AddrNode node) {
-		if (node.func in words) {
-			auto   word   = words[node.func];
+		if (CountAll(node.func) > 1) {
+			Error(node.error, "Multiple matches for identifier '%s'", node.func);
+		}
+
+		if (WordExists(node.func)) {
+			auto   word   = GetWord(node.func);
 			string symbol = word.type == WordType.Callisto?
-				format("__func__%s", node.func.Sanitise()) : ExternSymbol(node.func);
+				ExtLabel(word.mod, "__func__", "%s", node.func.Sanitise()) :
+				ExternSymbol(node.func);
 
 			LoadAddress("x9", symbol);
 			output ~= "str x9, [x19], #8\n";
@@ -1142,7 +1315,7 @@ class BackendARM64 : CompilerBackend {
 		else if (GlobalExists(node.func)) {
 			auto var = GetGlobal(node.func);
 
-			LoadAddress("x9", format("__global_%s", node.func.Sanitise()));
+			LoadAddress("x9", ExtLabel(var.mod, "__global_", "%s", node.func.Sanitise()));
 			output ~= "str x9, [x19], #8\n";
 		}
 		else if (VariableExists(node.func)) {
@@ -1157,9 +1330,12 @@ class BackendARM64 : CompilerBackend {
 			size_t offset  = structVar.offset;
 
 			if (GlobalExists(name)) {
+				if (CountGlobals(name) > 1) {
+					Error(node.error, "Multiple matches for identifier '%s'", name);
+				}
 				auto var = GetGlobal(name);
 
-				LoadAddress("x9", format("__global_%s", name.Sanitise()));
+				LoadAddress("x9", ExtLabel(var.mod, "__global_", "%s", name.Sanitise()));
 				if (var.type.ptr) {
 					output ~= "ldr x9, [x9]\n";
 				}
@@ -1191,7 +1367,14 @@ class BackendARM64 : CompilerBackend {
 		if (!TypeExists(node.structure)) {
 			Error(node.error, "Type '%s' doesn't exist", node.structure);
 		}
+		if (CountTypes(node.structure) > 1) {
+			Error(node.error, "Multiple matches for type '%s'", node.structure);
+		}
 		auto type = GetType(node.structure);
+
+		if (type.mod != output.GetModName()) {
+			Error(node.error, "Cannot implement method for type defined outside of this module");
+		}
 
 		string labelName;
 
@@ -1202,7 +1385,7 @@ class BackendARM64 : CompilerBackend {
 				}
 
 				type.hasInit = true;
-				labelName = format("__type_init_%s", Sanitise(node.structure));
+				labelName = Label("__type_init_", Sanitise(node.structure));
 				break;
 			}
 			case "deinit": {
@@ -1211,16 +1394,23 @@ class BackendARM64 : CompilerBackend {
 				}
 
 				type.hasDeinit = true;
-				labelName = format("__type_deinit_%s", Sanitise(node.structure));
+				labelName = Label("__type_deinit_", Sanitise(node.structure));
 				break;
 			}
 			default: Error(node.error, "Unknown method '%s'", node.method);
 		}
 
-		SetType(type.name, type);
+		SetType(type.FullName(), type);
 
 		assert(!inScope);
 		inScope = true;
+
+		output.StartSection(SectionType.Implement);
+		if (output.mode == OutputMode.Module) {
+			auto sect   = output.ThisSection!ImplementSection();
+			sect.type   = type.name;
+			sect.method = node.method;
+		}
 
 		output ~= format("%s:\n", labelName);
 		output ~= "str lr, [x20, #-8]!\n";
@@ -1236,7 +1426,7 @@ class BackendARM64 : CompilerBackend {
 			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format("add x9, x20, #%d\n", var.offset);
 				output ~= "str x9, [x19], #8\n";
-				output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
+				output ~= format("bl %s\n", ExtLabel(var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()));
 			}
 		}
 		if (scopeSize > 0) {
@@ -1247,6 +1437,8 @@ class BackendARM64 : CompilerBackend {
 		output    ~= "ret\n";
 		inScope    = false;
 		variables  = [];
+
+		output.FinishSection();
 	}
 
 	void SetVariable(
@@ -1287,7 +1479,7 @@ class BackendARM64 : CompilerBackend {
 
 		output ~= "ldr x9, [x19, #-8]!\n";
 
-		LoadAddress("x10", format("__global_%s", global.name.Sanitise()));
+		LoadAddress("x10", ExtLabel(global.mod, "__global_", "%s", global.name.Sanitise()));
 
 		if (deref) {
 			output ~= "ldr x10, [x10]\n";
@@ -1303,6 +1495,10 @@ class BackendARM64 : CompilerBackend {
 	}
 
 	override void CompileSet(SetNode node) {
+		if (CountAll(node.var) > 1) {
+			Error(node.error, "Multiple matches for identifier '%s'", node.var);
+		}
+
 		if (VariableExists(node.var)) {
 			auto var = GetVariable(node.var);
 			if (var.type.isStruct && !var.type.ptr) {
@@ -1318,7 +1514,12 @@ class BackendARM64 : CompilerBackend {
 			SetGlobal(node, var);
 		}
 		else if (IsStructMember(node.var)) {
-			string name    = node.var[0 .. node.var.countUntil(".")];
+			string name = node.var[0 .. node.var.countUntil(".")];
+
+			if (CountAll(name) > 1) {
+				Error(node.error, "Multiple matches for identifier '%s'", node.var);
+			}
+
 			auto structVar = GetStructVariable(node, node.var);
 
 			if (structVar.structure) {
@@ -1350,11 +1551,15 @@ class BackendARM64 : CompilerBackend {
 	}
 
 	override void CompileTryCatch(TryCatchNode node) {
-		if (node.func !in words) {
+		if (!WordExists(node.func)) {
 			Error(node.error, "Function '%s' doesn't exist", node.func);
 		}
 
-		auto word = words[node.func];
+		if (CountWords(node.func) > 1) {
+			Error(node.error, "Multiple matches for function '%s'", node.func);
+		}
+
+		auto word = GetWord(node.func);
 
 		if (!word.error) {
 			Error(node.error, "Function '%s' doesn't throw", node.func);
@@ -1379,17 +1584,17 @@ class BackendARM64 : CompilerBackend {
 			}
 		}
 		else {
-			output ~= format("bl __func__%s\n", node.func.Sanitise());
+			output ~= format("bl %s\n", Label(word));
 		}
 
 		output ~= "ldr x15, [x20], #8\n";
 
 		++ blockCounter;
 
-		LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
+		LoadAddress("x9", "__exception");
 		output ~= "ldr x9, [x9]\n";
 		output ~= "cmp x9, #0\n";
-		output ~= format("beq __catch_%d_end\n", blockCounter);
+		output ~= format("beq %s\n", Label("__catch_", "%d_end", blockCounter));
 
 		// function errored, assume that all it did was consume parameters
 		output ~= "mov x19, x15\n";
@@ -1409,26 +1614,26 @@ class BackendARM64 : CompilerBackend {
 
 			output ~= format("add x9, x20, #%d\n", var.offset);
 			output ~= "str x9, [x19], #8\n";
-			output ~= format("bl __type_deinit_%s\n", var.type.name.Sanitise());
+			output ~= format("bl %s\n", ExtLabel(var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()));
 		}
 		if (GetStackSize() - oldSize > 0) {
 			OffsetLocalsStack(GetStackSize() - oldSize, false);
 		}
 		variables = oldVars;
 
-		output ~= format("__catch_%d_end:\n", blockCounter);
+		output ~= format("%s:\n", Label("__catch_", "%d_end", blockCounter));
 	}
 
 	override void CompileThrow(WordNode node) {
-		if (!inScope || (!words[thisFunc].error)) {
+		if (!inScope || (!GetWord(thisFunc).error)) {
 			Error(node.error, "Not in a function that can throw");
 		}
-		if (words[thisFunc].inline) {
+		if (GetWord(thisFunc).inline) {
 			Error(node.error, "Can't use throw in an inline function");
 		}
 
 		// set exception error
-		LoadAddress("x9", "__global_" ~ Sanitise("_cal_exception"));
+		LoadAddress("x9", "__exception");
 		output ~= "mov x10, #-1\n";
 		output ~= "str x10, [x9]\n";
 

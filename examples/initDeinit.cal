@@ -12,6 +12,7 @@ end
 
 implement meow deinit
 	"meow end\n" print_str
+	drop
 end
 
 let meow myMeow
