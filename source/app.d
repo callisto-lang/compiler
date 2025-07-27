@@ -481,7 +481,7 @@ int main(string[] args) {
 
 	if (optimise) {
 		if (makeMod) {
-			ErrorNoInfo("Dead code removal on modules should be done at compile time");
+			ErrorNoInfo("Dead code removal on modules should be done at link time");
 			return 1;
 		}
 		auto codeRemover = new CodeRemover();
