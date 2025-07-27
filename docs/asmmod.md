@@ -143,8 +143,9 @@ Enum entries follow this header.
 | Offset (bytes) | Size (bytes) | Description                                        |
 | -------------- | ------------ | -------------------------------------------------- |
 | 0              | 1            | Type - set to 0x07                                 |
-| 1              | 8            | Union size                                         |
-| 9              | ?            | Union name                                         |
+| 1              | ?            | Union name                                         |
+| ?              | 8            | Number of types in union                           |
+| ?              | ?            | String array with type names                       |
 
 ## Alias statement
 | Offset (bytes) | Size (bytes) | Description                                        |
@@ -177,8 +178,7 @@ Enum entries follow this header.
 | Offset (bytes) | Size (bytes) | Description                                        |
 | -------------- | ------------ | -------------------------------------------------- |
 | 0              | 1            | Type - set to 0x0B                                 |
-| 1              | 8            | Size of structure                                  |
-| 9              | ?            | Structure name                                     |
+| 1              | ?            | Structure name                                     |
 | ?              | ?            | String - parent structure, empty if none           |
 | ?              | 8            | Number of structure entries                        |
 | ?              | ?            | Structure entries                                  |
@@ -189,7 +189,7 @@ Enum entries follow this header.
 | 0              | 1            | Bool - is pointer?                                 |
 | 1              | ?            | Type name                                          |
 | ?              | 1            | Bool - is array?                                   |
-| ?              | 8            | Size, if applicable                                |
+| ?              | 8            | Array length, if applicable                        |
 | ?              | 8            | Offset in structure                                |
 | ?              | ?            | Member name                                        |
 

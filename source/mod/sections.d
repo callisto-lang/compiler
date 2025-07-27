@@ -449,22 +449,22 @@ class RestrictSection : Section {
 }
 
 class UnionSection : Section {
-	SectionInt size;
-	string     name;
+	string   name;
+	string[] types;
 
 	override SectionType GetType() => SectionType.Union;
 
 	override void Write(File file) {
-		file.WriteInt(size);
 		file.WriteString(name);
+		file.WriteStringArray(types);
 	}
 
 	override void Read(File file, bool skip) {
-		size = file.ReadInt();
-		name = file.ReadString();
+		name  = file.ReadString();
+		types = file.ReadStringArray();
 	}
 
-	override string toString() => format("==== UNION %s ====\nSize: %s\n", name, size);
+	override string toString() => format("==== UNION %s ====\n%s", name, types.join("\n"));
 }
 
 class AliasSection : Section {
@@ -594,17 +594,15 @@ struct ModStructEntry {
 	string     type;
 	bool       array;
 	SectionInt size;
-	SectionInt offset;
 	string     name;
 
 	string toString() => format(
-		"MEMBER %s %s %s %s %s OFFSET %d",
-		array? "array" : "", array? text(size) : "", ptr? "ptr" : "", type, name, offset
+		"MEMBER %s %s %s %s %s",
+		array? "array" : "", array? text(size) : "", ptr? "ptr" : "", type, name
 	);
 }
 
 class StructSection : Section {
-	SectionInt       size;
 	string           name;
 	string           inherits;
 	ModStructEntry[] entries;
@@ -616,7 +614,6 @@ class StructSection : Section {
 		file.WriteString(entry.type);
 		file.WriteByte(entry.array? 1 : 0);
 		file.WriteInt(entry.size);
-		file.WriteInt(entry.offset);
 		file.WriteString(entry.name);
 	}
 
@@ -627,14 +624,12 @@ class StructSection : Section {
 		ret.type   = file.ReadString();
 		ret.array  = file.ReadByte() != 0;
 		ret.size   = file.ReadInt();
-		ret.offset = file.ReadInt();
 		ret.name   = file.ReadString();
 
 		return ret;
 	}
 
 	override void Read(File file, bool skip) {
-		size     = file.ReadInt();
 		name     = file.ReadString();
 		inherits = file.ReadString();
 
@@ -645,7 +640,6 @@ class StructSection : Section {
 	}
 
 	override void Write(File file) {
-		file.WriteInt(size);
 		file.WriteString(name);
 		file.WriteString(inherits);
 		file.WriteInt(cast(SectionInt) entries.length);
@@ -658,7 +652,6 @@ class StructSection : Section {
 	override string toString() {
 		string str;
 		str ~= format("==== STRUCT %s ====\n", name);
-		str ~= format("Size: %s\n", size);
 
 		foreach (ref entry ; entries) {
 			str ~= entry.toString();

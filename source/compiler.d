@@ -741,10 +741,25 @@ class Compiler {
 	}
 
 	void ImportUnion(UnionSection sect) {
-		backend.types ~= Type(
-			sect.inMod, sect.name, cast(ulong) sect.size, false, false,
-			[], false, false
-		);
+		Type type;
+		type.mod  = sect.inMod;
+		type.name = sect.name;
+
+		foreach (ref typeName ; sect.types) {
+			if (!backend.TypeExists(typeName)) {
+				ErrorSect(sect, "Error on import: Type '%s' does not exist", typeName);
+			}
+			if (backend.CountTypes(typeName) > 1) {
+				ErrorSect(sect, "Error on import: Multiple matches for type '%s'", typeName);
+			}
+
+			auto memberType = backend.GetType(typeName);
+			if (memberType.size > type.size) {
+				type.size = memberType.size;
+			}
+		}
+
+		backend.types ~= type;
 	}
 
 	void ImportAlias(AliasSection sect) {
@@ -754,12 +769,6 @@ class Compiler {
 		if (backend.CountTypes(sect.original) > 1) {
 			ErrorSect(
 				sect, "Error on import: Multiple matches for type '%s'", sect.original
-			);
-		}
-		if (backend.TypeExistsHere(sect.newName)) {
-			ErrorSect(
-				sect, "Error on import: Alias type '%s' already exists in module",
-				sect.newName
 			);
 		}
 
@@ -815,7 +824,6 @@ class Compiler {
 		Type type;
 		type.mod      = sect.inMod;
 		type.name     = sect.name;
-		type.size     = cast(ulong) sect.size;
 		type.isStruct = true;
 
 		foreach (ref entry ; sect.entries) {
@@ -839,7 +847,7 @@ class Compiler {
 
 			type.structure ~= StructEntry(
 				UsedType(membType, entry.ptr), entry.name, entry.array,
-				cast(size_t) entry.size, cast(size_t) entry.offset
+				cast(size_t) entry.size, 0 // this is overwritten later
 			);
 		}
 
@@ -891,6 +899,14 @@ class Compiler {
 
 				auto inherited = backend.GetType(sect.inherits);
 				type.structure = inherited.structure ~ type.structure;
+
+				// create offsets
+				size_t offset;
+				foreach (ref member ; type.structure) {
+					member.offset  = offset;
+					offset        += member.Size();
+				}
+
 				backend.SetType(format("%s.%s", sect.inMod, sect.name), type);
 			}
 		}

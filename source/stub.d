@@ -9,56 +9,37 @@ import callisto.backends.x86_64;
 
 class StubCompiler {
 	WriteModule     mod;
-	CompilerBackend backend;
 	Compiler        compiler;
 
 	this(string path, ModCPU cpu, ModOS os, string source, string dest) {
 		mod = new WriteModule(path, cpu, os, source, dest);
-
-		switch (cpu) {
-			case ModCPU.x86_64: backend = new BackendX86_64(); break;
-			default: assert(0);
-		}
-
-		switch (os) {
-			case ModOS.Linux:   backend.os = "linux";   break;
-			case ModOS.macOS:   backend.os = "osx";     break;
-			case ModOS.DOS:     backend.os = "dos";     break;
-			case ModOS.FreeBSD: backend.os = "freebsd"; break;
-			default: break;
-		}
-
-		compiler         = new Compiler();
-		backend.compiler = compiler;
-		backend.output   = new Output();
 	}
 
 	void CompileFuncDef(FuncDefNode node) => mod.Add(FuncDefSection.FromNode(node));
 
 	void CompileLet(LetNode node) {
-		backend.CompileLet(node);
-		mod.Add(LetSection.FromGlobal(backend.GetGlobal(node.name)));
+		auto sect  = new LetSection();
+		sect.array = node.array;
+		sect.size  = cast(SectionInt) node.arraySize;
+		sect.ptr   = node.varType.ptr;
+		sect.type  = node.varType.name;
+		sect.name  = node.name;
+		mod.Add(sect);
 	}
 
 	void CompileEnable(EnableNode node) => mod.Add(EnableSection.FromNode(node));
 
 	void CompileStruct(StructNode node) {
-		auto sect = new StructSection();
-		sect.name = node.name;
+		auto sect     = new StructSection();
+		sect.name     = node.name;
+		sect.inherits = node.inherits? node.inheritsFrom : "";
 
-		backend.CompileStruct(node);
-		auto type = backend.GetType(node.name);
-
-		assert(type.isStruct);
-		foreach (ref member ; type.structure) {
+		foreach (ref member ; node.members) {
 			sect.entries ~= ModStructEntry(
 				member.type.ptr, member.type.name, member.array,
-				cast(SectionInt) member.size, cast(SectionInt) member.offset,
-				member.name
+				cast(SectionInt) member.size, member.name
 			);
 		}
-
-		sect.size = type.size;
 		mod.Add(sect);
 	}
 
@@ -70,12 +51,8 @@ class StubCompiler {
 
 	void CompileUnion(UnionNode node) {
 		auto sect = new UnionSection();
-
-		backend.CompileUnion(node, mod.name);
-		auto type = backend.GetType(node.name);
-
-		sect.name = node.name;
-		sect.size = type.size;
+		sect.name  = node.name;
+		sect.types = node.types;
 		mod.Add(sect);
 	}
 
