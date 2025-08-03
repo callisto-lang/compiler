@@ -471,6 +471,13 @@ class AliasSection : Section {
 	string original;
 	string newName;
 
+	this() {}
+
+	this(string original, string newName) {
+		this.original = original;
+		this.newName  = newName;
+	}
+
 	static AliasSection FromNode(AliasNode node) {
 		assert(!node.overwrite);
 
@@ -654,7 +661,7 @@ class StructSection : Section {
 		str ~= format("==== STRUCT %s ====\n", name);
 
 		foreach (ref entry ; entries) {
-			str ~= entry.toString();
+			str ~= entry.toString() ~ "\n";
 		}
 		return str;
 	}

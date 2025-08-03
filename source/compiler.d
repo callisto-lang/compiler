@@ -155,16 +155,29 @@ class CompilerBackend {
 	void CompileStruct(StructNode node) {
 		size_t offset;
 
-		if (TypeExists(node.name)) {
+		if (TypeExistsHere(node.name)) {
 			Error(node.error, "Type '%s' defined multiple times", node.name);
 		}
 
 		StructEntry[] entries;
 		string[]      members;
 
+		output.StartSection(SectionType.Struct);
+		if (output.mode == OutputMode.Module) {
+			auto sect = output.ThisSection!StructSection();
+			sect.name = node.name;
+
+			if (node.inherits) {
+				sect.inherits = node.inheritsFrom;
+			}
+		}
+
 		if (node.inherits) {
 			if (!TypeExists(node.inheritsFrom)) {
 				Error(node.error, "Type '%s' doesn't exist", node.inheritsFrom);
+			}
+			if (CountTypes(node.inheritsFrom) > 1) {
+				Error(node.error, "Multiple matches for type '%s'", node.inheritsFrom);
 			}
 
 			if (!GetType(node.inheritsFrom).isStruct) {
@@ -220,6 +233,14 @@ class CompilerBackend {
 			}
 
 			offset += newMember.Size();
+
+			if (output.mode == OutputMode.Module) {
+				auto sect = output.ThisSection!StructSection();
+				sect.entries ~= ModStructEntry(
+					member.type.ptr, member.type.name, member.array,
+					cast(SectionInt) member.size, member.name
+				);
+			}
 		}
 
 		foreach (ref member ; entries) {
@@ -232,6 +253,8 @@ class CompilerBackend {
 		foreach (ref me ; copiesOfMe) {
 			*me = UsedType(types[$ - 1], true);
 		}
+
+		output.FinishSection();
 	}
 
 	void CompileEnum(EnumNode node, string mod) {
@@ -250,13 +273,26 @@ class CompilerBackend {
 		baseType.name  = node.name;
 		types         ~= baseType;
 
+		output.StartSection(SectionType.Enum);
+		if (output.mode == OutputMode.Module) {
+			auto sect     = output.ThisSection!EnumSection();
+			sect.name     = node.name;
+			sect.enumType = node.enumType;
+		}
+
 		foreach (i, ref name ; node.names) {
 			NewConst(mod, format("%s.%s", node.name, name), node.values[i]);
+
+			if (output.mode == OutputMode.Module) {
+				auto sect     = output.ThisSection!EnumSection();
+				sect.entries ~= ModEnumEntry(node.values[i], name);
+			}
 		}
 
 		NewConst(mod, format("%s.min", node.name), node.values.minElement());
 		NewConst(mod, format("%s.max", node.name), node.values.maxElement());
 		NewConst(mod, format("%s.sizeOf", node.name), GetType(node.name).size);
+		output.FinishSection();
 	}
 
 	void CompileConst(ConstNode node) {
@@ -265,6 +301,14 @@ class CompilerBackend {
 		}
 		
 		NewConst(node.name, node.value);
+
+		output.StartSection(SectionType.Const);
+		if (output.mode == OutputMode.Module) {
+			auto sect  = output.ThisSection!ConstSection();
+			sect.value = cast(SectionInt) node.value;
+			sect.name  = node.name;
+		}
+		output.FinishSection();
 	}
 
 	void CompileUnion(UnionNode node, string mod) {
@@ -272,6 +316,12 @@ class CompilerBackend {
 		size_t maxSize = 0;
 
 		string[] unionTypes;
+
+		output.StartSection(SectionType.Union);
+		if (output.mode == OutputMode.Module) {
+			auto sect = output.ThisSection!UnionSection();
+			sect.name = node.name;
+		}
 
 		foreach (ref type ; node.types) {
 			if (unionTypes.canFind(type)) {
@@ -284,10 +334,16 @@ class CompilerBackend {
 			if (GetType(type).size > maxSize) {
 				maxSize = GetType(type).size;
 			}
+
+			if (output.mode == OutputMode.Module) {
+				auto sect   = output.ThisSection!UnionSection();
+				sect.types ~= type;
+			}
 		}
 
 		types ~= Type(mod, node.name, maxSize);
 		NewConst(mod, format("%s.sizeOf", node.name), cast(long) maxSize);
+		output.FinishSection();
 	}
 
 	void CompileAlias(AliasNode node) {
@@ -304,6 +360,8 @@ class CompilerBackend {
 		types         ~= baseType;
 
 		NewConst(format("%s.sizeOf", node.to), cast(long) GetType(node.to).size);
+
+		output.AddSection(new AliasSection(node.from, node.to));
 	}
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
@@ -906,6 +964,8 @@ class Compiler {
 					member.offset  = offset;
 					offset        += member.Size();
 				}
+
+				type.size = offset;
 
 				backend.SetType(format("%s.%s", sect.inMod, sect.name), type);
 			}
