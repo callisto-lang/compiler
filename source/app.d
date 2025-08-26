@@ -150,7 +150,7 @@ int main(string[] args) {
 						stderr.writeln("-o requires FILE parameter");
 						return 1;
 					}
-					if (outFile != "out") {
+					if (outFile != "DEFAULT") {
 						stderr.writeln("Output file set multiple times");
 						return 1;
 					}

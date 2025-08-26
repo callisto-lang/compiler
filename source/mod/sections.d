@@ -416,14 +416,15 @@ class EnumSection : Section {
 
 		foreach (i ; 0 .. length) {
 			ModEnumEntry entry;
-			entry.value = file.ReadInt();
-			entry.name = file.ReadString();
+			entry.value  = file.ReadInt();
+			entry.name   = file.ReadString();
+			entries     ~= entry;
 		}
 	}
 
 	override string toString() {
 		string str;
-		str ~= format("==== ENUM %s ====", name);
+		str ~= format("==== ENUM %s : %s ====\n", name, enumType);
 
 		foreach (ref entry ; entries) {
 			str ~= entry.toString() ~ '\n';

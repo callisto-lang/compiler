@@ -312,7 +312,10 @@ class CompilerBackend {
 	}
 
 	void CompileUnion(UnionNode node, string mod) {
-		AssertTypeMatch(node.error, node.name);
+		if (TypeExistsHere(node.name)) {
+			Error(node.error, "Type '%s' already exists", node.name);
+		}
+
 		size_t maxSize = 0;
 
 		string[] unionTypes;
@@ -795,6 +798,7 @@ class Compiler {
 			enumNode.names  ~= entry.name;
 			enumNode.values ~= cast(long) entry.value;
 		}
+
 		backend.CompileEnum(enumNode, sect.inMod);
 	}
 
@@ -818,6 +822,9 @@ class Compiler {
 		}
 
 		backend.types ~= type;
+		backend.NewConst(
+			sect.inMod, format("%s.sizeOf", type.name), cast(long) type.size
+		);
 	}
 
 	void ImportAlias(AliasSection sect) {
@@ -834,6 +841,10 @@ class Compiler {
 		oldType.mod    = sect.inMod;
 		oldType.name   = sect.newName;
 		backend.types ~= oldType;
+
+		backend.NewConst(
+			sect.inMod, format("%s.sizeOf", sect.newName), cast(long) oldType.size
+		);
 	}
 
 	void ImportImplement(ImplementSection sect) {
