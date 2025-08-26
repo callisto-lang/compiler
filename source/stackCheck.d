@@ -444,13 +444,21 @@ class StackChecker {
 		Push(node, node.retTypes.length);
 	}
 
+	void EvaluateReturn(WordNode node) {
+		Pop(node, words[thisFunc].effect.push);
+
+		if (stack.length > 0) {
+			StackOverflow(node, 0);
+		}
+	}
+
 	void EvaluateNode(Node node) {
 		switch (node.type) {
 			case NodeType.Word: {
 				auto wnode = cast(WordNode) node;
 
 				switch (wnode.name) {
-					case "return":   Pop(node, words[thisFunc].effect.push); break;
+					case "return":   EvaluateReturn(wnode); break;
 					case "continue": EvaluateBreakContinue(wnode); break;
 					case "break":    EvaluateBreakContinue(wnode); break;
 					case "call":     Error(node.error, "Call is unsafe"); break;
