@@ -554,8 +554,13 @@ class BackendX86_64 : CompilerBackend {
 					break;
 				}
 				case 4: {
-					output ~= "xor rax, rax\n";
-					output ~= format("mov eax, [rbx + %d]\n", offset);
+					if (op == 's') {
+						output ~= format("movsxd rax, $(DWORD) [rbx + %d]\n", offset);
+					}
+					else {
+						output ~= "xor rax, rax\n";
+						output ~= format("mov eax, [rbx + %d]\n", offset);
+					}
 					break;
 				}
 				case 8: output ~= format("mov rax, [rbx + %d]\n", offset); break;
@@ -573,8 +578,15 @@ class BackendX86_64 : CompilerBackend {
 					break;
 				}
 				case 4: {
-					output ~= "xor rax, rax\n";
-					output ~= format("mov eax, [%s + %d]\n", symbol, offset);
+					if (op == 's') {
+						output ~= format(
+							"movsxd rax, $(DWORD) [%s + %d]\n", symbol, offset
+						);
+					}
+					else {
+						output ~= "xor rax, rax\n";
+						output ~= format("mov eax, [%s + %d]\n", symbol, offset);
+					}
 					break;
 				}
 				case 8: output ~= format("mov rax, [%s + %d]\n", symbol, offset); break;
