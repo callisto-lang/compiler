@@ -90,14 +90,16 @@ class WriteModule {
 	private SectionInt sectionNum;
 	private File       file;
 
-	this(string path, ModCPU cpu, ModOS os, string source, string dest) {
+	this(string path, ModCPU cpu, ModOS os, string source, string dest, bool stub) {
 		file = File(dest, "wb+");
-		name = path.baseName().stripExtension();
+		name = dest.baseName().stripExtension();
 
 		auto header   = new HeaderSection();
 		header.cpu    = cpu;
 		header.os     = os;
 		header.source = source;
+		header.stub   = stub;
+		
 		header.Write(file);
 	}
 

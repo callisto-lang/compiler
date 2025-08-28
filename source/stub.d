@@ -12,7 +12,7 @@ class StubCompiler {
 	Compiler        compiler;
 
 	this(string path, ModCPU cpu, ModOS os, string source, string dest) {
-		mod = new WriteModule(path, cpu, os, source, dest);
+		mod = new WriteModule(path, cpu, os, source, dest, true);
 	}
 
 	void CompileFuncDef(FuncDefNode node) => mod.Add(FuncDefSection.FromNode(node));

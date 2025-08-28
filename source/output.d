@@ -48,7 +48,7 @@ class Output {
 		mode    = OutputMode.Module;
 		outFile = dest;
 
-		mod = new WriteModule(inFile, cpu, os, source, dest);
+		mod = new WriteModule(inFile, cpu, os, source, dest, false);
 	}
 
 	void Error(Char, A...)(string source, in Char[] fmt, A args) {
