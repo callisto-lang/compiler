@@ -364,7 +364,7 @@ int main(string[] args) {
 			case "bare-metal": modOS = ModOS.None;    break;
 			case "dos":        modOS = ModOS.DOS;     break;
 			case "freebsd":    modOS = ModOS.FreeBSD; break;
-			default:           assert(0);
+			default:           break;
 		}
 	}
 
