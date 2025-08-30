@@ -307,7 +307,7 @@ int main(string[] args) {
 					break;
 				}
 				case "--help": {
-					writeln(usage.strip());
+					writefln(usage.strip(), args[0]);
 					return 0;
 				}
 				default: {
