@@ -14,12 +14,14 @@ import callisto.language;
 import callisto.mod.sections;
 
 class Preprocessor {
+	string   thisMod;
 	Summary  summary;
 	string[] includeDirs;
 	string[] included;
 	string[] versions;
 	string[] restricted;
 	string[] disabled;
+	bool     stub;
 	bool     success = true;
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
@@ -29,8 +31,20 @@ class Preprocessor {
 		success = false;
 	}
 
+	final void Warn(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
+		WarningBegin(error);
+		stderr.writeln(format(fmt, args));
+		PrintErrorLine(error);
+	}
+
 	private void Import(ErrorInfo error, string name) {
+		// writefln("Importing '%s'", name);
 		auto fileName = format("%s.mod", name);
+
+		if (name == thisMod) {
+			Warn(error, "Self import");
+			return;
+		}
 
 		string path;
 		bool   found = false;
@@ -173,7 +187,9 @@ class Preprocessor {
 				case NodeType.Import: {
 					auto node = cast(ImportNode) inode;
 
-					Import(node.error, node.mod);
+					if (!stub) {
+						Import(node.error, node.mod);
+					}
 					ret ~= inode;
 					break;
 				}

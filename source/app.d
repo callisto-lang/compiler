@@ -355,6 +355,10 @@ int main(string[] args) {
 		}
 	}
 
+	if (makeMod) {
+		versions ~= "Module";
+	}
+
 	if (os == "DEFAULT") {
 		os = backend.defaultOS;
 
@@ -401,6 +405,10 @@ int main(string[] args) {
 	backend.output.outFile = outFile;
 
 	auto preproc = new Preprocessor();
+	if (makeMod) {
+		preproc.thisMod = outFile;
+	}
+
 	foreach (ref opt ; backendOpts) {
 		if (!backend.HandleOption(opt, versions, preproc)) {
 			stderr.writefln("Unknown option '%s'", opt);
@@ -467,6 +475,7 @@ int main(string[] args) {
 	preproc.disabled    ~= disabled;
 	preproc.includeDirs ~= includeDirs;
 	preproc.versions    ~= versions;
+	preproc.stub         = makeStub;
 
 	if (makeMod) preproc.versions ~= "Module";
 

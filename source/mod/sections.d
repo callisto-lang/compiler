@@ -81,7 +81,7 @@ private ubyte ReadByte(File file) {
 	auto res = file.rawRead(new ubyte[1]);
 
 	if (res.length == 0) {
-		throw new SectionException("Unexpected EOF");
+		throw new SectionException("Unexpected EOF while reading " ~ file.name);
 	}
 	
 	return res[0];

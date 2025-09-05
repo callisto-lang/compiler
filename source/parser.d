@@ -1430,8 +1430,8 @@ class Parser {
 	}
 
 	Node ParseAnon() {
-		auto ret = new AnonNode(GetError());
-		parsing  = NodeType.Anon;
+		auto ret   = new AnonNode(GetError());
+		parsing    = NodeType.Anon;
 		parseStart = tokens[i];
 
 		Next();
@@ -1452,7 +1452,9 @@ class Parser {
 	}
 
 	Node ParseImport() {
-		auto ret = new ImportNode(GetError());
+		auto ret   = new ImportNode(GetError());
+		parsing    = NodeType.Import;
+		parseStart = tokens[i];
 		Next();
 		Expect(TokenType.Identifier);
 
@@ -1468,7 +1470,9 @@ class Parser {
 	}
 
 	Node ParseModule() {
-		auto ret = new ModuleNode(GetError());
+		auto ret   = new ModuleNode(GetError());
+		parsing    = NodeType.Module;
+		parseStart = tokens[i];
 		Next();
 		Expect(TokenType.Identifier);
 
