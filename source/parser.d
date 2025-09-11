@@ -100,6 +100,8 @@ class SignedIntNode : Node {
 		type  = NodeType.SignedInt;
 		value = pvalue;
 	}
+
+	override string toString() => format("%d", value);
 }
 
 class IntegerNode : Node {

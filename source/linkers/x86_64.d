@@ -29,6 +29,8 @@ class LinkerX86_64 : Linker {
 	string dataAsm;
 	bool   useGas;
 	bool   useLibc;
+	bool   keepAsm;
+	bool   debugInfo;
 
 	Func[] funcs;
 
@@ -65,6 +67,14 @@ class LinkerX86_64 : Linker {
 			}
 			case "use-libc": {
 				useLibc = true;
+				return true;
+			}
+			case "keep-asm": {
+				keepAsm = true;
+				return true;
+			}
+			case "debug": {
+				debugInfo = true;
 				return true;
 			}
 			default: return false;
@@ -210,6 +220,8 @@ class LinkerX86_64 : Linker {
 		backend.output           = new Output("");
 		backend.useGas           = useGas;
 		backend.useLibc          = useLibc;
+		backend.keepAssembly     = keepAsm;
+		backend.useDebug         = debugInfo;
 		auto commands            = backend.FinalCommands();
 
 		foreach (cmd ; commands) {

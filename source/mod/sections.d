@@ -277,7 +277,7 @@ class FuncDefSection : Section {
 		inline   = (flags & 2) != 0;
 		error    = (flags & 4) != 0;
 		calls    = file.ReadStringArray();
-		assembly = file.ReadOrSkipString(skip);
+		assembly = file.ReadOrSkipString(inline? false : skip);
 		name     = file.ReadString();
 		params   = file.ReadInt();
 		ret      = file.ReadInt();

@@ -81,6 +81,12 @@ Programs:
       -ps     - Print all sections in the first given module
       -o FILE - Sets executable path
       -lo OPT - Adds binutil linker option
+    Linker options:
+      x86_64:
+        use-gas  - Makes Callisto use GNU Assembler instead of nasm
+        use-libc - Makes Callisto use the C runtime and links libc
+        keep-asm - Keep assembly
+        debug    - Add debug info
 ";
 
 int main(string[] args) {

@@ -1,9 +1,8 @@
 include "cores/select.cal"
+include "std/io.cal"
 
 let cell x
-0 -> x
 let cell y
-0 -> y
 
 while y 20 < do
 	while x 40 < do
@@ -15,7 +14,7 @@ while y 20 < do
 
 		x 1 + -> x
 	end
-	13 print_ch 10 print_ch
+	new_line
 	y 1 + -> y
 	0 -> x
 end

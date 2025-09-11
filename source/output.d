@@ -30,6 +30,7 @@ class Output {
 	string         output;
 	string         outFile;
 	string[string] macros;
+	string         reserve; // kept for future use when a section is started
 
 	// module stuff
 	WriteModule mod;
@@ -88,6 +89,10 @@ class Output {
 		}
 
 		sect.inMod = mod.name;
+		if (reserve != "") {
+			sect.WriteAsm(reserve);
+			reserve = "";
+		}
 	}
 
 	void StartSection(Section psect) {
@@ -99,6 +104,11 @@ class Output {
 
 		sect       = psect;
 		sect.inMod = mod.name;
+
+		if (reserve != "") {
+			sect.WriteAsm(reserve);
+			reserve = "";
+		}
 	}
 
 	void AddCall(string call) {
@@ -233,7 +243,12 @@ class Output {
 				i = input.length + i + 2;
 			}
 			else if (mode == OutputMode.Module) {
-				sect.WriteAsm([text[i]]);
+				if (sect is null) {
+					reserve ~= text[i];
+				}
+				else {
+					sect.WriteAsm([text[i]]);
+				}
 			}
 			else {
 				output ~= text[i];
