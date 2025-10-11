@@ -505,7 +505,13 @@ int main(string[] args) {
 		if (!codeRemover.success) return 1;
 	}
 
-	auto stackChecker = new StackChecker();
+	auto stackChecker    = new StackChecker();
+	stackChecker.preproc = preproc;
+
+	if (makeMod) {
+		stackChecker.mod = baseName(outFile);
+	}
+
 	try {
 		if (!noStackCheck) stackChecker.Evaluate(nodes);
 	}

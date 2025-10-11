@@ -19,6 +19,10 @@ dub build
 
 The compiler executable will be called `cac`
 
+> [!WARNING]  
+> Compilation may freeze due to a bug in the Digital Mars D compiler. If this happens,
+> compile with this command: `dub build --compiler=ldc`
+
 ## Run example programs
 Make sure you get the standard library
 
