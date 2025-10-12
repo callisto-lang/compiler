@@ -16,6 +16,7 @@ import callisto.summary;
 import callisto.mod.mod;
 import callisto.compiler;
 import callisto.language;
+import callisto.profiler;
 import callisto.stackCheck;
 import callisto.codeRemover;
 import callisto.preprocessor;
@@ -59,6 +60,7 @@ Flags:
   --help      - Shows this help text
   -m          - Generates a module file instead of an executable
   -stub       - Generates a stub module
+  -p          - Print profiler results
 
 Backends and their operating systems:
   rm86   - Real mode x86, for bare-metal, DOS
@@ -124,6 +126,7 @@ int main(string[] args) {
 	ModCPU          modCPU;
 	ModOS           modOS;
 	bool            makeStub;
+	bool            printProfiler;
 
 	// choose default backend
 	version (X86_64) {
@@ -341,6 +344,7 @@ int main(string[] args) {
 				case "-scf":  stackCheckerFunctions = true; break;
 				case "-m":    makeMod = true;               break;
 				case "-stub": makeStub = true;              break;
+				case "-p":    printProfiler = true;         break;
 				case "--help": {
 					writeln(usage.strip());
 					return 0;
@@ -442,8 +446,12 @@ int main(string[] args) {
 		return 1;
 	}
 
+	auto     profiler = new Profiler();
 	string[] included;
-	auto     nodes = ParseFile(file);
+
+	profiler.Begin();
+	auto nodes = ParseFile(file);
+	profiler.End("parsing");
 
 	if (debugParser) {
 		foreach (ref node ; nodes) {
@@ -485,12 +493,16 @@ int main(string[] args) {
 
 	if (makeMod) preproc.versions ~= "Module";
 
+	profiler.Begin();
 	nodes = preproc.Run(nodes);
+	profiler.End("preprocessor");
 	if (!preproc.success) return 1;
 
 	if (makeMod && makeStub) {
 		auto stubComp = new StubCompiler(file, modCPU, modOS, file, outFile ~ ".mod");
+		profiler.Begin();
 		stubComp.Compile(nodes);
+		profiler.End("stub compiler");
 		return 0;
 	}
 
@@ -500,20 +512,25 @@ int main(string[] args) {
 			return 1;
 		}
 		auto codeRemover = new CodeRemover();
+
+		profiler.Begin();
 		codeRemover.Run(nodes);
+		profiler.End("dead code remover");
+
 		nodes = codeRemover.res;
 		if (!codeRemover.success) return 1;
 	}
 
-	auto stackChecker    = new StackChecker();
-	stackChecker.preproc = preproc;
+	auto stackChecker     = new StackChecker();
+	stackChecker.preproc  = preproc;
+	stackChecker.profiler = profiler;
 
 	if (makeMod) {
 		stackChecker.mod = baseName(outFile);
 	}
 
 	try {
-		if (!noStackCheck) stackChecker.Evaluate(nodes);
+		if (!noStackCheck) stackChecker.Run(nodes);
 	}
 	catch (StackCheckerError) {
 		stderr.writeln("Error occured during stack checker stage");
@@ -540,14 +557,17 @@ int main(string[] args) {
 
 	compiler.backend.summary = preproc.summary;
 	compiler.versions        = preproc.versions;
-	
+
+	profiler.Begin();
 	compiler.Compile(nodes);
+	profiler.End("compilation");
 	if (!compiler.success) return 1;
 
 	// std.file.write(outFile, compiler.backend.output);
 	compiler.backend.output.Finish();
 
 	if (runFinal) {
+		profiler.Begin();
 		compiler.outFile   = outFile;
 		auto finalCommands = compiler.backend.FinalCommands();
 
@@ -560,6 +580,12 @@ int main(string[] args) {
 				return 1;
 			}
 		}
+
+		profiler.End("final commands");
+	}
+
+	if (printProfiler) {
+		profiler.PrintResults();
 	}
 
 	return 0;

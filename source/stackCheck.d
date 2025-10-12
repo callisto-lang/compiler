@@ -7,6 +7,7 @@ import std.format;
 import std.algorithm;
 import callisto.error;
 import callisto.parser;
+import callisto.profiler;
 import callisto.preprocessor;
 import callisto.mod.sections;
 
@@ -50,6 +51,7 @@ class StackChecker {
 	string           thisFunc;
 	Preprocessor     preproc;
 	bool             inScope;
+	Profiler         profiler;
 
 	this() {
 		structs["Array"]     = ["length", "memberSize", "elements"];
@@ -605,8 +607,16 @@ class StackChecker {
 	}
 
 	void Evaluate(Node[] nodes) {
+		foreach (ref node ; nodes) {
+			EvaluateNode(node);
+		}
+	}
+
+	void Run(Node[] nodes) {
 		// import summary
 		if (mod != "") {
+			profiler.Begin();
+
 			foreach (ref isect ; preproc.summary.sections) {
 				switch (isect.GetType()) {
 					case SectionType.FuncDef: {
@@ -688,11 +698,13 @@ class StackChecker {
 					default: break;
 				}
 			}
+
+			profiler.End("stack checker (import)");
 		}
 
-		foreach (ref node ; nodes) {
-			EvaluateNode(node);
-		}
+		profiler.Begin();
+		Evaluate(nodes);
+		profiler.End("stack checker");
 	}
 
 	void DumpFunctions() {
