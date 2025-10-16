@@ -93,7 +93,38 @@ struct Array {
 	size_t Size() => type.Size() * values.length;
 }
 
+enum WordType {
+	Callisto,
+	Raw,
+	C,
+	Lua
+}
+
+struct Word {
+	string     mod;
+	string     name;
+	WordType   type;
+	bool       raw; // TODO: only used by rm86, not sure what the purpose is
+	bool       inline;
+	Node[]     inlineNodes;
+	bool       error;
+	UsedType[] params;
+
+	// for C words, if supported
+	UsedType ret;
+	bool     isVoid;
+	string   symbolName;
+
+	string FullName() => format("%s.%s", mod, name);
+}
+
 class CompilerBackend {
+	Word[]           words;
+	string           thisFunc;
+	bool             inScope;
+	uint             blockCounter; // used for block statements
+	bool             inWhile;
+	uint             currentLoop;
 	Output           output;
 	ulong            org;
 	bool             orgSet;
@@ -378,6 +409,51 @@ class CompilerBackend {
 		WarningBegin(error);
 		stderr.writeln(format(fmt, args));
 		PrintErrorLine(error);
+	}
+
+	final size_t CountWords(string name) {
+		size_t ret = 0;
+
+		foreach (ref word ; words) {
+			if (MatchMod(word.mod, word.name, name)) ++ ret;
+		}
+
+		return ret;
+	}
+
+	final size_t CountAll(string name) {
+		return
+			CountWords(name) + CountTypes(name) + CountGlobals(name) + CountConsts(name);
+	}
+
+	final Word GetWord(string name) {
+		foreach (ref word ; words) {
+			if (MatchMod(word.mod, word.name, name)) return word;
+		}
+
+		assert(0);
+	}
+
+	final bool WordExists(string name) {
+		return words.any!(v => MatchMod(v.mod, v.name, name));
+	}
+
+	final bool WordExistsHere(string name) {
+		return words.any!(v => (v.mod == output.GetModName()) && (v.name == name));
+	}
+
+	final bool FullWordExists(string name) {
+		return words.any!(v => format("%s.%s", v.mod, v.name) == name);
+	}
+
+	final string[] WordMatches(string name) {
+		string[] ret;
+
+		foreach (ref word ; words) {
+			if (MatchMod(word.mod, word.name, name)) ret ~= word.name;
+		}
+
+		return ret;
 	}
 
 	final bool VariableExists(string name) => variables.any!(v => v.name == name);

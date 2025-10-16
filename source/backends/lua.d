@@ -25,29 +25,9 @@ private struct ArrayExtra {
 	ulong elements;
 }
 
-private enum WordType {
-	Callisto,
-	Lua
-}
-
-private struct Word {
-	WordType   type;
-	bool       inline;
-	Node[]     inlineNodes;
-	bool       error;
-	UsedType[] params;
-}
-
 class BackendLua : CompilerBackend {
-	Word[string] words;
-	string       thisFunc;
-	bool         inScope;
-	uint         blockCounter;
-	bool         inWhile;
-	uint         currentLoop;
-	bool         useLibc;
-	ulong        globalStack = 524288;
-	ulong        arrayStack = 524287;
+	ulong globalStack = 524288;
+	ulong arrayStack = 524287;
 
 	this() {
 		addrSize = 1;
@@ -218,8 +198,12 @@ class BackendLua : CompilerBackend {
 	}
 
 	override void CompileWord(WordNode node) {
-		if (node.name in words) {
-			auto word = words[node.name];
+		if (CountAll(node.name) > 1) {
+			Error(node.error, "Multiple matches for identifier '%s'", node.name);
+		}
+
+		if (WordExists(node.name)) {
+			auto word = GetWord(node.name);
 
 			if (word.inline) {
 				foreach (ref inode ; word.inlineNodes) {
@@ -227,27 +211,27 @@ class BackendLua : CompilerBackend {
 				}
 			}
 			else {
-				if (word.error && words[thisFunc].error) {
+				if (word.error && GetWord(thisFunc).error) {
 					output ~= "vsp = vsp - 1\n";
 					output ~= format("mem[vsp] = dsp - %d\n", word.params.length);
 				}
 
 				output ~= format("func__%s();\n", node.name.Sanitise());
 
-				if (word.error && words[thisFunc].error) {
+				if (word.error && GetWord(thisFunc).error) {
 					output ~= "dspRestore = mem[vsp]\n";
 					output ~= "vsp = vsp + 1\n";
 				}
 			}
 
 			if (word.error) {
-				if ("__lua_exception" in words) {
+				if (WordExists("__lua_exception")) {
 					bool crash;
 					auto exception = GetGlobal("_cal_exception");
 					auto extra     = cast(GlobalExtra*) exception.extra;
 
 					if (inScope) {
-						crash = !words[thisFunc].error;
+						crash = !GetWord(thisFunc).error;
 					}
 					else {
 						crash = true;
@@ -333,7 +317,7 @@ class BackendLua : CompilerBackend {
 	}
 
 	override void CompileFuncDef(FuncDefNode node) {
-		if (node.name in words) {
+		if (WordExistsHere(node.name)) {
 			Error(node.error, "Function name '%s' already used", node.name);
 		}
 		if (Language.bannedNames.canFind(node.name)) {
@@ -356,15 +340,19 @@ class BackendLua : CompilerBackend {
 			auto globalExtra = cast(GlobalExtra*) GetGlobal("_cal_exception").extra;
 			output ~= format("mem[%d] = 0\n", globalExtra.addr);
 
-			words[node.name] = Word(
-				WordType.Callisto, true, node.nodes, node.errors, params
+			words ~= Word(
+				output.GetModName(), node.name, WordType.Callisto, false, true,
+				node.nodes, node.errors, params
 			);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(WordType.Callisto, false, [], node.errors, params);
+			words ~= Word(
+				output.GetModName(), node.name, WordType.Callisto, false, false, [],
+				node.errors, params
+			);
 
 			output ~= format("function func__%s()\n", node.name.Sanitise());
 
@@ -553,8 +541,11 @@ class BackendLua : CompilerBackend {
 		if (!TypeExists(node.varType.name)) {
 			Error(node.error, "Undefined type '%s'", node.varType.name);
 		}
+		if (CountTypes(node.varType.name) > 1) {
+			Error(node.error, "Multiple matches for type '%s'", node.varType.name);
+		}
 		if (node.name != "") {
-			if (VariableExists(node.name) || (node.name in words)) {
+			if (VariableExists(node.name) || WordExistsHere(node.name)) {
 				Error(node.error, "Variable name '%s' already used", node.name);
 			}
 			if (Language.bannedNames.canFind(node.name)) {
@@ -786,7 +777,8 @@ class BackendLua : CompilerBackend {
 			}
 		}
 
-		words[node.func] = word;
+		word.name  = node.func;
+		words     ~= word;
 	}
 
 	override void CompileCall(WordNode node) {
@@ -794,7 +786,7 @@ class BackendLua : CompilerBackend {
 	}
 
 	override void CompileAddr(AddrNode node) {
-		if (node.func in words) {
+		if (WordExists(node.func)) {
 			Error(node.error, "Can't get addresses of functions in CallistoScript");
 		}
 		else if (GlobalExists(node.func)) {
@@ -996,11 +988,11 @@ class BackendLua : CompilerBackend {
 	}
 
 	override void CompileTryCatch(TryCatchNode node) {
-		if (node.func !in words) {
+		if (!WordExists(node.func)) {
 			Error(node.error, "Function '%s' doesn't exist", node.func);
 		}
 
-		auto word = words[node.func];
+		auto word = GetWord(node.func);
 
 		if (!word.error) {
 			Error(node.error, "Function '%s' doesn't throw", node.func);
@@ -1062,10 +1054,10 @@ class BackendLua : CompilerBackend {
 	}
 
 	override void CompileThrow(WordNode node) {
-		if (!inScope || (!words[thisFunc].error)) {
+		if (!inScope || (!GetWord(thisFunc).error)) {
 			Error(node.error, "Not in a function that can throw");
 		}
-		if (words[thisFunc].inline) {
+		if (GetWord(thisFunc).inline) {
 			Error(node.error, "Can't use throw in an inline function");
 		}
 

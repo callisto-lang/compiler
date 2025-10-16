@@ -15,23 +15,9 @@ import callisto.language;
 import callisto.preprocessor;
 import callisto.mod.sections;
 
-private struct Word {
-	bool       raw;
-	bool       inline;
-	Node[]     inlineNodes;
-	bool       error;
-	UsedType[] params;
-}
-
 class BackendUXN : CompilerBackend {
-	Word[string]     words;
-	uint             blockCounter; // used for block statements
-	bool             inScope;
-	string           thisFunc;
-	bool             inWhile;
-	uint             currentLoop;
-	uint             tempLabelNum;
-	string           assembler = "uxnasm";
+	uint   tempLabelNum;
+	string assembler = "uxnasm";
 
 	this() {
 		org      = 0x100;
@@ -145,7 +131,7 @@ class BackendUXN : CompilerBackend {
 	}
 
 	void CallFunction(string name) {
-		auto word = words[name];
+		auto word = GetWord(name);
 
 		if (word.inline) {
 			foreach (inode ; word.inlineNodes) {
@@ -186,7 +172,7 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 
-		if ("__uxn_program_exit" in words) {
+		if (WordExists("__uxn_program_exit")) {
 			CallFunction("__uxn_program_exit");
 		}
 		else {
@@ -195,7 +181,7 @@ class BackendUXN : CompilerBackend {
 
 		// create init function
 		output ~= "@init\n";
-		if ("__uxn_program_init" in words) {
+		if (WordExists("__uxn_program_init")) {
 			CallFunction("__uxn_program_init");
 		}
 		else {
@@ -323,8 +309,12 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileWord(WordNode node) {
-		if (node.name in words) {
-			auto word = words[node.name];
+		if (CountAll(node.name) > 1) {
+			Error(node.error, "Multiple matches for identifier '%s'", node.name);
+		}
+
+		if (WordExists(node.name)) {
+			auto word = GetWord(node.name);
 
 			if (word.inline) {
 				foreach (inode ; word.inlineNodes) {
@@ -336,7 +326,7 @@ class BackendUXN : CompilerBackend {
 					output ~= format("%s\n", node.name);
 				}
 				else {
-					if (word.error && words[thisFunc].error) {
+					if (word.error && GetWord(thisFunc).error) {
 						size_t paramSize = word.params.length * 2;
 
 						if (paramSize != 0) {
@@ -351,18 +341,18 @@ class BackendUXN : CompilerBackend {
 				
 					output ~= format("func__%s\n", node.name.Sanitise());
 
-					if (word.error && words[thisFunc].error) {
+					if (word.error && GetWord(thisFunc).error) {
 						output ~= "LITr -temp STZr\n";
 					}
 				}
 			}
 
 			if (word.error) {
-				if ("__uxn_exception" in words) {
+				if (WordExists("__uxn_exception")) {
 					bool crash;
 
 					if (inScope) {
-						crash = !words[thisFunc].error;
+						crash = !GetWord(thisFunc).error;
 					}
 					else {
 						crash = true;
@@ -457,7 +447,7 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileFuncDef(FuncDefNode node) {
-		if ((node.name in words) || VariableExists(node.name)) {
+		if ((WordExistsHere(node.name)) || VariableExists(node.name)) {
 			Error(node.error, "Function name '%s' already used", node.name);
 		}
 		if (Language.bannedNames.canFind(node.name)) {
@@ -481,13 +471,19 @@ class BackendUXN : CompilerBackend {
 				output ~= format("#0000 ;global_%s STA2\n", Sanitise("_cal_exception"));
 			}
 
-			words[node.name] = Word(false, true, node.nodes, node.errors, params);
+			words ~= Word(
+				output.GetModName(), node.name, WordType.Callisto, false, true,
+				node.nodes, node.errors, params
+			);
 		}
 		else {
 			assert(!inScope);
 			inScope = true;
 
-			words[node.name] = Word(node.raw, false, [], node.errors, params);
+			words ~= Word(
+				output.GetModName(), node.name, WordType.Callisto, node.raw,
+				false, [], node.errors, params
+			);
 
 			string symbol =
 				node.raw? node.name : format("func__%s", node.name.Sanitise());
@@ -689,7 +685,7 @@ class BackendUXN : CompilerBackend {
 			Error(node.error, "Undefined type '%s'", node.varType.name);
 		}
 		if (node.name != "") {
-			if (VariableExists(node.name) || (node.name in words)) {
+			if (VariableExists(node.name) || WordExistsHere(node.name)) {
 				Error(node.error, "Variable name '%s' already used", node.name);
 			}
 			if (Language.bannedNames.canFind(node.name)) {
@@ -896,8 +892,9 @@ class BackendUXN : CompilerBackend {
 		}
 
 		Word word;
-		word.raw         = node.externType == ExternType.Raw;
-		words[node.func] = word;
+		word.raw   = node.externType == ExternType.Raw;
+		word.name  = node.func;
+		words     ~= word;
 	}
 
 	override void CompileCall(WordNode node) {
@@ -905,8 +902,8 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileAddr(AddrNode node) {
-		if (node.func in words) {
-			auto   word   = words[node.func];
+		if (WordExists(node.func)) {
+			auto   word   = GetWord(node.func);
 			string symbol =
 				word.raw? node.func : format("func__%s", node.func.Sanitise());
 
@@ -1130,11 +1127,11 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileTryCatch(TryCatchNode node) {
-		if (node.func !in words) {
+		if (!WordExists(node.func)) {
 			Error(node.error, "Function '%s' doesn't exist", node.func);
 		}
 
-		auto word = words[node.func];
+		auto word = GetWord(node.func);
 
 		if (!word.error) {
 			Error(node.error, "Function '%s' doesn't throw", node.func);
@@ -1201,10 +1198,10 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileThrow(WordNode node) {
-		if (!inScope || (!words[thisFunc].error)) {
+		if (!inScope || (!GetWord(thisFunc).error)) {
 			Error(node.error, "Not in a function that can throw");
 		}
-		if (words[thisFunc].inline) {
+		if (GetWord(thisFunc).inline) {
 			Error(node.error, "Can't use throw in an inline function");
 		}
 

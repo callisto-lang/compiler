@@ -17,35 +17,8 @@ import callisto.language;
 import callisto.preprocessor;
 import callisto.mod.sections;
 
-private enum WordType {
-	Callisto,
-	Raw,
-	C
-}
-
-private struct Word {
-	string     mod;
-	string     name;
-	WordType   type;
-	bool       inline;
-	Node[]     inlineNodes;
-	bool       error;
-	UsedType[] params;
-	
-	// for C words
-	UsedType ret;
-	bool     isVoid;
-	string   symbolName;
-}
-
 class BackendARM64 : CompilerBackend {
-	Word[]           words;
-	string           thisFunc;
-	bool             inScope;
-	uint             blockCounter;
-	bool             inWhile;
-	uint             currentLoop;
-	bool             useLibc;
+	bool useLibc;
 
 	this() {
 		addrSize = 8;
@@ -99,51 +72,6 @@ class BackendARM64 : CompilerBackend {
 		foreach (ref type ; types) {
 			NewConst("core", format("%s.sizeOf", type.name), cast(long) type.size);
 		}
-	}
-
-	size_t CountWords(string name) {
-		size_t ret = 0;
-
-		foreach (ref word ; words) {
-			if (MatchMod(word.mod, word.name, name)) ++ ret;
-		}
-
-		return ret;
-	}
-
-	size_t CountAll(string name) {
-		return
-			CountWords(name) + CountTypes(name) + CountGlobals(name) + CountConsts(name);
-	}
-
-	Word GetWord(string name) {
-		foreach (ref word ; words) {
-			if (MatchMod(word.mod, word.name, name)) return word;
-		}
-
-		assert(0);
-	}
-
-	bool WordExists(string name) {
-		return words.any!(v => MatchMod(v.mod, v.name, name));
-	}
-
-	bool WordExistsHere(string name) {
-		return words.any!(v => (v.mod == output.GetModName()) && (v.name == name));
-	}
-
-	bool FullWordExists(string name) {
-		return words.any!(v => format("%s.%s", v.mod, v.name) == name);
-	}
-
-	string[] WordMatches(string name) {
-		string[] ret;
-
-		foreach (ref word ; words) {
-			if (MatchMod(word.mod, word.name, name)) ret ~= word.name;
-		}
-
-		return ret;
 	}
 
 	override string[] GetVersions() {
@@ -288,7 +216,7 @@ class BackendARM64 : CompilerBackend {
 
 	override void ImportFunc(FuncDefSection sect) {
 		words ~= Word(
-			sect.inMod, sect.name, WordType.Callisto, sect.inline,
+			sect.inMod, sect.name, WordType.Callisto, false, sect.inline,
 			sect.inline? ParseText(sect.assembly) : [], sect.error,
 			replicate([UsedType.init], sect.params)
 		);
@@ -794,7 +722,7 @@ class BackendARM64 : CompilerBackend {
 
 			words ~= Word(
 				output.GetModName(), node.name,
-				WordType.Callisto, true, node.nodes, node.errors, params
+				WordType.Callisto, false, true, node.nodes, node.errors, params
 			);
 
 			if (output.mode == OutputMode.Module) {
@@ -811,7 +739,7 @@ class BackendARM64 : CompilerBackend {
 
 			words ~= Word(
 				output.GetModName(), node.name, node.raw? WordType.Raw : WordType.Callisto,
-				false, [], node.errors, params,
+				false, false, [], node.errors, params,
 			);
 
 			string symbol =
