@@ -1487,6 +1487,22 @@ class BackendX86_64 : CompilerBackend {
 
 		word.name  = funcName;
 		words     ~= word;
+
+		if (node.externType == ExternType.C) {
+			auto sect    = new ExternSection();
+			sect.type    = ExternSectType.C;
+			sect.returns = word.isVoid?
+				[] : [ExternValue(word.ret.ptr, word.ret.FullName())];
+
+			foreach (ref param ; word.params) {
+				sect.params ~= ExternValue(param.ptr, param.FullName());
+			}
+
+			sect.symbolName = word.symbolName;
+			sect.funcName   = word.name;
+	
+			output.AddSection(sect);
+		}
 	}
 
 	override void CompileCall(WordNode node) {

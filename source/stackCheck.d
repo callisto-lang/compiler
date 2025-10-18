@@ -695,6 +695,15 @@ class StackChecker {
 						);
 						break;
 					}
+					case SectionType.Extern: {
+						auto sect = cast(ExternSection) isect;
+
+						words ~= Word(
+							sect.inMod, sect.funcName, false,
+							Effect(sect.returns.length, sect.params.length), false
+						);
+						break;
+					}
 					default: break;
 				}
 			}

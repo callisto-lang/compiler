@@ -20,6 +20,7 @@ It is made up of sections, each one has a byte describing what kind of section i
 | 0x0B | Structure            |
 | 0x0C | BSS section assembly |
 | 0x0D | Data section         |
+| 0x0E | Extern function      |
 
 Integers are little endian. Strings are null-terminated.
 
@@ -204,3 +205,34 @@ Enum entries follow this header.
 | -------------- | ------------ | -------------------------------------------------- |
 | 0              | 1            | Type - set to 0x0D                                 |
 | 1              | ?            | Assembly                                           |
+
+## Extern function
+| Offset (bytes) | Size (bytes) | Description                                        |
+| -------------- | ------------ | -------------------------------------------------- |
+| 0              | 1            | Type - set to 0x0E                                 |
+| 1              | 1            | Extern type - see below table                      |
+| 2              | 4            | Number of return values                            |
+| 4              | 4            | Number of parameters                               |
+| 8              | ?            | String - symbol name                               |
+| ?              | ?            | String - function name                             |
+
+After this, there are the return values, and then the parameters. Both have this
+format per value:
+
+| Offset (bytes) | Size (bytes) | Description                                        |
+| -------------- | ------------ | -------------------------------------------------- |
+| 0              | 1            | Bool - is pointer?                                 |
+| 1              | ?            | Name of type                                       |
+
+Extern types:
+
+| Value | Name        |
+| ----- | ----------- |
+| 0     | Callisto    |
+| 1     | Raw         |
+| 2     | C           |
+
+Callisto externs are currently due to be replaced with a better version, and raw
+externs are going to be removed. Do not use either.
+
+C externs must have either no return values (void) or one return value.

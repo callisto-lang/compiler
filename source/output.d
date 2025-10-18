@@ -86,6 +86,7 @@ class Output {
 			case SectionType.Struct:    sect = new StructSection();    break;
 			case SectionType.BSS:       sect = new BSSSection();       break;
 			case SectionType.Data:      sect = new DataSection();      break;
+			case SectionType.Extern:    sect = new ExternSection();    break;
 		}
 
 		sect.inMod = mod.name;

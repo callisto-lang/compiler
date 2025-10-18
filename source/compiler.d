@@ -468,7 +468,9 @@ class CompilerBackend {
 		assert(0);
 	}
 
-	final bool TypeExists(string name) => types.any!(v => v.name == name);
+	final bool TypeExists(string name) {
+		return types.any!(v => MatchMod(v.mod, v.name, name));
+	}
 
 	final bool TypeExistsHere(string name) {
 		if (output.mode == OutputMode.Module) {
@@ -856,7 +858,7 @@ class Compiler {
 	}
 
 	void ErrorSect(Char, A...)(Section sect, in Char[] fmt, A args) {
-		ErrorNoInfo("In module '%s': %s", sect.inMod, format(fmt, args));
+		ErrorNoInfo("In module '%s': %s\n%s", sect.inMod, format(fmt, args), sect);
 	}
 
 	void ImportConst(ConstSection sect) {
@@ -1003,6 +1005,52 @@ class Compiler {
 		backend.types ~= type;
 	}
 
+	void ImportExtern(ExternSection sect) {
+		if (sect.type == ExternSectType.Callisto) {
+			ErrorSect(sect,
+				"Callisto externs currently should not be used until they are updated"
+			);
+		}
+		if (sect.type == ExternSectType.Raw) {
+			ErrorSect(sect, "Raw externs are deprecated");
+		}
+
+		assert(sect.type == ExternSectType.C);
+
+		Word word;
+		word.mod        = sect.inMod;
+		word.name       = sect.funcName;
+		word.symbolName = sect.symbolName;
+		word.type       = WordType.C;
+
+		foreach (ref param ; sect.params) {
+			if (!backend.TypeExists(param.type)) {
+				ErrorSect(sect, "Unknown type '%s'", param.type);
+			}
+
+			UsedType type  = UsedType(backend.GetType(param.type), param.ptr);
+			word.params   ~= type;
+		}
+
+		if (sect.returns.length == 1) {
+			if (!backend.TypeExists(sect.returns[0].type)) {
+				ErrorSect(sect, "Unknown type '%s'", sect.returns[0].type);
+			}
+
+			word.ret = UsedType(
+				backend.GetType(sect.returns[0].type), sect.returns[0].ptr
+			);
+		}
+		else if (sect.returns.length == 0) {
+			word.isVoid = true;
+		}
+		else  {
+			ErrorSect(sect, "C externs must only have 0 or 1 return value");
+		}
+
+		backend.words ~= word;
+	}
+
 	void Compile(Node[] nodes) {
 		assert(backend !is null);
 		assert(addrSize != 0);
@@ -1028,6 +1076,7 @@ class Compiler {
 					}
 					case SectionType.Let:    ImportLet(cast(LetSection) sect); break;
 					case SectionType.Struct: ImportStruct(cast(StructSection) sect); break;
+					case SectionType.Extern: ImportExtern(cast(ExternSection) sect); break;
 					default: break;
 				}
 			}

@@ -57,6 +57,7 @@ class Module {
 				case SectionType.Struct:    sect = new StructSection();    break;
 				case SectionType.BSS:       sect = new BSSSection();       break;
 				case SectionType.Data:      sect = new DataSection();      break;
+				case SectionType.Extern:    sect = new ExternSection();    break;
 				default: {
 					stderr.writefln("Invalid section type: %.2X", type);
 					throw new ModuleException("Invalid section type");

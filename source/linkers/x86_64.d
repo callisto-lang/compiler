@@ -23,14 +23,15 @@ private struct Func {
 
 // TODO: link time optimisation
 class LinkerX86_64 : Linker {
-	string tlcAsm;
-	string funcAsm;
-	string bssAsm;
-	string dataAsm;
-	bool   useGas;
-	bool   useLibc;
-	bool   keepAsm;
-	bool   debugInfo;
+	string   tlcAsm;
+	string   funcAsm;
+	string   bssAsm;
+	string   dataAsm;
+	string[] externs;
+	bool     useGas;
+	bool     useLibc;
+	bool     keepAsm;
+	bool     debugInfo;
 
 	Func[] funcs;
 
@@ -118,6 +119,11 @@ class LinkerX86_64 : Linker {
 					dataAsm   ~= sect.assembly;
 					break;
 				}
+				case SectionType.Extern: {
+					auto sect  = cast(ExternSection) isect;
+					externs   ~= sect.symbolName;
+					break;
+				}
 				default: break;
 			}
 		}
@@ -141,6 +147,10 @@ class LinkerX86_64 : Linker {
 		}
 		else {
 			file.writeln("section .text");
+		}
+
+		foreach (ref ext ; externs) {
+			file.writefln("%sextern %s", useGas? "." : "", ext);
 		}
 
 		if (os == ModOS.macOS) {
@@ -222,7 +232,23 @@ class LinkerX86_64 : Linker {
 		backend.useLibc          = useLibc;
 		backend.keepAssembly     = keepAsm;
 		backend.useDebug         = debugInfo;
-		auto commands            = backend.FinalCommands();
+
+		final switch (os) {
+			case ModOS.None:    backend.os = "bare-metal"; break;
+			case ModOS.Linux:   backend.os = "linux"; break;
+			case ModOS.macOS:   backend.os = "osx"; break;
+			case ModOS.Windows: backend.os = "windows"; break;
+			case ModOS.DOS:     backend.os = "dos"; break;
+			case ModOS.FreeBSD: backend.os = "freebsd"; break;
+			case ModOS.Varvara: backend.os = "varvara"; break;
+			case ModOS.Fox32OS: backend.os = "fox32os"; break;
+		}
+
+		if (useLibc) {
+			backend.link ~= "c";
+		}
+
+		auto commands = backend.FinalCommands();
 
 		foreach (cmd ; commands) {
 			writeln(cmd);

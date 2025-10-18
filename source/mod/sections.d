@@ -23,14 +23,14 @@ enum ModCPU : SectionInt {
 }
 
 enum ModOS : SectionInt {
-	None            = 0x0000,
-	Linux           = 0x0001,
-	macOS           = 0x0002,
-	Windows         = 0x0003,
-	DOS             = 0x0004,
-	FreeBSD         = 0x0005,
-	Varvara         = 0x0006,
-	Fox32OS         = 0x0007
+	None    = 0x0000,
+	Linux   = 0x0001,
+	macOS   = 0x0002,
+	Windows = 0x0003,
+	DOS     = 0x0004,
+	FreeBSD = 0x0005,
+	Varvara = 0x0006,
+	Fox32OS = 0x0007
 }
 
 enum SectionType : ubyte {
@@ -47,7 +47,8 @@ enum SectionType : ubyte {
 	Let       = 0x0A,
 	Struct    = 0x0B,
 	BSS       = 0x0C,
-	Data      = 0x0D
+	Data      = 0x0D,
+	Extern    = 0x0E
 }
 
 class SectionException : Exception {
@@ -712,6 +713,76 @@ class DataSection : Section {
 		str ~= "==== DATA ====\n";
 		str ~= "Assembly:\n";
 		str ~= '\t' ~ assembly.replace("\n", "\n\t") ~ '\n';
+		return str;
+	}
+}
+
+enum ExternSectType : ubyte {
+	Callisto = 0,
+	Raw      = 1,
+	C        = 2
+}
+
+struct ExternValue {
+	bool   ptr;
+	string type;
+
+	void Write(File file) {
+		file.WriteByte(ptr? 1 : 0);
+		file.WriteString(type);
+	}
+
+	static ExternValue Read(File file) {
+		ExternValue ret;
+		ret.ptr  = file.ReadByte() != 0;
+		ret.type = file.ReadString();
+		return ret;
+	}
+}
+
+class ExternSection : Section {
+	ExternSectType type;
+	ExternValue[]  returns;
+	ExternValue[]  params;
+	string         symbolName;
+	string         funcName;
+
+	override SectionType GetType() => SectionType.Extern;
+
+	override void Write(File file) {
+		file.WriteByte(type);
+		file.WriteInt(returns.length);
+		file.WriteInt(params.length);
+		file.WriteString(symbolName);
+		file.WriteString(funcName);
+
+		foreach (ref val ; returns ~ params) {
+			val.Write(file);
+		}
+	}
+
+	override void Read(File file, bool skip) {
+		type       = cast(ExternSectType) file.ReadByte();
+		returns    = new ExternValue[file.ReadInt()];
+		params     = new ExternValue[file.ReadInt()];
+		symbolName = file.ReadString();
+		funcName   = file.ReadString();
+
+		foreach (i, ref val ; returns) {
+			returns[i] = ExternValue.Read(file);
+		}
+		foreach (i, ref val ; params) {
+			params[i] = ExternValue.Read(file);
+		}
+	}
+
+	override string toString() {
+		string str;
+		str ~= "==== EXTERN ====\n";
+		str ~= format("%s as %s\n", symbolName, funcName);
+		str ~= format("Returns: %s\n", returns);
+		str ~= format("Params:  %s\n", params);
+		str ~= format("Type:    %s\n", type);
 		return str;
 	}
 }
