@@ -2,7 +2,9 @@ module callisto.linker;
 
 import std.path;
 import std.stdio;
+import std.format;
 import std.algorithm;
+import callisto.util;
 import callisto.error;
 import callisto.mod.mod;
 import callisto.mod.sections;
@@ -11,14 +13,109 @@ import callisto.linkers.arm64;
 
 // NOT an object file linker, this is for linking module files
 
+struct Func {
+	string mod;
+	string name;
+	bool   inline;
+
+	string Label() => format("__func__%s__sep__%s", mod, name.Sanitise());
+}
+
 class Linker {
 	ModOS          os;
 	string         outFile;
 	Module[string] mods;
 	string[]       added;
 
+	string   tlcAsm;
+	string   funcAsm;
+	string   bssAsm;
+	string   dataAsm;
+	string[] externs;
+	Func[]   funcs;
+
+	bool FuncExists(string name) {
+		foreach (ref func ; funcs) {
+			if (func.name == name) return true;
+		}
+
+		return false;
+	}
+
+	size_t CountFuncs(string name) {
+		size_t ret;
+
+		foreach (ref func ; funcs) {
+			if (func.name == name) ++ ret;
+		}
+
+		return ret;
+	}
+
+	Func GetFunc(string name) {
+		foreach (ref func ; funcs) {
+			if (func.name == name) return func;
+		}
+		assert(0);
+	}
+
+	void CheckForOneFunc(string name) {
+		if (CountFuncs(name) != 1) {
+			ErrorNoInfo("Linker requires one function named `%s`", name);
+		}
+		if (GetFunc(name).inline) {
+			ErrorNoInfo("Linker requires that the function '%s' is not inline", name);
+		}
+	}
+
+	void Add(Module mod) {
+		foreach (ref isect ; mod.sections) {
+			switch (isect.GetType()) {
+				case SectionType.TopLevel: {
+					auto sect  = cast(TopLevelSection) isect;
+					tlcAsm    ~= sect.assembly;
+					break;
+				}
+				case SectionType.FuncDef: {
+					auto sect = cast(FuncDefSection) isect;
+
+					if (!sect.inline) {
+						funcAsm ~= sect.assembly;
+					}
+
+					Func func;
+					func.mod    = mod.name;
+					func.name   = sect.name;
+					func.inline = sect.inline;
+					funcs     ~= func;
+					break;
+				}
+				case SectionType.Implement: {
+					auto sect  = cast(ImplementSection) isect;
+					funcAsm   ~= sect.assembly;
+					break;
+				}
+				case SectionType.BSS: {
+					auto sect  = cast(BSSSection) isect;
+					bssAsm    ~= sect.assembly;
+					break;
+				}
+				case SectionType.Data: {
+					auto sect  = cast(DataSection) isect;
+					dataAsm   ~= sect.assembly;
+					break;
+				}
+				case SectionType.Extern: {
+					auto sect  = cast(ExternSection) isect;
+					externs   ~= sect.symbolName;
+					break;
+				}
+				default: break;
+			}
+		}
+	}
+
 	abstract bool HandleOption(string opt);
-	abstract void Add(Module mod);
 	abstract void Link();
 
 	void AddImports(Module mod, string name) {

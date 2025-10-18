@@ -13,48 +13,11 @@ import callisto.compiler;
 import callisto.mod.sections;
 import callisto.backends.arm64;
 
-private struct Func {
-	string mod;
-	string name;
-	bool   inline;
-
-	string Label() => format("__func__%s__sep__%s", mod, name.Sanitise());
-}
-
 // TOOD: lift common code into Linker?
 class LinkerARM64 : Linker {
-	string tlcAsm;
-	string funcAsm;
-	string bssAsm;
-	string dataAsm;
-	bool   useLibc;
+	bool useLibc;
 
 	Func[] funcs;
-
-	bool FuncExists(string name) {
-		foreach (ref func ; funcs) {
-			if (func.name == name) return true;
-		}
-
-		return false;
-	}
-
-	size_t CountFuncs(string name) {
-		size_t ret;
-
-		foreach (ref func ; funcs) {
-			if (func.name == name) ++ ret;
-		}
-
-		return ret;
-	}
-
-	Func GetFunc(string name) {
-		foreach (ref func ; funcs) {
-			if (func.name == name) return func;
-		}
-		assert(0);
-	}
 
 	override bool HandleOption(string opt) {
 		switch (opt) {
@@ -63,57 +26,6 @@ class LinkerARM64 : Linker {
 				return true;
 			}
 			default: return false;
-		}
-	}
-
-	override void Add(Module mod) {
-		foreach (ref isect ; mod.sections) {
-			switch (isect.GetType()) {
-				case SectionType.TopLevel: {
-					auto sect  = cast(TopLevelSection) isect;
-					tlcAsm    ~= sect.assembly;
-					break;
-				}
-				case SectionType.FuncDef: {
-					auto sect = cast(FuncDefSection) isect;
-
-					if (!sect.inline) {
-						funcAsm ~= sect.assembly;
-					}
-
-					Func func;
-					func.mod    = mod.name;
-					func.name   = sect.name;
-					func.inline = sect.inline;
-					funcs     ~= func;
-					break;
-				}
-				case SectionType.Implement: {
-					auto sect  = cast(ImplementSection) isect;
-					funcAsm   ~= sect.assembly;
-					break;
-				}
-				case SectionType.BSS: {
-					auto sect  = cast(BSSSection) isect;
-					bssAsm    ~= sect.assembly;
-					break;
-				}
-				case SectionType.Data: {
-					auto sect  = cast(DataSection) isect;
-					dataAsm   ~= sect.assembly;
-					break;
-				}
-				default: break;
-			}
-		}
-	}
-
-	void CheckForOneFunc(string name) {
-		if (CountFuncs(name) != 1) {
-			ErrorNoInfo("Linker requires one function named `%s`", name);
-		}
-		if (GetFunc(name).inline) {
-			ErrorNoInfo("Linker requires that the function '%s' is not inline", name);
 		}
 	}
 
@@ -169,19 +81,15 @@ class LinkerARM64 : Linker {
 		backend.compiler.outFile = outFile;
 		backend.output           = new Output("");
 		backend.useLibc          = useLibc;
+
 		switch (os) {
-			case ModOS.macOS:
-				backend.os = "osx";
-				break;
-			case ModOS.Linux:
-				backend.os = "linux";
-				break;
-			case ModOS.None:
-				backend.os = "bare-metal";
-				break;
+			case ModOS.macOS: backend.os = "osx"; break;
+			case ModOS.Linux: backend.os = "linux"; break;
+			case ModOS.None:  backend.os = "bare-metal"; break;
 			default: break;
 		}
-		auto commands            = backend.FinalCommands();
+
+		auto commands = backend.FinalCommands();
 
 		foreach (cmd ; commands) {
 			writeln(cmd);
