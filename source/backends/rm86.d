@@ -83,8 +83,8 @@ class BackendRM86 : CompilerBackend {
 		keepAssembly? "" : format("rm %s.asm", compiler.outFile)
 	];
 
-	override long MaxInt() => 0xFFFF;
-
+	override long   MaxInt()        => 0xFFFF;
+	override string ExecExt()       => ".com";
 	override string DefaultHeader() => "";
 
 	override bool HandleOption(string opt, ref string[] versions, Preprocessor preproc) {
@@ -96,23 +96,33 @@ class BackendRM86 : CompilerBackend {
 			default: return false;
 		}
 	}
-	
-	override void ImportFunc(FuncDefSection sect) {
-		assert(0);
-	}
 
 	override void BeginMain() {
-		output ~= "__calmain:\n";
+		output.StartSection(SectionType.TopLevel);
+		if (output.mode != OutputMode.Module) {
+			output ~= "__calmain:\n";
+		}
 
 		// call globals
 		// what?
 		foreach (global ; globals) {
 			if (global.type.hasInit && !global.type.ptr) {
+				if (
+					(output.mode == OutputMode.Module) &&
+					(global.mod != output.GetModName())
+				) {
+					continue;
+				}
+
 				output ~= format(
-					"mov word [si], word __global_%s\n", global.name.Sanitise()
+					"mov word [si], word %s\n",
+					Label("__global_", "%s", global.name.Sanitise())
 				);
 				output ~= "add si, 2\n";
-				output ~= format("call __type_init_%s\n", global.type.name.Sanitise());
+				output ~= format(
+					"call %s\n",
+					Label("__type_init_", "%s", global.type.name.Sanitise())
+				);
 			}
 		}
 	}
@@ -136,9 +146,13 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override void Init() {
-		if (org == 0xFFFF) {
+		if (org == 0xFFFFFFFFFFFFFFFF) {
 			switch (os) {
-				case "dos": org = 0x100; break;
+				case "dos": {
+					org    = 0x100;
+					orgSet = true;
+					break;
+				}
 				default: {
 					WarnNoInfo("No org seems to be set");
 				}
@@ -149,6 +163,8 @@ class BackendRM86 : CompilerBackend {
 		if (!oses.canFind(os)) {
 			ErrorNoInfo("Backend doesn't support operating system '%s'", os);
 		}
+
+		if (output.mode == OutputMode.Module) return;
 
 		output ~= format("org 0x%.4X\n", org);
 		output ~= "call __init\n";
@@ -165,29 +181,40 @@ class BackendRM86 : CompilerBackend {
 			}
 		}
 
-		if (WordExists("__rm86_program_exit")) {
-			CallFunction("__rm86_program_exit");
-		}
-		else {
-			WarnNoInfo("No exit function available, expect bugs");
+		if (output.mode != OutputMode.Module) {
+			if (WordExists("__rm86_program_exit")) {
+				CallFunction("__rm86_program_exit");
+			}
+			else {
+				WarnNoInfo("No exit function available, expect bugs");
+			}
+
+			// create init function
+			output ~= "__init:\n";
+			if (WordExists("__rm86_program_init")) {
+				CallFunction("__rm86_program_init");
+			}
+			else {
+				WarnNoInfo("No program init function available");
+			}
+			output ~= "ret\n";
+
+			output ~= "__exception: times 8 db 0\n";
 		}
 
-		// create init function
-		output ~= "__init:\n";
-		if (WordExists("__rm86_program_init")) {
-			CallFunction("__rm86_program_init");
-		}
-		else {
-			WarnNoInfo("No program init function available");
-		}
-		output ~= "ret\n";
+		// end top level code
+		output.FinishSection();
 
+		output.StartSection(SectionType.Data);
 		foreach (var ; globals) {
-			output ~= format("__global_%s: times %d db 0\n", var.name.Sanitise(), var.Size());
+			output ~= format(
+				"%s: times %d db 0\n",
+				Label("__global_", "%s", var.name.Sanitise()), var.Size()
+			);
 		}
 
 		foreach (i, ref array ; arrays) {
-			output ~= format("__array_%d: ", i);
+			output ~= format("%s: ", Label("__array_", "%d", i));
 
 			switch (array.type.Size()) {
 				case 1:  output ~= "db "; break;
@@ -203,15 +230,19 @@ class BackendRM86 : CompilerBackend {
 
 			if (array.global) {
 				output ~= format(
-					"__array_%d_meta: dw %d, %d, __array_%d\n", i,
+					"%s: dw %d, %d, __array_%d\n",
+					Label("__array_", "%d_meta", i),
 					array.values.length,
 					array.type.Size(),
 					i
 				);
 			}
 		}
+		output.FinishSection();
 
-		output ~= "__stack: times 512 dw 0\n";
+		if (output.mode != OutputMode.Module) {
+			output ~= "__stack: times 512 dw 0\n";
+		}
 	}
 
 	void PushVariableValue(
@@ -260,7 +291,7 @@ class BackendRM86 : CompilerBackend {
 			size = var.type.Size();
 		}
 
-		string symbol = format("__global_%s", var.name.Sanitise());
+		string symbol = ExtLabel(var.mod, "__global_", "%s", var.name.Sanitise());
 
 		if (deref) {
 			output ~= format("mov bx, [%s]\n", symbol);
@@ -320,7 +351,8 @@ class BackendRM86 : CompilerBackend {
 						}
 					}
 					
-					output ~= format("call __func__%s\n", node.name.Sanitise());
+					output ~= format("call %s\n", Label(word));
+					output.AddCall(node.name);
 
 					if (word.error && GetWord(thisFunc).error) {
 						output ~= "pop di\n";
@@ -340,15 +372,17 @@ class BackendRM86 : CompilerBackend {
 					}
 
 					if (crash) {
-						output ~= format("mov bx, __global_%s\n", Sanitise("_cal_exception"));
+						output ~= format("mov bx, __exception\n");
 						output ~= "mov ax, [bx]\n";
 						output ~= "cmp ax, 0\n";
-						output ~= format("jne __func__%s\n", Sanitise("__rm86_exception"));
+
+						auto handler = GetWord("__rm86_exception");
+						output ~= format("jne %s\n", Label(handler));
 					}
 					else {
 						string temp = TempLabel();
 
-						output ~= format("cmp word [__global_%s], 0\n", Sanitise("_cal_exception"));
+						output ~= format("cmp word [__exception], 0\n");
 						output ~= format("je %s\n", temp);
 						output ~= "mov si, di\n";
 						CompileReturn(node);
@@ -442,9 +476,20 @@ class BackendRM86 : CompilerBackend {
 			params ~= UsedType(GetType(type.name), type.ptr);
 		}
 
+		output.StartSection(SectionType.FuncDef);
+		if (output.mode == OutputMode.Module) {
+			auto sect   = output.ThisSection!FuncDefSection();
+			sect.pub    = true; // TODO: add private functions
+			sect.inline = node.inline;
+			sect.calls  = []; // TODO: add this for inline functions (IMPORTANT)
+			sect.name   = node.name;
+			sect.params = params.length;
+			sect.ret    = node.returnTypes.length;
+		}
+
 		if (node.inline) {
 			if (node.errors) {
-				output ~= format("mov word [__global_%s], 0\n", Sanitise("_cal_exception"));
+				output ~= "mov word [__exception], 0\n";
 			}
 
 			words ~= Word(
@@ -462,12 +507,12 @@ class BackendRM86 : CompilerBackend {
 			);
 
 			string symbol =
-				node.raw? node.name : format("__func__%s", node.name.Sanitise());
+				node.raw? node.name : Label("__func__", "%s", node.name.Sanitise());
 
 			output ~= format("%s:\n", symbol);
 
 			if (node.errors) {
-				output ~= format("mov word [__global_%s], 0\n", Sanitise("_cal_exception"));
+				output ~= "mov word [__exception], 0\n";
 			}
 
 			// allocate parameters
@@ -523,7 +568,12 @@ class BackendRM86 : CompilerBackend {
 					output ~= format("lea ax, [sp + %d\n]", var.offset);
 					output ~= "mov [si], ax\n";
 					output ~= "add si, 2\n";
-					output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+					output ~= format(
+						"call %s\n", ExtLabel(
+							var.type.mod, "__type_deinit_", "%s",
+							var.type.name.Sanitise()
+						)
+					);
 				}
 			}
 			if (scopeSize == 1) {
@@ -538,6 +588,8 @@ class BackendRM86 : CompilerBackend {
 			variables  = [];
 			inScope    = false;
 		}
+
+		output.FinishSection();
 	}
 
 	override void CompileIf(IfNode node) {
@@ -570,7 +622,11 @@ class BackendRM86 : CompilerBackend {
 				output ~= format("lea ax, [sp + %d\n]", var.offset);
 				output ~= "mov [si], ax\n";
 				output ~= "add si, 2\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format(
+					"call %s\n", ExtLabel(
+						var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()
+					)
+				);
 			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format("add sp, %d\n", GetStackSize() - oldSize);
@@ -600,7 +656,11 @@ class BackendRM86 : CompilerBackend {
 				output ~= format("lea ax, [sp + %d\n]", var.offset);
 				output ~= "mov [si], ax\n";
 				output ~= "add si, 2\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format(
+					"call %s\n", ExtLabel(
+						var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()
+					)
+				);
 			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format("add sp, %d\n", GetStackSize() - oldSize);
@@ -639,7 +699,11 @@ class BackendRM86 : CompilerBackend {
 			output ~= format("lea ax, [sp + %d\n]", var.offset);
 			output ~= "mov [si], ax\n";
 			output ~= "add si, 2\n";
-			output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+			output ~= format(
+				"call %s\n", ExtLabel(
+					var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()
+				)
+			);
 		}
 		if (GetStackSize() - oldSize > 0) {
 			output ~= format("add sp, %d\n", GetStackSize() - oldSize);
@@ -664,6 +728,9 @@ class BackendRM86 : CompilerBackend {
 	override void CompileLet(LetNode node) {
 		if (!TypeExists(node.varType.name)) {
 			Error(node.error, "Undefined type '%s'", node.varType.name);
+		}
+		if (CountTypes(node.varType.name) > 1) {
+			Error(node.error, "Multiple matches for type '%s'", node.varType.name);
 		}
 		if (node.name != "") {
 			if (VariableExists(node.name) || WordExistsHere(node.name)) {
@@ -703,7 +770,10 @@ class BackendRM86 : CompilerBackend {
 			if (var.type.hasInit && !var.type.ptr) { // call constructor
 				output ~= "mov [si], sp\n";
 				output ~= "add si, 2\n";
-				output ~= format("call __type_init_%s\n", Sanitise(var.type.name));
+				output ~= format(
+					"call %s\n",
+					ExtLabel(var.type.mod, "__type_init_", "%s", var.type.name.Sanitise())
+				);
 			}
 		}
 		else {
@@ -716,6 +786,7 @@ class BackendRM86 : CompilerBackend {
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
 			global.name        = node.name;
+			global.mod         = output.GetModName();
 			globals           ~= global;
 
 			if (global.name == "") {
@@ -728,6 +799,8 @@ class BackendRM86 : CompilerBackend {
 			if (!orgSet) {
 				Warn(node.error, "Declaring global variables without a set org value");
 			}
+
+			output.AddGlobal(global);
 		}
 	} 
 
@@ -765,7 +838,9 @@ class BackendRM86 : CompilerBackend {
 				Warn(node.error, "Using array literals without a set org value");
 			}
 
-			output ~= format("mov word [si], __array_%d_meta\n", arrays.length - 1);
+			output ~= format(
+				"mov word [si], %s\n", Label("__array_", "%d_meta", arrays.length - 1)
+			);
 			output ~= "add si, 2\n";
 		}
 		else {
@@ -843,7 +918,11 @@ class BackendRM86 : CompilerBackend {
 				output ~= format("lea ax, [sp + %d\n]", var.offset);
 				output ~= "mov [si], ax\n";
 				output ~= "add si, 2\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format(
+					"call %s\n", ExtLabel(
+						var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()
+					)
+				);
 			}
 		}
 		if (scopeSize == 1) {
@@ -890,10 +969,13 @@ class BackendRM86 : CompilerBackend {
 	}
 
 	override void CompileAddr(AddrNode node) {
+		if (CountAll(node.func) > 1) {
+			Error(node.error, "Multiple matches for identifier '%s'", node.func);
+		}
+
 		if (WordExists(node.func)) {
 			auto   word   = GetWord(node.func);
-			string symbol =
-				word.raw? node.func : format("__func__%s", node.func.Sanitise());
+			string symbol = word.raw? node.func : Label(word);
 
 			output ~= format("mov ax, %s\n", symbol);
 			output ~= "mov [si], ax\n";
@@ -903,7 +985,8 @@ class BackendRM86 : CompilerBackend {
 			auto var = GetGlobal(node.func);
 
 			output ~= format(
-				"mov [si], word __global_%s\n", node.func.Sanitise()
+				"mov [si], word %s\n",
+				ExtLabel(var.mod, "__global_", "%s", node.func.Sanitise())
 			);
 			output ~= "add si, 2\n";
 		}
@@ -923,16 +1006,19 @@ class BackendRM86 : CompilerBackend {
 			size_t offset  = structVar.offset;
 
 			if (GlobalExists(name)) {
+				if (CountGlobals(name) > 1) {
+					Error(node.error, "Multiple matches for identifier '%s'", name);
+				}
 				auto var = GetGlobal(name);
 
+				string label = ExtLabel(var.mod, "__global_", "%s", name.Sanitise());
+
 				if (var.type.ptr) {
-					output ~= format("mov bx, [__global_%s]\n", name.Sanitise());
+					output ~= format("mov bx, [%s]\n", label);
 					output ~= format("lea ax, [bx + %d]\n", offset);
 				}
 				else {
-					output ~= format(
-						"lea ax, [__global_%s + %d]\n", name.Sanitise(), offset
-					);
+					output ~= format("lea ax, [%s + %d]\n", label, offset);
 				}
 
 				output ~= "mov [si], ax\n";
@@ -969,7 +1055,14 @@ class BackendRM86 : CompilerBackend {
 		if (!TypeExists(node.structure)) {
 			Error(node.error, "Type '%s' doesn't exist", node.structure);
 		}
+		if (CountTypes(node.structure) > 1) {
+			Error(node.error, "Multiple matches for type '%s'", node.structure);
+		}
 		auto type = GetType(node.structure);
+
+		if (type.mod != output.GetModName()) {
+			Error(node.error, "Cannot implement method for type defined outside of this module");
+		}
 
 		string labelName;
 
@@ -1000,6 +1093,13 @@ class BackendRM86 : CompilerBackend {
 		assert(!inScope);
 		inScope = true;
 
+		output.StartSection(SectionType.Implement);
+		if (output.mode == OutputMode.Module) {
+			auto sect   = cast(ImplementSection) output.sect;
+			sect.type   = type.name;
+			sect.method = node.method;
+		}
+
 		output ~= format("%s:\n", labelName);
 
 		foreach (ref inode ; node.nodes) {
@@ -1014,7 +1114,11 @@ class BackendRM86 : CompilerBackend {
 				output ~= format("lea ax, [sp + %d\n]", var.offset);
 				output ~= "mov [si], ax\n";
 				output ~= "add si, 2\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format(
+					"call %s\n", ExtLabel(
+						var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()
+					)
+				);
 			}
 		}
 		if (scopeSize == 1) {
@@ -1027,6 +1131,8 @@ class BackendRM86 : CompilerBackend {
 		output    ~= "ret\n";
 		inScope    = false;
 		variables  = [];
+
+		output.FinishSection();
 	}
 
 	void SetVariable(
@@ -1065,7 +1171,7 @@ class BackendRM86 : CompilerBackend {
 			size = global.type.Size();
 		}
 
-		string symbol = format("__global_%s", global.name.Sanitise());
+		string symbol = ExtLabel(global.mod, "__global_", "%s", global.name.Sanitise());
 
 		if (deref) {
 			output ~= format("mov bx, [%s]\n", symbol);
@@ -1191,7 +1297,11 @@ class BackendRM86 : CompilerBackend {
 			output ~= format("lea ax, [sp + %d\n]", var.offset);
 			output ~= "mov [si], ax\n";
 			output ~= "add si, 2\n";
-			output ~= format("call __type_deinit_%s\n", Sanitise(var.type.name));
+			output ~= format(
+				"call %s\n", ExtLabel(
+					var.type.mod, "__type_deinit_", "%s", var.type.name.Sanitise()
+				)
+			);
 		}
 		if (GetStackSize() - oldSize > 0) {
 			output ~= format("add sp, %d\n", GetStackSize() - oldSize);

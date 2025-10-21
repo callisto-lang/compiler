@@ -80,7 +80,8 @@ class BackendUXN : CompilerBackend {
 		keepAssembly? "" : format("rm %s.tal", compiler.outFile)
 	];
 
-	override long MaxInt() => 0xFFFF;
+	override long   MaxInt()  => 0xFFFF;
+	override string ExecExt() => ".rom";
 
 	override string DefaultHeader() => "
 		|00 @System &vector $2 &expansion $2 &wst $1 &rst $1 &metadata $2 &r $2 &g $2 &b $2 &debug $1 &state $1
@@ -113,10 +114,6 @@ class BackendUXN : CompilerBackend {
 		else {
 			return false;
 		}
-	}
-	
-	override void ImportFunc(FuncDefSection sect) {
-		assert(0);
 	}
 
 	override void BeginMain() {

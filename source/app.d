@@ -406,6 +406,10 @@ int main(string[] args) {
 			outFile = "out";
 		}
 
+		if (!outFile.endsWith(backend.ExecExt())) {
+			outFile ~= backend.ExecExt();
+		}
+
 		backend.output = new Output(outFile);
 	}
 

@@ -126,7 +126,7 @@ class CompilerBackend {
 	bool             inWhile;
 	uint             currentLoop;
 	Output           output;
-	ulong            org;
+	ulong            org = 0xFFFFFFFFFFFFFFFF;
 	bool             orgSet;
 	Compiler         compiler;
 	bool             useDebug;
@@ -145,6 +145,7 @@ class CompilerBackend {
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
 	abstract long     MaxInt();
+	abstract string   ExecExt();
 	abstract string   DefaultHeader();
 	abstract bool     HandleOption(string opt, ref string[] versions, Preprocessor preproc);
 
@@ -158,7 +159,6 @@ class CompilerBackend {
 
 	void BeforeCompile(Node node) {}
 
-	abstract void ImportFunc(FuncDefSection sect);
 	abstract void BeginMain();
 
 	abstract void Init();
@@ -409,6 +409,31 @@ class CompilerBackend {
 		WarningBegin(error);
 		stderr.writeln(format(fmt, args));
 		PrintErrorLine(error);
+	}
+
+	string Label(string label) {
+		return format("%s%s", output.GetModPrefix(), label);
+	}
+
+	string Label(string prefix, string label) {
+		return format("%s%s%s", prefix, output.GetModPrefix(), label);
+	}
+
+	string Label(Char, A...)(string prefix, in Char[] fmt, A args) {
+		return Label(prefix, format(fmt, args));
+	}
+
+	string ExtLabel(string mod, string prefix, string label) {
+		auto modPrefix = output.mode == OutputMode.Module? format("%s__sep__", mod) : "";
+		return format("%s%s%s", prefix, modPrefix, label);
+	}
+
+	string ExtLabel(Char, A...)(string mod, string prefix, in Char[] fmt, A args) {
+		return ExtLabel(mod, prefix, format(fmt, args));
+	}
+
+	string Label(Word word) {
+		return ExtLabel(word.mod, "__func__", "%s", Sanitise(word.name));
 	}
 
 	final size_t CountWords(string name) {
@@ -861,6 +886,14 @@ class Compiler {
 		ErrorNoInfo("In module '%s': %s\n%s", sect.inMod, format(fmt, args), sect);
 	}
 
+	void ImportFuncDef(FuncDefSection sect) {
+		backend.words ~= Word(
+			sect.inMod, sect.name, WordType.Callisto, false, sect.inline,
+			sect.inline? ParseText(sect.assembly) : [], sect.error,
+			replicate([UsedType.init], sect.params)
+		);
+	}
+
 	void ImportConst(ConstSection sect) {
 		backend.consts ~= Constant(
 			sect.inMod, sect.name, new SignedIntNode(ErrorInfo.init, sect.value)
@@ -1063,7 +1096,7 @@ class Compiler {
 			foreach (ref sect ; backend.summary.sections) {
 				switch (sect.GetType()) {
 					case SectionType.FuncDef: {
-						backend.ImportFunc(cast(FuncDefSection) sect);
+						ImportFuncDef(cast(FuncDefSection) sect);
 						break;
 					}
 					case SectionType.Const: ImportConst(cast(ConstSection) sect); break;

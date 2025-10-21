@@ -173,8 +173,8 @@ class BackendARM64 : CompilerBackend {
 		return ret;
 	}
 
-	override long MaxInt() => -1;
-
+	override long   MaxInt()        => -1;
+	override string ExecExt()       => "";
 	override string DefaultHeader() => "";
 
 	override bool HandleOption(string opt, ref string[] versions, Preprocessor preproc) {
@@ -189,39 +189,6 @@ class BackendARM64 : CompilerBackend {
 		}
 	}
 
-	string Label(string label) {
-		return format("%s%s", output.GetModPrefix(), label);
-	}
-
-	string Label(string prefix, string label) {
-		return format("%s%s%s", prefix, output.GetModPrefix(), label);
-	}
-
-	string Label(Char, A...)(string prefix, in Char[] fmt, A args) {
-		return Label(prefix, format(fmt, args));
-	}
-
-	string ExtLabel(string mod, string prefix, string label) {
-		auto modPrefix = output.mode == OutputMode.Module? format("%s__sep__", mod) : "";
-		return format("%s%s%s", prefix, modPrefix, label);
-	}
-
-	string ExtLabel(Char, A...)(string mod, string prefix, in Char[] fmt, A args) {
-		return ExtLabel(mod, prefix, format(fmt, args));
-	}
-
-	string Label(Word word) {
-		return ExtLabel(word.mod, "__func__", "%s", Sanitise(word.name));
-	}
-
-	override void ImportFunc(FuncDefSection sect) {
-		words ~= Word(
-			sect.inMod, sect.name, WordType.Callisto, false, sect.inline,
-			sect.inline? ParseText(sect.assembly) : [], sect.error,
-			replicate([UsedType.init], sect.params)
-		);
-	}
-
 	override void BeginMain() {
 		output.StartSection(SectionType.TopLevel);
 		if (output.mode != OutputMode.Module) {
@@ -231,6 +198,13 @@ class BackendARM64 : CompilerBackend {
 		// call constructors
 		foreach (global ; globals) {
 			if (global.type.hasInit && !global.type.ptr) {
+				if (
+					(output.mode == OutputMode.Module) &&
+					(global.mod != output.GetModName())
+				) {
+					continue;
+				}
+
 				LoadAddress("x9", Label("__global_", global.name.Sanitise()));
 				output ~= "str x9, [x19], #8\n";
 				output ~= format("bl %s\n", Label("__type_init_", global.type.name.Sanitise()));
@@ -998,7 +972,10 @@ class BackendARM64 : CompilerBackend {
 
 			if (var.type.hasInit && !var.type.ptr) { // call constructor
 				output ~= "str x20, [x19], #8\n";
-				output ~= format("bl %s\n", ExtLabel(var.type.mod, "__type_init_", "%s", var.type.name.Sanitise()));
+				output ~= format(
+					"bl %s\n",
+					ExtLabel(var.type.mod, "__type_init_", "%s", var.type.name.Sanitise())
+				);
 			}
 		}
 		else {

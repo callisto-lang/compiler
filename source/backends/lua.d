@@ -74,8 +74,8 @@ class BackendLua : CompilerBackend {
 
 	override string[] FinalCommands() => [];
 
-	override long MaxInt() => -1;
-
+	override long   MaxInt()        => -1;
+	override string ExecExt()       => ".lua";
 	override string DefaultHeader() => "";
 
 	override bool HandleOption(string opt, ref string[] versions, Preprocessor preproc) => false;
@@ -143,10 +143,6 @@ class BackendLua : CompilerBackend {
 
 		output ~= "regA = 0\n";
 		output ~= "calmain();\n";
-	}
-
-	override void ImportFunc(FuncDefSection sect) {
-		assert(0);
 	}
 
 	override void BeginMain() {
