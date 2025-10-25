@@ -59,10 +59,6 @@ class BackendRM86 : CompilerBackend {
 		foreach (ref type ; types) {
 			NewConst("core", format("%s.sizeOf", type.name), cast(long) type.size);
 		}
-
-		globals ~= Global(
-			"core", "_cal_exception", UsedType(GetType("Exception"), false), false, 0
-		);
 	}
 
 	string TempLabel() {
@@ -198,8 +194,6 @@ class BackendRM86 : CompilerBackend {
 				WarnNoInfo("No program init function available");
 			}
 			output ~= "ret\n";
-
-			output ~= "__exception: times 8 db 0\n";
 		}
 
 		// end top level code
@@ -230,11 +224,11 @@ class BackendRM86 : CompilerBackend {
 
 			if (array.global) {
 				output ~= format(
-					"%s: dw %d, %d, __array_%d\n",
+					"%s: dw %d, %d, %s\n",
 					Label("__array_", "%d_meta", i),
 					array.values.length,
 					array.type.Size(),
-					i
+					Label("__array_", "%d", i)
 				);
 			}
 		}
@@ -242,6 +236,7 @@ class BackendRM86 : CompilerBackend {
 
 		if (output.mode != OutputMode.Module) {
 			output ~= "__stack: times 512 dw 0\n";
+			output ~= "__exception: times 8 db 0\n";
 		}
 	}
 
@@ -496,6 +491,14 @@ class BackendRM86 : CompilerBackend {
 				output.GetModName(), node.name, WordType.Callisto, false,
 				true, node.nodes, node.errors, params
 			);
+			
+			if (output.mode == OutputMode.Module) {
+				auto sect = output.ThisSection!FuncDefSection();
+
+				foreach (ref inode ; node.nodes) {
+					sect.assembly ~= inode.toString() ~ '\n';
+				}
+			}
 		}
 		else {
 			assert(!inScope);
@@ -604,7 +607,9 @@ class BackendRM86 : CompilerBackend {
 			output ~= "sub si, 2\n";
 			output ~= "mov ax, [si]\n";
 			output ~= "cmp ax, 0\n";
-			output ~= format("je __if_%d_%d\n", blockNum, condCounter + 1);
+			output ~= format(
+				"je %s\n", Label("__if_", "%d_%d", blockNum, condCounter + 1)
+			);
 
 			// create scope
 			auto oldVars = variables.dup;
@@ -633,10 +638,10 @@ class BackendRM86 : CompilerBackend {
 			}
 			variables = oldVars;
 
-			output ~= format("jmp __if_%d_end\n", blockNum);
+			output ~= format("jmp %s\n", Label("__if_", "%d_end", blockNum));
 
 			++ condCounter;
-			output ~= format("__if_%d_%d:\n", blockNum, condCounter);
+			output ~= format("%s:\n", Label("__if_", "%d_%d", blockNum, condCounter));
 		}
 
 		if (node.hasElse) {
@@ -667,17 +672,17 @@ class BackendRM86 : CompilerBackend {
 			}
 			variables = oldVars;
 		}
-
-		output ~= format("__if_%d_end:\n", blockNum);
+		
+		output ~= format("%s:\n", Label("__if_", "%d_end", blockNum));
 	}
 
 	override void CompileWhile(WhileNode node) {
 		++ blockCounter;
 		uint blockNum = blockCounter;
 		currentLoop   = blockNum;
-
-		output ~= format("jmp __while_%d_condition\n", blockNum);
-		output ~= format("__while_%d:\n", blockNum);
+		
+		output ~= format("jmp %s\n", Label("__while_", "%d_condition", blockNum));
+		output ~= format("%s:\n", Label("__while_", "%d", blockNum));
 
 		// make scope
 		auto oldVars = variables.dup;
@@ -691,7 +696,7 @@ class BackendRM86 : CompilerBackend {
 		}
 
 		// restore scope
-		output ~= format("__while_%d_next:\n", blockNum);
+		output ~= format("%s:\n", Label("__while_", "%d_next", blockNum));
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
 			if (!var.type.hasDeinit || var.type.ptr) continue;
@@ -711,8 +716,8 @@ class BackendRM86 : CompilerBackend {
 		variables = oldVars;
 
 		inWhile = false;
-
-		output ~= format("__while_%d_condition:\n", blockNum);
+		
+		output ~= format("%s:\n", Label("__while_", "%d_condition", blockNum));
 		
 		foreach (ref inode ; node.condition) {
 			compiler.CompileNode(inode);
@@ -721,8 +726,8 @@ class BackendRM86 : CompilerBackend {
 		output ~= "sub si, 2\n";
 		output ~= "mov ax, [si]\n";
 		output ~= "cmp ax, 0\n";
-		output ~= format("jne __while_%d\n", blockNum);
-		output ~= format("__while_%d_end:\n", blockNum);
+		output ~= format("jne %s\n", Label("__while_", "%d", blockNum));
+		output ~= format("%s:\n", Label("__while_", "%d_end", blockNum));
 	}
 
 	override void CompileLet(LetNode node) {
@@ -850,7 +855,7 @@ class BackendRM86 : CompilerBackend {
 			output ~= format("sub sp, %d\n", array.Size());
 			output ~= "mov ax, sp\n";
 			output ~= "push si\n";
-			output ~= format("mov si, __array_%d\n", arrays.length - 1);
+			output ~= format("mov si, %s\n", Label("__array_", "%d", arrays.length - 1));
 			output ~= "mov di, ax\n";
 			output ~= format("mov cx, %d\n", array.Size());
 			output ~= "rep movsb\n";
@@ -1276,7 +1281,7 @@ class BackendRM86 : CompilerBackend {
 
 		output ~= "pop di\n";
 
-		output ~= format("mov ax, [__global_%s]\n", Sanitise("_cal_exception"));
+		output ~= "mov ax, [__exception]\n";
 		output ~= "cmp ax, 0\n";
 		output ~= format("je __catch_%d_end\n", blockCounter);
 		output ~= "mov si, di\n";
@@ -1320,13 +1325,13 @@ class BackendRM86 : CompilerBackend {
 		}
 
 		// set exception error
-		output ~= format("mov word [__global_%s], 0xFFFF\n", Sanitise("_cal_exception"));
+		output ~= "mov word [__exception], 0xFFFF\n";
 
 		// copy exception message
 		output ~= "sub si, 2\n";
 		output ~= "mov bx, si\n";
 		output ~= "mov si, [bx]\n";
-		output ~= format("lea di, [__global_%s + 2]\n", Sanitise("_cal_exception"));
+		output ~= "lea di, [__exception + 2]\n";
 		output ~= "mov cx, 3\n";
 		output ~= "rep movsw\n";
 		output ~= "mov si, bx\n";
