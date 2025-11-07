@@ -20,8 +20,9 @@ class BackendUXN : CompilerBackend {
 	string assembler = "uxnasm";
 
 	this() {
-		org      = 0x100;
-		addrSize = 2;
+		org          = 0x100;
+		addrSize     = 2;
+		symbolPrefix = false;
 
 		types ~= Type("core", "u8",    1, false);
 		types ~= Type("core", "i8",    1, true);
@@ -56,15 +57,11 @@ class BackendUXN : CompilerBackend {
 		foreach (ref type ; types) {
 			NewConst("core", format("%s.sizeOf", type.name), cast(long) type.size);
 		}
-
-		globals ~= Global(
-			"core", "_cal_exception", UsedType(GetType("Exception"), false), false, 0
-		);
 	}
 
 	string TempLabel() {
 		++ tempLabelNum;
-		return format("temp_%d", tempLabelNum);
+		return Label("temp_", "%d", tempLabelNum);
 	}
 
 	override string[] GetVersions() => [
@@ -121,8 +118,12 @@ class BackendUXN : CompilerBackend {
 
 		foreach (global ; globals) {
 			if (global.type.hasInit && !global.type.ptr) {
-				output ~= format(";global_%s\n", global.name.Sanitise());
-				output ~= format("type_init_%s\n", global.type.name.Sanitise());
+				output ~= format(
+					";%s\n", Label("global_", "%s", global.name.Sanitise())
+				);
+				output ~= format(
+					"%s\n", Label("type_init_", "%s", global.type.name.Sanitise())
+				);
 			}
 		}
 	}
@@ -140,12 +141,14 @@ class BackendUXN : CompilerBackend {
 				output ~= format("%s\n", name);
 			}
 			else {
-				output ~= format("func__%s\n", name.Sanitise());
+				output ~= format("%s\n", Label(word));
 			}
 		}
 	}
 
 	override void Init() {
+		if (output.mode == OutputMode.Module) return;
+
 		output ~= "|0 @vsp $2 @arraySrc $2 @arrayDest $2 @temp $2\n";
 
 		if (org != 0x100) {
@@ -164,30 +167,39 @@ class BackendUXN : CompilerBackend {
 		// call destructors
 		foreach (global ; globals) {
 			if (global.type.hasDeinit && !global.type.ptr) {
-				output ~= format(";global_%s\n", global.name.Sanitise());
-				output ~= format("type_deinit_%s\n", global.type.name.Sanitise());
+				if (output.GetModName() != global.mod) continue;
+
+				output ~= format(
+					";%s\n", Label("global_", "%s", global.name.Sanitise())
+				);
+				output ~= format(
+					"%s\n", Label("type_deinit_", "%s", global.type.name.Sanitise())
+				);
 			}
 		}
 
-		if (WordExists("__uxn_program_exit")) {
-			CallFunction("__uxn_program_exit");
-		}
-		else {
-			WarnNoInfo("No exit function available, expect bugs");
-		}
+		if (output.mode != OutputMode.Module) {
+			if (WordExists("__uxn_program_exit")) {
+				CallFunction("__uxn_program_exit");
+			}
+			else {
+				WarnNoInfo("No exit function available, expect bugs");
+			}
 
-		// create init function
-		output ~= "@init\n";
-		if (WordExists("__uxn_program_init")) {
-			CallFunction("__uxn_program_init");
+			// create init function
+			output ~= "@init\n";
+			if (WordExists("__uxn_program_init")) {
+				CallFunction("__uxn_program_init");
+			}
+			else {
+				WarnNoInfo("No program init function available");
+			}
+			output ~= "JMP2r\n";
 		}
-		else {
-			WarnNoInfo("No program init function available");
-		}
-		output ~= "JMP2r\n";
 
 		foreach (var ; globals) {
-			output ~= format("@global_%s", var.name.Sanitise());
+			if (var.mod != output.GetModName()) continue;
+			output ~= format("@%s", Label("global_", "%s", var.name.Sanitise()));
 
 			foreach (i ; 0 .. var.Size()) {
 				output ~= " 00";
@@ -197,7 +209,7 @@ class BackendUXN : CompilerBackend {
 		}
 
 		foreach (i, ref array ; arrays) {
-			output ~= format("@array_%d ", i);
+			output ~= format("@%s ", Label("array_", "%d", i));
 
 			foreach (j, ref element ; array.values) {
 				output ~= element ~ (j == array.values.length - 1? "" : " ");
@@ -207,25 +219,28 @@ class BackendUXN : CompilerBackend {
 
 			if (array.global) {
 				output ~= format(
-					"@array_%d_meta %.4x %.4x =array_%d\n", i,
-					array.values.length,
-					array.type.Size(),
-					i
+					"@%s %.4x %.4x =%s\n",
+					Label("array_", "%d_meta", i),
+					array.values.length, array.type.Size(),
+					Label("array_", "%d", i)
 				);
 			}
 		}
 
-		output ~= "@memcpy  01\n";
-		output ~= "&length  0000\n";
-		output ~= "&srcBank 0000\n";
-		output ~= "&srcAddr 0000\n";
-		output ~= "&dstBank 0000\n";
-		output ~= "&dstAddr 0000\n";
+		if (output.mode != OutputMode.Module) {
+			output ~= "@memcpy  01\n";
+			output ~= "&length  0000\n";
+			output ~= "&srcBank 0000\n";
+			output ~= "&srcAddr 0000\n";
+			output ~= "&dstBank 0000\n";
+			output ~= "&dstAddr 0000\n";
+			output ~= "@exception $8\n";
 
-		output ~= "@program_end\n";
+			output ~= "@program_end\n";
 
-		// pad for the stack
-		output ~= "|e0000\n";
+			// pad for the stack
+			output ~= "|e0000\n";
+		}
 	}
 
 	void PushVariableValue(
@@ -281,7 +296,9 @@ class BackendUXN : CompilerBackend {
 			size = var.type.Size();
 		}
 
-		output ~= format(";global_%s\n", var.name.Sanitise());
+		output ~= format(
+			";%s\n", ExtLabel(var.mod, "global_", "%s", var.name.Sanitise())
+		);
 
 		if (deref) {
 			output ~= "LDA2\n";
@@ -336,7 +353,7 @@ class BackendUXN : CompilerBackend {
 						}
 					}
 				
-					output ~= format("func__%s\n", node.name.Sanitise());
+					output ~= format("%s\n", Label(word));
 
 					if (word.error && GetWord(thisFunc).error) {
 						output ~= "LITr -temp STZr\n";
@@ -356,14 +373,16 @@ class BackendUXN : CompilerBackend {
 					}
 
 					if (crash) {
-						output ~= format(";global_%s LDA2\n", Sanitise("_cal_exception"));
+						output ~= ";exception LDA2\n";
 						output ~= "#0000 NEQ2\n";
-						output ~= format("?func__%s\n", Sanitise("__uxn_exception"));
+						output ~= format(
+							"?%s\n", Label(GetWord("__uxn_exception"))
+						);
 					}
 					else {
 						string temp = TempLabel();
 
-						output ~= format(";global_%s LDA2\n", Sanitise("_cal_exception"));
+						output ~= ";exception LDA2\n";
 						output ~= format("#0000 EQU2 ?%s\n", temp);
 						output ~= ".temp LDZ .System/wst DEO\n";
 						CompileReturn(node);
@@ -396,6 +415,10 @@ class BackendUXN : CompilerBackend {
 		else if (IsStructMember(node.name)) {
 			string name    = node.name[0 .. node.name.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.name);
+			
+			if (CountAll(name)) {
+				Error(node.error, "Multiple matches for identifier '%s'", name);
+			}
 
 			if (structVar.structure) {
 				Error(node.error, "Can't push the value of an array or structure");
@@ -465,7 +488,7 @@ class BackendUXN : CompilerBackend {
 
 		if (node.inline) {
 			if (node.errors) {
-				output ~= format("#0000 ;global_%s STA2\n", Sanitise("_cal_exception"));
+				output ~= "#0000 ;exception STA2\n";
 			}
 
 			words ~= Word(
@@ -483,12 +506,12 @@ class BackendUXN : CompilerBackend {
 			);
 
 			string symbol =
-				node.raw? node.name : format("func__%s", node.name.Sanitise());
+				node.raw? node.name : Label("func__", "%s", node.name.Sanitise());
 
 			output ~= format("@%s\n", symbol);
 
 			if (node.errors) {
-				output ~= format("#0000 ;global_%s STA2\n", Sanitise("_cal_exception"));
+				output ~= "#0000 ;exception STA2\n";
 			}
 
 			// allocate parameters
@@ -538,7 +561,10 @@ class BackendUXN : CompilerBackend {
 				
 				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
-					output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
+					output ~= format("%s\n", ExtLabel(
+						var.type.mod, "type_deinit_", "%s",
+						var.type.name.Sanitise()
+					));
 				}
 			}
 			//output ~= format(".vsp LDZ2 #%.4x ADD2 .vsp STZ2\n", scopeSize);
@@ -570,7 +596,9 @@ class BackendUXN : CompilerBackend {
 			foreach (ref inode ; condition) {
 				compiler.CompileNode(inode);
 			}
-			output ~= format("#0000 EQU2 ;if_%d_%d JCN2\n", blockNum, condCounter + 1);
+			output ~= format("#0000 EQU2 ;%s JCN2\n",
+				Label("if_", "%d_%d", blockNum, condCounter + 1)
+			);
 
 			// create scope
 			auto oldVars = variables.dup;
@@ -586,7 +614,10 @@ class BackendUXN : CompilerBackend {
 				if (!var.type.hasDeinit || var.type.ptr) continue;
 
 				output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
-				output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format("%s\n", ExtLabel(
+					var.type.mod, "type_deinit_", "%s",
+					var.type.name.Sanitise()
+				));
 			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format(
@@ -595,10 +626,10 @@ class BackendUXN : CompilerBackend {
 			}
 			variables = oldVars;
 
-			output ~= format(";if_%d_end JMP2\n", blockNum);
+			output ~= format(";%s JMP2\n", Label("if_", "%d_end", blockNum));
 
 			++ condCounter;
-			output ~= format("@if_%d_%d\n", blockNum, condCounter);
+			output ~= format("@%s\n", Label("if_", "%d_%d", blockNum, condCounter));
 		}
 
 		if (node.hasElse) {
@@ -616,7 +647,10 @@ class BackendUXN : CompilerBackend {
 				if (!var.type.hasDeinit || var.type.ptr) continue;
 
 				output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
-				output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format("%s\n", ExtLabel(
+					var.type.mod, "type_deinit_", "%s",
+					var.type.name.Sanitise()
+				));
 			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format(
@@ -626,7 +660,7 @@ class BackendUXN : CompilerBackend {
 			variables = oldVars;
 		}
 
-		output ~= format("@if_%d_end\n", blockNum);
+		output ~= format("@%s\n", Label("if_", "%d_end", blockNum));
 	}
 
 	override void CompileWhile(WhileNode node) {
@@ -634,8 +668,8 @@ class BackendUXN : CompilerBackend {
 		uint blockNum = blockCounter;
 		currentLoop   = blockNum;
 
-		output ~= format(";while_%d_condition JMP2\n", blockNum);
-		output ~= format("@while_%d\n", blockNum);
+		output ~= format(";%s JMP2\n", Label("while_", "%d_condition", blockNum));
+		output ~= format("@%s\n", Label("while_", "%d", blockNum));
 
 		// make scope
 		auto oldVars = variables.dup;
@@ -649,13 +683,16 @@ class BackendUXN : CompilerBackend {
 		}
 
 		// remove scope
-		output ~= format("@while_%d_next\n", blockNum);
+		output ~= format("@%s\n", Label("while_", "%d_next", blockNum));
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
 			if (!var.type.hasDeinit || var.type.ptr) continue;
 
 			output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
-			output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
+			output ~= format("%s\n", ExtLabel(
+				var.type.mod, "type_deinit_", "%s",
+				var.type.name.Sanitise()
+			));
 		}
 		if (GetStackSize() - oldSize > 0) {
 			output ~= format(
@@ -666,15 +703,15 @@ class BackendUXN : CompilerBackend {
 
 		inWhile = false;
 
-		output ~= format("@while_%d_condition\n", blockNum);
+		output ~= format("@%s\n", Label("while_", "%d_condition", blockNum));
 		
 		foreach (ref inode ; node.condition) {
 			compiler.CompileNode(inode);
 		}
 
 		output ~= "#0000 NEQ2\n";
-		output ~= format(";while_%d JCN2\n", blockNum);
-		output ~= format("@while_%d_end\n", blockNum);
+		output ~= format(";%s JCN2\n", Label("while_", "%d", blockNum));
+		output ~= format("@%s\n", Label("while_", "%d_end", blockNum));
 	}
 
 	override void CompileLet(LetNode node) {
@@ -718,7 +755,10 @@ class BackendUXN : CompilerBackend {
 			}
 
 			if (var.type.hasInit && !var.type.ptr) {
-				output ~= format(".vsp LDZ2 type_init_%s\n", Sanitise(var.type.name));
+				output ~= format(
+					".vsp LDZ2 %s\n",
+					ExtLabel(var.type.mod, "type_init_", "%s", Sanitise(var.type.name))
+				);
 			}
 		}
 		else {
@@ -783,7 +823,7 @@ class BackendUXN : CompilerBackend {
 		arrays       ~= array;
 
 		if (!inScope || node.constant) {
-			output ~= format(";array_%d_meta\n", arrays.length - 1);
+			output ~= format(";%s\n", Label("array_", "%d_meta", arrays.length - 1));
 		}
 		else {
 			// allocate a copy of the array
@@ -792,7 +832,10 @@ class BackendUXN : CompilerBackend {
 			// copy array contents
 			output ~= format("#%.4x ;memcpy/length STA2\n", array.Size());
 			output ~= "#0000 ;memcpy/srcBank STA2\n";
-			output ~= format(";array_%d ;memcpy/srcAddr STA2\n", arrays.length - 1);
+			output ~= format(
+				";%s ;memcpy/srcAddr STA2\n",
+				Label("array_", "%d", arrays.length - 1)
+			);
 			output ~= "#0000 ;memcpy/dstBank STA2\n";
 			output ~= ".vsp LDZ2 ;memcpy/dstAddr STA2\n";
 			output ~= ";memcpy .System/expansion DEO2\n";
@@ -860,7 +903,10 @@ class BackendUXN : CompilerBackend {
 
 			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
-				output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format("%s\n", ExtLabel(
+					var.type.mod, "type_deinit_", "%s",
+					var.type.name.Sanitise()
+				));
 			}
 		}
 		output ~= format(".vsp LDZ2 #%.4x ADD2 .vsp STZ2\n", scopeSize);
@@ -872,7 +918,8 @@ class BackendUXN : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format(";while_%d_end JMP2\n", currentLoop);
+		// TODO: fix variables here? forgot to end scope
+		output ~= format(";%s JMP2\n", Label("while", "%d_end", currentLoop));
 	}
 
 	override void CompileContinue(WordNode node) {
@@ -880,7 +927,8 @@ class BackendUXN : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format(";while_%d_next JMP2\n", currentLoop);
+		// TODO: ditto
+		output ~= format(";%s JMP2\n", Label("while", "%d_next", currentLoop));
 	}
 
 	override void CompileExtern(ExternNode node) {
@@ -899,10 +947,14 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void CompileAddr(AddrNode node) {
+		if (CountAll(node.func) > 1) {
+			Error(node.error, "Multiple matches for identifier '%s'", node.func);
+		}
+
 		if (WordExists(node.func)) {
 			auto   word   = GetWord(node.func);
 			string symbol =
-				word.raw? node.func : format("func__%s", node.func.Sanitise());
+				word.raw? node.func : Label(word);
 
 			output ~= format(";%s\n", symbol);
 		}
@@ -926,11 +978,15 @@ class BackendUXN : CompilerBackend {
 
 				if (var.type.ptr) {
 					output ~= format(
-						";global_%s LDA2 #%.4x ADD2\n", name.Sanitise(), offset
+						";%s LDA2 #%.4x ADD2\n",
+						ExtLabel(var.mod, "global_", "%s", name.Sanitise()), offset
 					);
 				}
 				else {
-					output ~= format(";global_%s #%.4x ADD2\n", name.Sanitise(), offset);
+					output ~= format(
+						";%s #%.4x ADD2\n",
+						ExtLabel(var.mod, "global_", "%s", name.Sanitise()), offset
+					);
 				}
 			}
 			else if (VariableExists(name)) {
@@ -950,7 +1006,11 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 		else if (GlobalExists(node.func)) {
-			output ~= format(";global_%s\n", node.func.Sanitise());
+			auto var = GetGlobal(node.func);
+			output ~= format(
+				";global_%s\n",
+				ExtLabel(var.mod, "global_", "%s", node.func.Sanitise())
+			);
 		}
 		else {
 			Error(node.error, "Undefined identifier '%s'", node.func);
@@ -972,7 +1032,7 @@ class BackendUXN : CompilerBackend {
 				}
 
 				type.hasInit = true;
-				labelName = format("type_init_%s", Sanitise(node.structure));
+				labelName = Label("type_init_", "%s", Sanitise(node.structure));
 				break;
 			}
 			case "deinit": {
@@ -981,7 +1041,7 @@ class BackendUXN : CompilerBackend {
 				}
 
 				type.hasDeinit = true;
-				labelName = format("type_deinit_%s", Sanitise(node.structure));
+				labelName = Label("type_deinit_", "%s", Sanitise(node.structure));
 				break;
 			}
 			default: Error(node.error, "Unknown method '%s'", node.method);
@@ -1004,7 +1064,10 @@ class BackendUXN : CompilerBackend {
 
 			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
-				output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
+				output ~= format("%s\n", ExtLabel(
+					var.type.mod, "type_deinit_", "%s",
+					var.type.name.Sanitise()
+				));
 			}
 		}
 		if (scopeSize > 0) {
@@ -1060,7 +1123,7 @@ class BackendUXN : CompilerBackend {
 			size = global.type.Size();
 		}
 
-		string symbol = format("global_%s", global.name.Sanitise());
+		string symbol = ExtLabel(global.mod, "global_", "%s", global.name.Sanitise());
 
 		if (deref) {
 			symbol ~= format(" LDA2");
@@ -1154,15 +1217,15 @@ class BackendUXN : CompilerBackend {
 			}
 		}
 		else {
-			output ~= format("func__%s\n", node.func.Sanitise());
+			output ~= format("%s\n", Label(word));
 		}
 
 		output ~= "LITr -temp STZr\n";
 
 		++ blockCounter;
 
-		output ~= format(";global_%s LDA2 #0000 EQU2\n", Sanitise("_cal_exception"));
-		output ~= format(";catch_%d_end JCN2\n", blockCounter);
+		output ~= ";exception LDA2 #0000 EQU2\n";
+		output ~= format(";%s JCN2\n", Label("catch_", "%d_end", blockCounter));
 
 		// function errored, assume that all it did was consume parameters
 		output ~= ".temp LDZ .System/wst DEO\n";
@@ -1181,7 +1244,10 @@ class BackendUXN : CompilerBackend {
 			if (!var.type.hasDeinit || var.type.ptr) continue;
 
 			output ~= format(".vsp LDZ2 #.2x ADD2", var.offset);
-			output ~= format("type_deinit_%s\n", Sanitise(var.type.name));
+			output ~= format("%s\n", ExtLabel(
+				var.type.mod, "type_deinit_", "%s",
+				var.type.name.Sanitise()
+			));
 		}
 		if (GetStackSize() - oldSize > 0) {
 			output ~= format(
@@ -1190,7 +1256,7 @@ class BackendUXN : CompilerBackend {
 		}
 		variables = oldVars;
 
-		output ~= format("@catch_%d_end\n", blockCounter);
+		output ~= format("@%s\n", Label("catch", "%d_end", blockCounter));
 		output ~= "POPr\n";
 	}
 
@@ -1203,16 +1269,14 @@ class BackendUXN : CompilerBackend {
 		}
 
 		// set exception error
-		output ~= format("#ffff ;global_%s STA2\n", Sanitise("_cal_exception"));
+		output ~= "#ffff ;exception STA2\n";
 
 		// copy exception message
 		output ~= "#0006 ;memcpy/length STA2\n";
 		output ~= "#0000 ;memcpy/srcBank STA2\n";
 		output ~= ";memcpy/srcAddr STA2\n";
 		output ~= "#0000 ;memcpy/dstBank STA2\n";
-		output ~= format(
-			";global_%s INC2 INC2 ;memcpy/dstAddr STA2\n", Sanitise("_cal_exception")
-		);
+		output ~= ";exception INC2 INC2 ;memcpy/dstAddr STA2\n";
 		output ~= ";memcpy .System/expansion DEO2\n";
 
 		CompileReturn(node);

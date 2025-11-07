@@ -103,10 +103,7 @@ class BackendRM86 : CompilerBackend {
 		// what?
 		foreach (global ; globals) {
 			if (global.type.hasInit && !global.type.ptr) {
-				if (
-					(output.mode == OutputMode.Module) &&
-					(global.mod != output.GetModName())
-				) {
+				if (output.mode == OutputMode.Module) {
 					continue;
 				}
 
@@ -116,8 +113,10 @@ class BackendRM86 : CompilerBackend {
 				);
 				output ~= "add si, 2\n";
 				output ~= format(
-					"call %s\n",
-					Label("__type_init_", "%s", global.type.name.Sanitise())
+					"call %s\n", ExtLabel(
+						global.type.mod, "__type_init_", "%s",
+						global.type.name.Sanitise()
+					)
 				);
 			}
 		}
@@ -171,9 +170,17 @@ class BackendRM86 : CompilerBackend {
 	override void End() {
 		foreach (global ; globals) {
 			if (global.type.hasDeinit && !global.type.ptr) {
-				output ~= format("mov word [si], word __global_%s\n", Sanitise(global.name));
+				output ~= format(
+					"mov word [si], word %s\n",
+					Label("__global_", "%s", Sanitise(global.name))
+				);
 				output ~= "add si, 2\n";
-				output ~= format("call __type_deinit_%s\n", Sanitise(global.type.name));
+				output ~= format(
+					"call __type_deinit_%s\n", ExtLabel(
+						global.type.mod, "__type_deinit_", "%s",
+						Sanitise(global.type.name)
+					)
+				);
 			}
 		}
 
@@ -201,6 +208,8 @@ class BackendRM86 : CompilerBackend {
 
 		output.StartSection(SectionType.Data);
 		foreach (var ; globals) {
+			if (var.mod != output.GetModName()) continue;
+
 			output ~= format(
 				"%s: times %d db 0\n",
 				Label("__global_", "%s", var.name.Sanitise()), var.Size()
@@ -410,6 +419,10 @@ class BackendRM86 : CompilerBackend {
 		else if (IsStructMember(node.name)) {
 			string name    = node.name[0 .. node.name.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.name);
+			
+			if (CountAll(name)) {
+				Error(node.error, "Multiple matches for identifier '%s'", name);
+			}
 
 			if (structVar.structure) {
 				Error(node.error, "Can't push the value of an array or structure");

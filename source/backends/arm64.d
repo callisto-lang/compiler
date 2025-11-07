@@ -331,6 +331,8 @@ class BackendARM64 : CompilerBackend {
 		}
 
 		foreach (var ; globals) {
+			if (var.mod != output.GetModName()) continue;
+
 			output ~= format(".lcomm %s, %d\n", Label("__global_", var.name.Sanitise()), var.Size());
 
 			if (exportSymbols) {

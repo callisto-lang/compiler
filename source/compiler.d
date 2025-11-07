@@ -141,6 +141,7 @@ class CompilerBackend {
 	Type[]           types;
 	Constant[]       consts;
 	Summary          summary;
+	bool             symbolPrefix = true; // prefix with __?
 
 	abstract string[] GetVersions();
 	abstract string[] FinalCommands();
@@ -433,7 +434,12 @@ class CompilerBackend {
 	}
 
 	string Label(Word word) {
-		return ExtLabel(word.mod, "__func__", "%s", Sanitise(word.name));
+		if (symbolPrefix) {
+			return ExtLabel(word.mod, "__func__", "%s", Sanitise(word.name));
+		}
+		else {
+			return ExtLabel(word.mod, "func__", "%s", Sanitise(word.name));
+		}
 	}
 
 	final size_t CountWords(string name) {

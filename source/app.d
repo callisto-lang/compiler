@@ -76,6 +76,8 @@ Backend options:
     use-libc  - Makes Callisto use the C runtime and links libc
     frame-ptr - Makes Callisto use both rbp (frame pointer) and rsp for stack frames
     use-gas   - Makes Callisto use GNU Assembler instead of nasm
+  uxn:
+    asm=ASM   - Uses ASM as the assembler, instead of `uxnasm`
 
 Programs:
   cac link <MODULES...> - Links MODULES... together into one executable

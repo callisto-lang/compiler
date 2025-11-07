@@ -289,12 +289,7 @@ class BackendX86_64 : CompilerBackend {
 		// call constructors
 		foreach (global ; globals) {
 			if (global.type.hasInit && !global.type.ptr) {
-				if (
-					(output.mode == OutputMode.Module) &&
-					(global.mod != output.GetModName())
-				) {
-					continue;
-				}
+				if (global.mod != output.GetModName()) continue;
 
 				output ~= format(
 					"lea rax, %s\n",
@@ -303,8 +298,10 @@ class BackendX86_64 : CompilerBackend {
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 				output ~= format(
-					"call %s\n",
-					Label("__type_init_", "%s", global.type.name.Sanitise())
+					"call %s\n", ExtLabel(
+						global.type.mod, "__type_init_", "%s",
+						global.type.name.Sanitise()
+					)
 				);
 			}
 		}
@@ -417,8 +414,10 @@ class BackendX86_64 : CompilerBackend {
 				output ~= "mov [r15], rax\n";
 				output ~= "add r15, 8\n";
 				output ~= format(
-					"call _%s\n",
-					Label("__type_deinit_", "%s", Sanitise(global.type.name))
+					"call _%s\n", ExtLabel(
+						global.type.mod, "__type_deinit_", "%s",
+						Sanitise(global.type.name)
+					)
 				);
 			}
 		}
@@ -473,6 +472,8 @@ class BackendX86_64 : CompilerBackend {
 
 		// variables
 		foreach (var ; globals) {
+			if (var.mod != output.GetModName()) continue;
+
 			if (useGas) {
 				output ~= format(
 					"%s: .skip %d\n", Label("__global_", "%s", var.name.Sanitise()),
