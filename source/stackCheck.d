@@ -74,6 +74,10 @@ class StackChecker {
 			}
 		}
 
+		// TODO: do this depending on backend
+		// doesn't matter much because if you misuse it then it will error on
+		// the compiler stage
+		identifiers ~= Identifier("core", "__LUA_EXCEPTION");
 		identifiers ~= [Identifier("core", "true"), Identifier("core", "false")];
 	}
 
