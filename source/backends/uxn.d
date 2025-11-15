@@ -351,7 +351,7 @@ class BackendUXN : CompilerBackend {
 					output ~= format("%s\n", node.name);
 				}
 				else {
-					if (word.error && GetWord(thisFunc).error) {
+					if (inScope && word.error && GetWord(thisFunc).error) {
 						size_t paramSize = word.params.length * 2;
 
 						if (paramSize != 0) {
@@ -366,7 +366,7 @@ class BackendUXN : CompilerBackend {
 				
 					output ~= format("%s\n", Label(word));
 
-					if (word.error && GetWord(thisFunc).error) {
+					if (inScope && word.error && GetWord(thisFunc).error) {
 						output ~= "LITr -temp STZr\n";
 					}
 				}
@@ -502,7 +502,7 @@ class BackendUXN : CompilerBackend {
 			auto sect   = output.ThisSection!FuncDefSection();
 			sect.pub    = true; // TODO: add private functions
 			sect.inline = node.inline;
-			sect.calls  = []; // TODO: add this for inline functions (IMPORTANT)
+			sect.calls  = []; // TODO
 			sect.name   = node.name;
 			sect.params = params.length;
 			sect.ret    = node.returnTypes.length;

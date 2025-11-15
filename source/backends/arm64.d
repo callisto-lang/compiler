@@ -538,7 +538,7 @@ class BackendARM64 : CompilerBackend {
 					output ~= "mov sp, x9\n";
 				}
 				else {
-					if (word.error && GetWord(thisFunc).error) {
+					if (inScope && word.error && GetWord(thisFunc).error) {
 						size_t paramSize = word.params.length * 8;
 
 						if (paramSize != 0) {
@@ -553,7 +553,7 @@ class BackendARM64 : CompilerBackend {
 					output ~= format("bl %s\n", Label(word));
 					output.AddCall(node.name);
 
-					if (word.error && GetWord(thisFunc).error) {
+					if (inScope && word.error && GetWord(thisFunc).error) {
 						output ~= "ldr x15, [x20], #8\n";
 					}
 				}

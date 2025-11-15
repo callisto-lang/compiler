@@ -247,14 +247,14 @@ class BackendLua : CompilerBackend {
 				}
 			}
 			else {
-				if (word.error && GetWord(thisFunc).error) {
+				if (inScope && word.error && GetWord(thisFunc).error) {
 					output ~= "vsp = vsp - 1\n";
 					output ~= format("mem[vsp] = dsp - %d\n", word.params.length);
 				}
 
 				output ~= format("%s();\n", Label(word));
 
-				if (word.error && GetWord(thisFunc).error) {
+				if (inScope && word.error && GetWord(thisFunc).error) {
 					output ~= "dspRestore = mem[vsp]\n";
 					output ~= "vsp = vsp + 1\n";
 				}

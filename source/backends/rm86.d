@@ -341,7 +341,7 @@ class BackendRM86 : CompilerBackend {
 					output ~= format("call %s\n", node.name);
 				}
 				else {
-					if (word.error && GetWord(thisFunc).error) {
+					if (inScope && word.error && GetWord(thisFunc).error) {
 						size_t paramSize = word.params.length * 2;
 
 						if (paramSize != 0) {
@@ -356,7 +356,7 @@ class BackendRM86 : CompilerBackend {
 					output ~= format("call %s\n", Label(word));
 					output.AddCall(node.name);
 
-					if (word.error && GetWord(thisFunc).error) {
+					if (inScope && word.error && GetWord(thisFunc).error) {
 						output ~= "pop di\n";
 					}
 				}
