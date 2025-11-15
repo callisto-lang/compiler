@@ -737,7 +737,11 @@ class BackendX86_64 : CompilerBackend {
 					}
 				}
 				else {
-					if (inScope && word.error && GetWord(thisFunc).error) {
+					bool backupSP =
+						(thisFunc != "__IMPLEMENT__") && inScope && word.error &&
+						GetWord(thisFunc).error;
+	
+					if (backupSP) {
 						size_t paramSize = word.params.length * 8;
 
 						if (paramSize != 0) {
@@ -753,7 +757,7 @@ class BackendX86_64 : CompilerBackend {
 
 					output.AddCall(node.name);
 
-					if (inScope && word.error && GetWord(thisFunc).error) {
+					if (backupSP) {
 						output ~= "pop r14\n";
 					}
 				}
@@ -1640,9 +1644,11 @@ class BackendX86_64 : CompilerBackend {
 			output ~= "mov rbp, rsp\n";
 		}
 
+		thisFunc = "__IMPLEMENT__";
 		foreach (ref inode ; node.nodes) {
 			compiler.CompileNode(inode);
 		}
+		thisFunc = "";
 
 		if (useFramePtr) {
 			output ~= "mov rsp, rbp\n";

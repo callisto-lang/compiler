@@ -341,7 +341,11 @@ class BackendRM86 : CompilerBackend {
 					output ~= format("call %s\n", node.name);
 				}
 				else {
-					if (inScope && word.error && GetWord(thisFunc).error) {
+					bool backupSP =
+						(thisFunc != "__IMPLEMENT__") && inScope && word.error &&
+						GetWord(thisFunc).error;
+
+					if (backupSP) {
 						size_t paramSize = word.params.length * 2;
 
 						if (paramSize != 0) {
@@ -356,7 +360,7 @@ class BackendRM86 : CompilerBackend {
 					output ~= format("call %s\n", Label(word));
 					output.AddCall(node.name);
 
-					if (inScope && word.error && GetWord(thisFunc).error) {
+					if (backupSP) {
 						output ~= "pop di\n";
 					}
 				}
@@ -1121,9 +1125,11 @@ class BackendRM86 : CompilerBackend {
 
 		output ~= format("%s:\n", labelName);
 
+		thisFunc = "__IMPLEMENT__";
 		foreach (ref inode ; node.nodes) {
 			compiler.CompileNode(inode);
 		}
+		thisFunc = "";
 
 		size_t scopeSize;
 		foreach (ref var ; variables) {

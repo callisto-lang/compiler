@@ -538,7 +538,11 @@ class BackendARM64 : CompilerBackend {
 					output ~= "mov sp, x9\n";
 				}
 				else {
-					if (inScope && word.error && GetWord(thisFunc).error) {
+					bool backupSP =
+						(thisFunc != "__IMPLEMENT__") && inScope && word.error &&
+						GetWord(thisFunc).error;
+
+					if (backupSP) {
 						size_t paramSize = word.params.length * 8;
 
 						if (paramSize != 0) {
@@ -553,7 +557,7 @@ class BackendARM64 : CompilerBackend {
 					output ~= format("bl %s\n", Label(word));
 					output.AddCall(node.name);
 
-					if (inScope && word.error && GetWord(thisFunc).error) {
+					if (backupSP) {
 						output ~= "ldr x15, [x20], #8\n";
 					}
 				}
@@ -1333,9 +1337,11 @@ class BackendARM64 : CompilerBackend {
 		output ~= format("%s:\n", labelName);
 		output ~= "str lr, [x20, #-8]!\n";
 
+		thisFunc = "__IMPLEMENT__";
 		foreach (ref inode ; node.nodes) {
 			compiler.CompileNode(inode);
 		}
+		thisFunc = "";
 
 		size_t scopeSize;
 		foreach (ref var ; variables) {

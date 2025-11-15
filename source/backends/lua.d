@@ -247,14 +247,18 @@ class BackendLua : CompilerBackend {
 				}
 			}
 			else {
-				if (inScope && word.error && GetWord(thisFunc).error) {
+				bool backupSP =
+					(thisFunc != "__IMPLEMENT__") && inScope && word.error &&
+					GetWord(thisFunc).error;
+
+				if (backupSP) {
 					output ~= "vsp = vsp - 1\n";
 					output ~= format("mem[vsp] = dsp - %d\n", word.params.length);
 				}
 
 				output ~= format("%s();\n", Label(word));
 
-				if (inScope && word.error && GetWord(thisFunc).error) {
+				if (backupSP) {
 					output ~= "dspRestore = mem[vsp]\n";
 					output ~= "vsp = vsp + 1\n";
 				}
@@ -985,9 +989,11 @@ class BackendLua : CompilerBackend {
 
 		output ~= format("function %s()\n", labelName);
 
+		thisFunc = "__IMPLEMENT__";
 		foreach (ref inode ; node.nodes) {
 			compiler.CompileNode(inode);
 		}
+		thisFunc = "";
 
 		size_t scopeSize;
 		foreach (ref var ; variables) {

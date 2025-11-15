@@ -351,7 +351,11 @@ class BackendUXN : CompilerBackend {
 					output ~= format("%s\n", node.name);
 				}
 				else {
-					if (inScope && word.error && GetWord(thisFunc).error) {
+					bool backupSP =
+						(thisFunc != "__IMPLEMENT__") && inScope && word.error &&
+						GetWord(thisFunc).error;
+
+					if (backupSP) {
 						size_t paramSize = word.params.length * 2;
 
 						if (paramSize != 0) {
@@ -366,7 +370,7 @@ class BackendUXN : CompilerBackend {
 				
 					output ~= format("%s\n", Label(word));
 
-					if (inScope && word.error && GetWord(thisFunc).error) {
+					if (backupSP) {
 						output ~= "LITr -temp STZr\n";
 					}
 				}
@@ -1099,9 +1103,11 @@ class BackendUXN : CompilerBackend {
 
 		output ~= format("@%s\n", labelName);
 
+		thisFunc = "__IMPLEMENT__";
 		foreach (ref inode ; node.nodes) {
 			compiler.CompileNode(inode);
 		}
+		thisFunc = "";
 
 		size_t scopeSize;
 		foreach (ref var ; variables) {
