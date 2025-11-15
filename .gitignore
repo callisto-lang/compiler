@@ -1,7 +1,6 @@
 .dub
 docs.json
 __dummy.html
-docs/
 /cac
 cac.so
 cac.dylib
@@ -17,3 +16,5 @@ cac-test-*
 /test.cal
 /out
 /out.*
+*.mod
+/test*

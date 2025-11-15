@@ -7,6 +7,9 @@ import std.format;
 import std.algorithm;
 import callisto.error;
 import callisto.parser;
+import callisto.profiler;
+import callisto.preprocessor;
+import callisto.mod.sections;
 
 struct Effect {
 	size_t push;
@@ -14,9 +17,16 @@ struct Effect {
 }
 
 struct Word {
+	string mod;
+	string name;
 	bool   manual;
 	Effect effect;
 	bool   unsafe;
+}
+
+struct Identifier {
+	string mod;
+	string name;
 }
 
 struct StackCell {
@@ -30,36 +40,45 @@ class StackCheckerError : Exception {
 }
 
 class StackChecker {
-	Word[string]     words;
+	string           mod;
+	Word[]           words;
 	StackCell[]      stack;
-	string[]         identifiers;
-	string[][string] structs;
+	Identifier[]     identifiers;
+	string[]         locals;
+	string[][string] structs; // never used? TODO
 	size_t[]         whileStacks;
 	string[]         types;
 	string           thisFunc;
+	Preprocessor     preproc;
+	bool             inScope;
+	Profiler         profiler;
 
 	this() {
 		structs["Array"]     = ["length", "memberSize", "elements"];
 		structs["Exception"] = ["error", "msg"];
 
 		types = [
-			"cell", "bool", "addr", "size", "usize",
+			"cell", "icell", "bool", "addr", "isize", "usize",
 			"u8", "u16", "u32", "u64",
 			"i8", "i16", "i32", "i64",
 			"Array", "Exception"
 		];
 
 		foreach (ref type ; types) {
-			identifiers ~= format("%s.sizeOf", type);
+			identifiers ~= Identifier("core", format("%s.sizeOf", type));
 		}
 
 		foreach (key, structure ; structs) {
 			foreach (ref member ; structure) {
-				identifiers ~= format("%s.%s", key, member);
+				identifiers ~= Identifier("core", format("%s.%s", key, member));
 			}
 		}
 
-		identifiers ~= ["true", "false"];
+		// TODO: do this depending on backend
+		// doesn't matter much because if you misuse it then it will error on
+		// the compiler stage
+		identifiers ~= Identifier("core", "__LUA_EXCEPTION");
+		identifiers ~= [Identifier("core", "true"), Identifier("core", "false")];
 	}
 
 	void ErrorNoThrow(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
@@ -124,16 +143,100 @@ class StackChecker {
 		}
 	}
 
+	bool MatchMod(string thisMod, string thisName, string toMatch) {
+		return (thisName == toMatch) || (format("%s.%s", thisMod, thisName) == toMatch);
+	}
+
+	size_t CountWords(string name) {
+		size_t ret = 0;
+
+		foreach (ref word ; words) {
+			if (MatchMod(word.mod, word.name, name)) ++ ret;
+		}
+
+		return ret;
+	}
+
+	size_t CountAll(string name) {
+		size_t ret = CountWords(name);
+
+		foreach (ref ident ; identifiers) {
+			if (MatchMod(ident.mod, ident.name, name)) ++ ret;
+		}
+
+		return ret;
+	}
+
+	Word GetWord(string name) {
+		foreach (ref word ; words) {
+			if (MatchMod(word.mod, word.name, name)) return word;
+		}
+
+		assert(0);
+	}
+
+	bool WordExists(string name) {
+		return words.any!(v => MatchMod(v.mod, v.name, name));
+	}
+
+	bool WordExistsHere(string name) {
+		return words.any!(v => (v.mod == mod) && (v.name == name));
+	}
+
+	bool FullWordExists(string name) {
+		return words.any!(v => format("%s.%s", v.mod, v.name) == name);
+	}
+
+	string[] WordMatches(string name) {
+		string[] ret;
+
+		foreach (ref word ; words) {
+			if (MatchMod(word.mod, word.name, name)) ret ~= word.name;
+		}
+
+		return ret;
+	}
+
+	bool IdentifierExists(string name) {
+		return identifiers.any!(v => MatchMod(v.mod, v.name, name));
+	}
+
+	bool IdentifierPrefExists(string name) {
+		foreach (ref ident ; identifiers) {
+			if (
+				name.startsWith(ident.name ~ '.') ||
+				name.startsWith(format("%s.%s.", ident.mod, ident.name))
+			) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	void EvaluateWord(WordNode node) {
-		if (node.name in words) {
-			auto word = words[node.name];
+		/*size_t count = CountAll(node.name);
+		if (count > 1) {
+			Error(node.error, "Multiple matches for identifier '%s'", node.name);
+		}
+		else {
+			foreach (ref word ; words) {
+				writefln("%s.%s", word.mod, word.name);
+			}
+
+			Error(node.error, "Unknown word '%s'", node.name);
+		}*/
+
+		if (WordExists(node.name)) {
+			auto word = GetWord(node.name);
 
 			Pop(node, word.effect.pop);
 			Push(node, word.effect.push);
 		}
 		else if (
-			identifiers.canFind(node.name) ||
-			identifiers.canFind(node.name.split('.')[0])
+			IdentifierExists(node.name) || IdentifierExists(node.name.split('.')[0]) ||
+			IdentifierPrefExists(node.name) || locals.canFind(node.name) ||
+			locals.canFind(node.name.split('.')[0])
 		) {
 			Push(node, 1);
 		}
@@ -147,34 +250,37 @@ class StackChecker {
 	}
 
 	void EvaluateFuncDef(FuncDefNode node) {
-		words[node.name] = Word(
-			node.manual, Effect(node.returnTypes.length, node.params.length)
+		words ~= Word(
+			mod, node.name, node.manual,
+			Effect(node.returnTypes.length, node.params.length)
 		);
 
 		if (node.unsafe) return;
 
 		auto oldStack = stack;
-		stack = [];
-		auto oldIdentifiers = identifiers.dup;
+		stack   = [];
+		locals  = [];
+		inScope = true;
 
 		if (node.manual) {
 			Push(node, node.params.length);
 		}
 		else {
 			foreach (ref param ; node.params) {
-				identifiers ~= param;
+				locals ~= param;
 			}
 		}
 
-		thisFunc = node.name;
+		thisFunc = mod ~ '.' ~ node.name;
 		Evaluate(node.nodes);
 
 		if (stack.length > node.returnTypes.length) {
 			StackOverflow(node, node.returnTypes.length);
 		}
 
-		stack       = oldStack;
-		identifiers = oldIdentifiers;
+		stack   = oldStack;
+		locals  = [];
+		inScope = false;
 	}
 
 	private void EvaluateSingleIf(IfNode node) {
@@ -320,22 +426,28 @@ class StackChecker {
 	}
 
 	void EvaluateDef(LetNode node) {
-		identifiers ~= node.name;
+		if (inScope) {
+			locals ~= node.name;
+		}
+		else {
+			identifiers ~= Identifier(mod, node.name);
+		}
 	}
 	
 	void EvaluateDef(ConstNode node) {
-		identifiers ~= node.name;
+		identifiers ~= Identifier(mod, node.name);
 	}
 
 	void EvaluateExtern(ExternNode node) {
 		string name = node.asName == ""? node.func : node.asName;
 
-		if (name in words) {
+		if (WordExists(name)) {
 			Error(node.error, "Word '%s' already exists", name);
 		}
 
 		if (node.externType == ExternType.C) {
-			words[name] = Word(
+			words ~= Word(
+				mod, name,
 				false, Effect(
 					((node.retType.name == "void") && !node.retType.ptr)? 0 : 1,
 					node.types.length
@@ -343,13 +455,15 @@ class StackChecker {
 			);
 		}
 		else {
-			words[name] = Word(false, Effect.init, false);
+			words ~= Word(mod, name, false, Effect.init, false);
 		}
 	}
 
 	void EvaluateImplement(ImplementNode node) {
 		auto oldStack = stack;
 		stack         = [StackCell(node)];
+		locals        = [];
+		inScope       = true;
 
 		Evaluate(node.nodes);
 
@@ -358,17 +472,19 @@ class StackChecker {
 			StackOverflow(node, 0);
 		}
 
-		stack = oldStack;
+		stack   = oldStack;
+		locals  = [];
+		inScope = false;
 	}
 
 	void EvaluateTryCatch(TryCatchNode node) {
-		if (node.func !in words) {
+		if (!WordExists(node.func)) {
 			Error(node.error, "Unknown function '%s'", node.func);
 		}
 
-		auto word = words[node.func];
+		auto word = GetWord(node.func);
 
-		assert(!word.unsafe);
+		assert(!word.unsafe); // TODO: what?
 		Pop(node, word.effect.pop);
 
 		auto oldStack = stack;
@@ -402,41 +518,39 @@ class StackChecker {
 		}
 	}
 
+	// TODO: doesn't this need to handle inheritance??
+	// also check this with the import struct version
 	void EvaluateStruct(StructNode node) {
 		string[] structure;
 		foreach (ref member ; node.members) {
 			structure ~= member.name;
 		}
 
-		if (node.name in structs) {
-			Error(node.error, "Structure '%s' already exists", node.name);
-		}
-
 		structs[node.name] = structure;
 
 		foreach (ref member ; structure) {
-			identifiers ~= format("%s.%s", node.name, member);
+			identifiers ~= Identifier(mod, format("%s.%s", node.name, member));
 		}
 
-		identifiers ~= format("%s.sizeOf", node.name);
+		identifiers ~= Identifier(mod, format("%s.sizeOf", node.name));
 	}
 
 	void EvaluateEnum(EnumNode node) {
-		identifiers ~= format("%s.sizeOf", node.name);
-		identifiers ~= format("%s.min", node.name);
-		identifiers ~= format("%s.max", node.name);
+		identifiers ~= Identifier(mod, format("%s.sizeOf", node.name));
+		identifiers ~= Identifier(mod, format("%s.min", node.name));
+		identifiers ~= Identifier(mod, format("%s.max", node.name));
 
 		foreach (ref value ; node.names) {
-			identifiers ~= format("%s.%s", node.name, value);
+			identifiers ~= Identifier(mod, format("%s.%s", node.name, value));
 		}
 	}
 
 	void EvaluateUnion(UnionNode node) {
-		identifiers ~= format("%s.sizeOf", node.name);
+		identifiers ~= Identifier(mod, format("%s.sizeOf", node.name));
 	}
 
 	void EvaluateAlias(AliasNode node) {
-		identifiers ~= format("%s.sizeOf", node.to);
+		identifiers ~= Identifier(mod, format("%s.sizeOf", node.to));
 	}
 
 	void EvaluateUnsafe(UnsafeNode node) {
@@ -445,7 +559,7 @@ class StackChecker {
 	}
 
 	void EvaluateReturn(WordNode node) {
-		Pop(node, words[thisFunc].effect.push);
+		Pop(node, GetWord(thisFunc).effect.push);
 
 		if (stack.length > 0) {
 			StackOverflow(node, 0);
@@ -502,17 +616,120 @@ class StackChecker {
 		}
 	}
 
+	void Run(Node[] nodes) {
+		// import summary
+		if (mod != "") {
+			profiler.Begin();
+
+			foreach (ref isect ; preproc.summary.sections) {
+				switch (isect.GetType()) {
+					case SectionType.FuncDef: {
+						auto sect = cast(FuncDefSection) isect;
+
+						words ~= Word(
+							sect.inMod, sect.name, false, // manual, not really needed?
+							Effect(sect.ret, sect.params),
+							false // again, not really needed, TODO
+						);
+						break;
+					}
+					case SectionType.Const: {
+						auto sect = cast(ConstSection) isect;
+						identifiers ~= Identifier(sect.inMod, sect.name);
+						break;
+					}
+					case SectionType.Enum: {
+						auto sect = cast(EnumSection) isect;
+
+						identifiers ~= Identifier(
+							sect.inMod, format("%s.sizeOf", sect.name)
+						);
+						identifiers ~= Identifier(
+							sect.inMod, format("%s.min", sect.name)
+						);
+						identifiers ~= Identifier(
+							sect.inMod, format("%s.max", sect.name)
+						);
+
+						foreach (ref value ; sect.entries) {
+							identifiers ~= Identifier(
+								sect.inMod, format("%s.%s", sect.name, value.name)
+							);
+						}
+						break;
+					}
+					case SectionType.Union: {
+						auto sect = cast(UnionSection) isect;
+
+						identifiers ~= Identifier(mod, format("%s.sizeOf", sect.name));
+						break;
+					}
+					case SectionType.Alias: {
+						auto sect = cast(AliasSection) isect;
+
+						identifiers ~= Identifier(
+							mod, format("%s.sizeOf", sect.newName)
+						);
+						break;
+					}
+					case SectionType.Let: {
+						auto sect = cast(LetSection) isect;
+
+						identifiers ~= Identifier(mod, sect.name);
+						break;
+					}
+					case SectionType.Struct: {
+						auto sect = cast(StructSection) isect;
+
+						string[] structure;
+						foreach (ref member ; sect.entries) {
+							structure ~= member.name;
+						}
+
+						structs[sect.name] = structure;
+
+						foreach (ref member ; structure) {
+							identifiers ~= Identifier(
+								sect.inMod, format("%s.%s", sect.name, member)
+							);
+						}
+
+						identifiers ~= Identifier(
+							sect.inMod, format("%s.sizeOf", sect.name)
+						);
+						break;
+					}
+					case SectionType.Extern: {
+						auto sect = cast(ExternSection) isect;
+
+						words ~= Word(
+							sect.inMod, sect.funcName, false,
+							Effect(sect.returns.length, sect.params.length), false
+						);
+						break;
+					}
+					default: break;
+				}
+			}
+
+			profiler.End("stack checker (import)");
+		}
+
+		profiler.Begin();
+		Evaluate(nodes);
+		profiler.End("stack checker");
+	}
+
 	void DumpFunctions() {
-		size_t spaces = words.keys().fold!((a, e) => e.length > a.length? e : a).length;
+		size_t spaces = words.fold!(
+			(a, e) => e.name.length > a.name.length? e : a
+		).name.length;
 
-		auto keys = words.keys().sort();
-
-		foreach (key ; keys) {
-			auto value = words[key];
-
+		foreach (word ; words) {
 			writefln(
-				"%s %s= %d %s-> %d", key, replicate([' '], spaces - key.length),
-				value.effect.pop, value.manual? "m" : "", value.effect.push
+				"%s %s= %d %s-> %d", word.name,
+				replicate([' '], spaces - word.name.length), word.effect.pop,
+				word.manual? "m" : "", word.effect.push
 			);
 		}
 	}

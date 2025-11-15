@@ -37,7 +37,9 @@ enum NodeType {
 	Set,
 	TryCatch,
 	Unsafe,
-	Anon
+	Anon,
+	Import,
+	Module
 }
 
 class Node {
@@ -98,6 +100,8 @@ class SignedIntNode : Node {
 		type  = NodeType.SignedInt;
 		value = pvalue;
 	}
+
+	override string toString() => format("%d", value);
 }
 
 class IntegerNode : Node {
@@ -143,7 +147,7 @@ class FuncDefNode : Node {
 		ret ~= " ->";
 
 		foreach (ref type ; returnTypes) {
-			ret ~= format(" %s", type);
+			ret ~= format(" %s <ret>", type);
 		}
 
 		ret ~= " begin\n";
@@ -181,7 +185,15 @@ class AsmNode : Node {
 		code  = pcode;
 	}
 
-	override string toString() => format("asm %s", code);
+	override string toString() {
+		string str = "asm\n";
+
+		foreach (ref line ; code.split("\n")) {
+			str ~= format("    \"%s\"\n", line);
+		}
+
+		return str ~ "end\n";
+	}
 }
 
 class IfNode : Node {
@@ -323,6 +335,8 @@ class ArrayNode : Node {
 
 	override string toString() {
 		string ret = constant? "c[" : "[";
+
+		ret ~= format("%s%s ", arrayType.ptr? "ptr " : "", arrayType.name);
 
 		foreach (ref node ; elements) {
 			ret ~= node.toString() ~ ' ';
@@ -570,7 +584,16 @@ class UnsafeNode : Node {
 	}
 
 	override string toString() {
-		string ret = format("unsafe %d -> %d", paramTypes.length, retTypes.length);
+		string ret = "unsafe";
+
+		foreach (ref param ; paramTypes) {
+			ret ~= format(" %s _", param);
+		}
+		ret ~= " ->";
+		foreach (ref type ; retTypes) {
+			ret ~= format(" %s _", type);
+		}
+		ret ~= " begin\n";
 
 		foreach (ref node ; nodes) {
 			ret ~= node.toString() ~ '\n';
@@ -593,6 +616,42 @@ class AnonNode : Node {
 	override string toString() => array?
 		format("anon array %d %s", arraySize, varType) :
 		format("anon %s", varType);
+}
+
+class ImportNode : Node {
+	string mod;
+	bool   pub;
+
+	this(ErrorInfo perror) {
+		type    = NodeType.Import;
+		error   = perror;
+	}
+
+	this(ErrorInfo perror, string pmod) {
+		type  = NodeType.Import;
+		error = perror;
+		mod   = pmod;
+	}
+
+	override string toString() => format("import %s", mod);
+}
+
+class ModuleNode : Node {
+	string modType;
+	bool   pub;
+
+	this(ErrorInfo perror) {
+		type    = NodeType.Module;
+		error   = perror;
+	}
+
+	this(ErrorInfo perror, string ptype) {
+		type    = NodeType.Module;
+		error   = perror;
+		modType = ptype;
+	}
+
+	override string toString() => format("module %s", modType);
 }
 
 class ParserError : Exception {
@@ -1384,8 +1443,8 @@ class Parser {
 	}
 
 	Node ParseAnon() {
-		auto ret = new AnonNode(GetError());
-		parsing  = NodeType.Anon;
+		auto ret   = new AnonNode(GetError());
+		parsing    = NodeType.Anon;
 		parseStart = tokens[i];
 
 		Next();
@@ -1402,6 +1461,42 @@ class Parser {
 		}
 
 		ret.varType = cast(TypeNode) ParseType();
+		return ret;
+	}
+
+	Node ParseImport() {
+		auto ret   = new ImportNode(GetError());
+		parsing    = NodeType.Import;
+		parseStart = tokens[i];
+		Next();
+		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "public") {
+			ret.pub = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
+		ret.mod = tokens[i].contents;
+		return ret;
+	}
+
+	Node ParseModule() {
+		auto ret   = new ModuleNode(GetError());
+		parsing    = NodeType.Module;
+		parseStart = tokens[i];
+		Next();
+		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "public") {
+			ret.pub = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
+		ret.modType = tokens[i].contents;
 		return ret;
 	}
 
@@ -1439,6 +1534,8 @@ class Parser {
 					case "->":         return ParseSet();
 					case "unsafe":     return ParseUnsafe();
 					case "anon":       return ParseAnon();
+					case "import":     return ParseImport();
+					case "module":     return ParseModule();
 					default: return new WordNode(GetError(), tokens[i].contents);
 				}
 			}

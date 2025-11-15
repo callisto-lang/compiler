@@ -1,0 +1,7 @@
+include "cores/select.cal"
+include "std/io.cal"
+
+func factorial cell n -> cell res begin
+	if n 2 < then 1 end
+	else          n n 1 - factorial * end
+end

@@ -8,14 +8,20 @@ import std.algorithm;
 import callisto.util;
 import callisto.error;
 import callisto.parser;
+import callisto.summary;
+import callisto.mod.mod;
 import callisto.language;
+import callisto.mod.sections;
 
 class Preprocessor {
+	string   thisMod;
+	Summary  summary;
 	string[] includeDirs;
 	string[] included;
 	string[] versions;
 	string[] restricted;
 	string[] disabled;
+	bool     stub;
 	bool     success = true;
 
 	final void Error(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
@@ -23,6 +29,41 @@ class Preprocessor {
 		stderr.writeln(format(fmt, args));
 		PrintErrorLine(error);
 		success = false;
+	}
+
+	final void Warn(Char, A...)(ErrorInfo error, in Char[] fmt, A args) {
+		WarningBegin(error);
+		stderr.writeln(format(fmt, args));
+		PrintErrorLine(error);
+	}
+
+	private void Import(ErrorInfo error, string name) {
+		// writefln("Importing '%s'", name);
+		auto fileName = format("%s.mod", name);
+
+		if (name == thisMod) {
+			Warn(error, "Self import");
+			return;
+		}
+
+		string path;
+		bool   found = false;
+		foreach (ref ipath ; includeDirs) {
+			path = format("%s/%s", ipath, fileName);
+
+			if (exists(path)) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			Error(error, "Can't find module '%s'", name);
+		}
+
+		auto mod = new Module();
+		mod.Read(path, true);
+		summary.sections ~= mod.sections;
 	}
 
 	Node[] Run(Node[] nodes) {
@@ -141,6 +182,15 @@ class Preprocessor {
 					node.elements = Run(node.elements);
 
 					ret ~= node;
+					break;
+				}
+				case NodeType.Import: {
+					auto node = cast(ImportNode) inode;
+
+					if (!stub) {
+						Import(node.error, node.mod);
+					}
+					ret ~= inode;
 					break;
 				}
 				default: {

@@ -2,23 +2,32 @@ module callisto.app;
 
 import std.conv;
 import std.file;
+import std.path;
 import std.stdio;
 import std.string;
 import std.process;
 import std.algorithm;
+import callisto.test;
+import callisto.stub;
 import callisto.error;
+import callisto.output;
+import callisto.linker;
+import callisto.summary;
+import callisto.mod.mod;
 import callisto.compiler;
 import callisto.language;
+import callisto.profiler;
 import callisto.stackCheck;
 import callisto.codeRemover;
 import callisto.preprocessor;
+import callisto.mod.sections;
 import callisto.backends.lua;
 import callisto.backends.uxn;
 import callisto.backends.rm86;
 import callisto.backends.arm64;
 import callisto.backends.x86_64;
 
-const static string appVersion = "Beta 0.12.7";
+const static string appVersion = "Beta 0.13.0";
 
 const static string usage = "
 Callisto Compiler
@@ -49,6 +58,9 @@ Flags:
   -sc         - Stop after stack check
   -scf        - Show functions in stack checker
   --help      - Shows this help text
+  -m          - Generates a module file instead of an executable
+  -stub       - Generates a stub module
+  -p          - Print profiler results
 
 Backends and their operating systems:
   rm86   - Real mode x86, for bare-metal, DOS
@@ -64,6 +76,21 @@ Backend options:
     use-libc  - Makes Callisto use the C runtime and links libc
     frame-ptr - Makes Callisto use both rbp (frame pointer) and rsp for stack frames
     use-gas   - Makes Callisto use GNU Assembler instead of nasm
+  uxn:
+    asm=ASM   - Uses ASM as the assembler, instead of `uxnasm`
+
+Programs:
+  cac link <MODULES...> - Links MODULES... together into one executable
+    Flags:
+      -ps     - Print all sections in the first given module
+      -o FILE - Sets executable path
+      -lo OPT - Adds binutil linker option
+    Linker options:
+      x86_64:
+        use-gas  - Makes Callisto use GNU Assembler instead of nasm
+        use-libc - Makes Callisto use the C runtime and links libc
+        keep-asm - Keep assembly
+        debug    - Add debug info
 ";
 
 int main(string[] args) {
@@ -77,7 +104,7 @@ int main(string[] args) {
 	}
 
 	string          file;
-	string          outFile = "out";
+	string          outFile = "DEFAULT";
 	bool            orgSet;
 	string[]        includeDirs;
 	bool            optimise;
@@ -97,16 +124,31 @@ int main(string[] args) {
 	bool            onlyStackCheck = false;
 	bool            noStackCheck;
 	bool            stackCheckerFunctions = false;
+	bool            makeMod;
+	ModCPU          modCPU;
+	ModOS           modOS;
+	bool            makeStub;
+	bool            printProfiler;
 
 	// choose default backend
 	version (X86_64) {
 		backend = new BackendX86_64();
+		modCPU  = ModCPU.x86_64;
 	}
 	else version (AArch64) {
 		backend = new BackendARM64();
+		modCPU  = ModCPU.ARM64;
 	}
 	else {
 		WarnNoInfo("No default backend for your system");
+	}
+
+	if (args.length > 1) {
+		switch (args[1]) {
+			case "link": return LinkerProgram(args[2 .. $]);
+			case "test": return TestProgram();
+			default: break;
+		}
 	}
 
 	for (size_t i = 1; i < args.length; ++ i) {
@@ -119,7 +161,7 @@ int main(string[] args) {
 						stderr.writeln("-o requires FILE parameter");
 						return 1;
 					}
-					if (outFile != "out") {
+					if (outFile != "DEFAULT") {
 						stderr.writeln("Output file set multiple times");
 						return 1;
 					}
@@ -180,23 +222,27 @@ int main(string[] args) {
 					switch (args[i]) {
 						case "rm86": {
 							backend = new BackendRM86();
+							modCPU  = ModCPU.RM86;
 							break;
 						}
 						case "x86_64": {
 							backend = new BackendX86_64();
+							modCPU  = ModCPU.x86_64;
 							break;
 						}
 						case "arm64": {
 							backend = new BackendARM64();
+							modCPU  = ModCPU.ARM64;
 							break;
 						}
 						case "uxn": {
 							backend = new BackendUXN();
+							modCPU  = ModCPU.Uxn;
 							break;
 						}
 						case "lua": {
-							writeln("Language subset 'CallistoScript' in use");
 							backend = new BackendLua();
+							modCPU  = ModCPU.Lua;
 							break;
 						}
 						default: {
@@ -294,18 +340,12 @@ int main(string[] args) {
 					os = args[i];
 					break;
 				}
-				case "-sc": {
-					onlyStackCheck = true;
-					break;
-				}
-				case "-nsc": {
-					noStackCheck = true;
-					break;
-				}
-				case "-scf": {
-					stackCheckerFunctions = true;
-					break;
-				}
+				case "-sc":   onlyStackCheck = true;        break;
+				case "-nsc":  noStackCheck = true;          break;
+				case "-scf":  stackCheckerFunctions = true; break;
+				case "-m":    makeMod = true;               break;
+				case "-stub": makeStub = true;              break;
+				case "-p":    printProfiler = true;         break;
 				case "--help": {
 					writefln(usage.strip(), args[0]);
 					return 0;
@@ -326,16 +366,64 @@ int main(string[] args) {
 		}
 	}
 
+	if (makeMod) {
+		versions ~= "Module";
+	}
+
+	if (os == "DEFAULT") {
+		os = backend.defaultOS;
+
+		switch (os) {
+			case "linux":      modOS = ModOS.Linux;   break;
+			case "osx":        modOS = ModOS.macOS;   break;
+			case "bare-metal": modOS = ModOS.None;    break;
+			case "dos":        modOS = ModOS.DOS;     break;
+			case "freebsd":    modOS = ModOS.FreeBSD; break;
+			default:           break;
+		}
+	}
+
+	if (makeStub && !makeMod) {
+		stderr.writeln("Pass -m to make a stub module");
+		return 1;
+	}
+
+	if (makeStub) {
+		if (outFile == "DEFAULT") {
+			outFile = baseName(file).stripExtension();
+		}
+
+		backend.output = new Output();
+	}
+	else if (makeMod) {
+		if (outFile == "DEFAULT") {
+			outFile = baseName(file).stripExtension();
+		}
+
+		backend.output = new Output(file, modCPU, modOS, file, outFile ~ ".mod");
+	}
+	else {
+		if (outFile == "DEFAULT") {
+			outFile = "out";
+		}
+
+		if (!outFile.endsWith(backend.ExecExt())) {
+			outFile ~= backend.ExecExt();
+		}
+
+		backend.output = new Output(outFile);
+	}
+
 	if (backend is null) {
 		ErrorNoInfo("No backend selected");
 	}
 	backend.output.outFile = outFile;
 
-	if (os == "DEFAULT") {
-		os = backend.defaultOS;
+	auto preproc = new Preprocessor();
+	if (makeMod) {
+		preproc.thisMod = outFile;
 	}
 
-	auto preproc = new Preprocessor();
 	foreach (ref opt ; backendOpts) {
 		if (!backend.HandleOption(opt, versions, preproc)) {
 			stderr.writefln("Unknown option '%s'", opt);
@@ -356,15 +444,19 @@ int main(string[] args) {
 		}
 	}
 
-	backend.output ~= header ~ '\n';
+	if (!makeMod) backend.output ~= header ~ '\n';
 
 	if (file == "") {
 		stderr.writeln("No source files");
 		return 1;
 	}
 
+	auto     profiler = new Profiler();
 	string[] included;
-	auto     nodes = ParseFile(file);
+
+	profiler.Begin();
+	auto nodes = ParseFile(file);
+	profiler.End("parsing");
 
 	if (debugParser) {
 		foreach (ref node ; nodes) {
@@ -402,20 +494,48 @@ int main(string[] args) {
 	preproc.disabled    ~= disabled;
 	preproc.includeDirs ~= includeDirs;
 	preproc.versions    ~= versions;
+	preproc.stub         = makeStub;
 
+	if (makeMod) preproc.versions ~= "Module";
+
+	profiler.Begin();
 	nodes = preproc.Run(nodes);
+	profiler.End("preprocessor");
 	if (!preproc.success) return 1;
 
+	if (makeMod && makeStub) {
+		auto stubComp = new StubCompiler(file, modCPU, modOS, file, outFile ~ ".mod");
+		profiler.Begin();
+		stubComp.Compile(nodes);
+		profiler.End("stub compiler");
+		return 0;
+	}
+
 	if (optimise) {
+		if (makeMod) {
+			ErrorNoInfo("Dead code removal on modules should be done at link time");
+			return 1;
+		}
 		auto codeRemover = new CodeRemover();
+
+		profiler.Begin();
 		codeRemover.Run(nodes);
+		profiler.End("dead code remover");
+
 		nodes = codeRemover.res;
 		if (!codeRemover.success) return 1;
 	}
 
-	auto stackChecker = new StackChecker();
+	auto stackChecker     = new StackChecker();
+	stackChecker.preproc  = preproc;
+	stackChecker.profiler = profiler;
+
+	if (makeMod) {
+		stackChecker.mod = baseName(outFile);
+	}
+
 	try {
-		if (!noStackCheck) stackChecker.Evaluate(nodes);
+		if (!noStackCheck) stackChecker.Run(nodes);
 	}
 	catch (StackCheckerError) {
 		stderr.writeln("Error occured during stack checker stage");
@@ -440,15 +560,19 @@ int main(string[] args) {
 		return 0;
 	}
 
-	compiler.versions = preproc.versions;
-	
+	compiler.backend.summary = preproc.summary;
+	compiler.versions        = preproc.versions;
+
+	profiler.Begin();
 	compiler.Compile(nodes);
+	profiler.End("compilation");
 	if (!compiler.success) return 1;
 
 	// std.file.write(outFile, compiler.backend.output);
 	compiler.backend.output.Finish();
 
 	if (runFinal) {
+		profiler.Begin();
 		compiler.outFile   = outFile;
 		auto finalCommands = compiler.backend.FinalCommands();
 
@@ -461,6 +585,12 @@ int main(string[] args) {
 				return 1;
 			}
 		}
+
+		profiler.End("final commands");
+	}
+
+	if (printProfiler) {
+		profiler.PrintResults();
 	}
 
 	return 0;

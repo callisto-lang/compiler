@@ -14,10 +14,16 @@ Lua, while keeping its low level features (like direct access to memory).
 
 ## Build
 ```
-dub build
+dub build --compiler=ldc
 ```
 
+Compiling with LDC is required because DMD freezes
+
 The compiler executable will be called `cac`
+
+> [!WARNING]  
+> Compilation may freeze due to a bug in the Digital Mars D compiler. If this happens,
+> compile with this command: `dub build --compiler=ldc`
 
 ## Run example programs
 Make sure you get the standard library
