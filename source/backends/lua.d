@@ -268,7 +268,7 @@ class BackendLua : CompilerBackend {
 				if (WordExists("__lua_exception")) {
 					bool crash;
 
-					if (inScope) {
+					if (inScope && (thisFunc != "__IMPLEMENT__")) {
 						crash = !GetWord(thisFunc).error;
 					}
 					else {

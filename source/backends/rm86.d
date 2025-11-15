@@ -370,7 +370,7 @@ class BackendRM86 : CompilerBackend {
 				if (WordExists("__rm86_exception")) {
 					bool crash;
 
-					if (inScope) {
+					if (inScope && (thisFunc != "__IMPLEMENT__")) {
 						crash = !GetWord(thisFunc).error;
 					}
 					else {

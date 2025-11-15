@@ -768,7 +768,7 @@ class BackendX86_64 : CompilerBackend {
 				if (num == 1) {
 					bool crash;
 
-					if (inScope) {
+					if (inScope && (thisFunc != "__IMPLEMENT__")) {
 						crash = !GetWord(thisFunc).error;
 					}
 					else {

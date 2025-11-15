@@ -380,7 +380,7 @@ class BackendUXN : CompilerBackend {
 				if (WordExists("__uxn_exception")) {
 					bool crash;
 
-					if (inScope) {
+					if (inScope && (thisFunc != "__IMPLEMENT__")) {
 						crash = !GetWord(thisFunc).error;
 					}
 					else {
