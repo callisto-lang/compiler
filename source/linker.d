@@ -39,7 +39,10 @@ class Linker {
 	string   bssAsm;
 	string   dataAsm;
 	string[] externs;
+	string[] calls;
 	Func[]   funcs;
+
+	FuncDefSection[] funcDefs;
 
 	bool FuncExists(string name) {
 		foreach (ref func ; funcs) {
@@ -81,6 +84,12 @@ class Linker {
 				case SectionType.TopLevel: {
 					auto sect  = cast(TopLevelSection) isect;
 					tlcAsm    ~= sect.assembly;
+
+					foreach (ref call ; sect.calls) {
+						if (!calls.canFind(call)) {
+							calls ~= call;
+						}
+					}
 					break;
 				}
 				case SectionType.FuncDef: {
@@ -91,15 +100,28 @@ class Linker {
 					}
 
 					Func func;
-					func.mod    = mod.name;
-					func.name   = sect.name;
-					func.inline = sect.inline;
-					funcs     ~= func;
+					func.mod     = mod.name;
+					func.name    = sect.name;
+					func.inline  = sect.inline;
+					funcs       ~= func;
+					funcDefs    ~= sect;
+
+					foreach (ref call ; sect.calls) {
+						if (!calls.canFind(call)) {
+							calls ~= call;
+						}
+					}
 					break;
 				}
 				case SectionType.Implement: {
 					auto sect  = cast(ImplementSection) isect;
 					funcAsm   ~= sect.assembly;
+
+					foreach (ref call ; sect.called) {
+						if (!calls.canFind(call)) {
+							calls ~= call;
+						}
+					}
 					break;
 				}
 				case SectionType.BSS: {

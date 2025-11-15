@@ -502,7 +502,7 @@ class BackendUXN : CompilerBackend {
 			auto sect   = output.ThisSection!FuncDefSection();
 			sect.pub    = true; // TODO: add private functions
 			sect.inline = node.inline;
-			sect.calls  = []; // TODO: add this for inline functions (IMPORTANT)
+			sect.calls  = GetCalls(node.nodes);
 			sect.name   = node.name;
 			sect.params = params.length;
 			sect.ret    = node.returnTypes.length;

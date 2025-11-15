@@ -678,7 +678,7 @@ class BackendARM64 : CompilerBackend {
 			// TODO: the stuff that x86_64 says
 			sect.pub    = true;
 			sect.inline = node.inline;
-			sect.calls  = [];
+			sect.calls  = GetCalls(node.nodes);
 			sect.name   = node.name;
 			sect.params = params.length;
 			sect.ret    = node.returnTypes.length;

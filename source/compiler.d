@@ -184,6 +184,76 @@ class CompilerBackend {
 	abstract void CompileTryCatch(TryCatchNode node);
 	abstract void CompileThrow(WordNode node);
 
+	string[] GetCalls(Node[] nodes) {
+		string[] ret;
+
+		void Add(string[] calls) {
+			foreach (ref call ; calls) {
+				if (!ret.canFind(call)) ret ~= call;
+			}
+		}
+
+		foreach (ref inode ; nodes) {
+			switch (inode.type) {
+				case NodeType.Word: {
+					auto node = cast(WordNode) inode;
+					Add([node.name]);
+					break;
+				}
+				case NodeType.FuncDef: {
+					auto node = cast(FuncDefNode) inode;
+					Add(GetCalls(node.nodes));
+					break;
+				}
+				case NodeType.If: {
+					auto node = cast(IfNode) inode;
+
+					foreach (ref cond ; node.condition) {
+						Add(GetCalls(cond));
+					}
+
+					foreach (ref ifBody ; node.doIf) {
+						Add(GetCalls(ifBody));
+					}
+
+					Add(GetCalls(node.doElse));
+					break;
+				}
+				case NodeType.While: {
+					auto node = cast(WhileNode) inode;
+					Add(GetCalls(node.condition));
+					Add(GetCalls(node.doWhile));
+					break;
+				}
+				case NodeType.Implement: {
+					auto node = cast(ImplementNode) inode;
+					Add(GetCalls(node.nodes));
+					break;
+				}
+				case NodeType.TryCatch: {
+					auto node = cast(TryCatchNode) inode;
+					Add(GetCalls(node.catchBlock));
+					break;
+				}
+				case NodeType.Unsafe: {
+					auto node = cast(UnsafeNode) inode;
+					Add(GetCalls(node.nodes));
+					break;
+				}
+				case NodeType.Addr: {
+					auto node = cast(AddrNode) inode;
+					if (WordExists(node.func)) {
+						Add([node.func]);
+					}
+					break;
+				}
+				default: continue;
+			}
+		}
+
+		return ret;
+	}
+
 	void CompileStruct(StructNode node) {
 		size_t offset;
 

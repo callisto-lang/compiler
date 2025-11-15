@@ -145,7 +145,7 @@ class Output {
 		section.array = global.array;
 		section.size  = global.type.size;
 		section.ptr   = global.type.ptr;
-		section.type  = global.type.name;
+		section.type  = format("%s.%s", global.type.mod, global.type.name);
 		section.name  = global.name;
 		AddSection(section);
 	}
