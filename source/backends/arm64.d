@@ -539,8 +539,8 @@ class BackendARM64 : CompilerBackend {
 				}
 				else {
 					bool backupSP =
-						(thisFunc != "__IMPLEMENT__") && inScope && word.error &&
-						GetWord(thisFunc).error;
+						((thisFunc == "__IMPLEMENT__") && inScope) ||
+						(inScope && word.error && GetWord(thisFunc).error);
 
 					if (backupSP) {
 						size_t paramSize = word.params.length * 8;
