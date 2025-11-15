@@ -39,9 +39,9 @@ class BackendRM86 : CompilerBackend {
 
 		// built in structs
 		types ~= Type("core", "Array", 6, false, true, [
-			StructEntry(UsedType(GetType("usize"), false), "length", false, 2, 0),
-			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 2, 2),
-			StructEntry(UsedType(GetType("addr"), false),  "elements", false, 2, 4)
+			StructEntry(UsedType(GetType("core.usize"), false), "length", false, 2, 0),
+			StructEntry(UsedType(GetType("core.usize"), false), "memberSize", false, 2, 2),
+			StructEntry(UsedType(GetType("core.addr"), false),  "elements", false, 2, 4)
 		]);
 		NewConst("core", "Array.length",     0);
 		NewConst("core", "Array.memberSize", 2);
@@ -49,8 +49,8 @@ class BackendRM86 : CompilerBackend {
 		NewConst("core", "Array.sizeOf",     2 * 3);
 
 		types ~= Type("core", "Exception", 6 + 2, false, true, [
-			StructEntry(UsedType(GetType("bool"), false),  "error", false, 2, 0),
-			StructEntry(UsedType(GetType("Array"), false), "msg", false, 6, 2)
+			StructEntry(UsedType(GetType("core.bool"), false),  "error", false, 2, 0),
+			StructEntry(UsedType(GetType("core.Array"), false), "msg", false, 6, 2)
 		]);
 		NewConst("core", "Exception.bool",   0);
 		NewConst("core", "Exception.msg",    2);
@@ -103,9 +103,7 @@ class BackendRM86 : CompilerBackend {
 		// what?
 		foreach (global ; globals) {
 			if (global.type.hasInit && !global.type.ptr) {
-				if (output.mode == OutputMode.Module) {
-					continue;
-				}
+				if (global.mod != output.GetModName()) continue;
 
 				output ~= format(
 					"mov word [si], word %s\n",
@@ -504,7 +502,7 @@ class BackendRM86 : CompilerBackend {
 				output.GetModName(), node.name, WordType.Callisto, false,
 				true, node.nodes, node.errors, params
 			);
-			
+
 			if (output.mode == OutputMode.Module) {
 				auto sect = output.ThisSection!FuncDefSection();
 
@@ -846,6 +844,9 @@ class BackendRM86 : CompilerBackend {
 		if (!TypeExists(node.arrayType.name)) {
 			Error(node.error, "Type '%s' doesn't exist", node.arrayType.name);
 		}
+		if (CountTypes(node.arrayType.name) > 1) {
+			Error(node.error, "Multiple matches for type '%s'", node.arrayType.name);
+		}
 
 		array.type    = UsedType(GetType(node.arrayType.name), node.arrayType.ptr);
 		array.global  = !inScope || node.constant;
@@ -887,7 +888,7 @@ class BackendRM86 : CompilerBackend {
 			variables ~= var;
 
 			// create metadata variable
-			var.type   = UsedType(GetType("Array"), false);
+			var.type   = UsedType(GetType("core.Array"), false);
 			var.offset = 0;
 			var.array  = false;
 
@@ -913,7 +914,7 @@ class BackendRM86 : CompilerBackend {
 	override void CompileString(StringNode node) {
 		auto arrayNode = new ArrayNode(node.error);
 
-		arrayNode.arrayType = new TypeNode(node.error, "u8", false);
+		arrayNode.arrayType = new TypeNode(node.error, "core.u8", false);
 		arrayNode.constant  = node.constant;
 
 		foreach (ref ch ; node.value) {
@@ -1262,6 +1263,9 @@ class BackendRM86 : CompilerBackend {
 	override void CompileTryCatch(TryCatchNode node) {
 		if (!WordExists(node.func)) {
 			Error(node.error, "Function '%s' doesn't exist", node.func);
+		}
+		if (CountWords(node.func) > 1) {
+			Error(node.error, "Multiple matches for function '%s'", node.func);
 		}
 
 		auto word = GetWord(node.func);

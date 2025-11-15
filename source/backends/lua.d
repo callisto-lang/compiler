@@ -26,11 +26,13 @@ private struct ArrayExtra {
 }
 
 class BackendLua : CompilerBackend {
-	ulong globalStack = 524288;
-	ulong arrayStack = 524287;
+	ulong globalStack = 524292;
+	ulong arrayStack  = 524287;
+	ulong exception   = 524288;
 
 	this() {
-		addrSize = 1;
+		addrSize     = 1;
+		symbolPrefix = false;
 
 		// built in integer types
 		types ~= Type("core", "addr",  1, false);
@@ -42,9 +44,9 @@ class BackendLua : CompilerBackend {
 
 		// built in structs
 		types ~= Type("core", "Array", 3, false, true, [
-			StructEntry(UsedType(GetType("usize"), false), "length", false, 1, 0),
-			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 1, 1),
-			StructEntry(UsedType(GetType("addr"), false),  "elements", false, 1, 2)
+			StructEntry(UsedType(GetType("core.usize"), false), "length", false, 1, 0),
+			StructEntry(UsedType(GetType("core.usize"), false), "memberSize", false, 1, 1),
+			StructEntry(UsedType(GetType("core.addr"), false),  "elements", false, 1, 2)
 		]);
 		NewConst("core", "Array.length",     0);
 		NewConst("core", "Array.memberSize", 1);
@@ -52,22 +54,24 @@ class BackendLua : CompilerBackend {
 		NewConst("core", "Array.sizeOf",     3);
 
 		types ~= Type("core", "Exception", 3 + 1, false, true, [
-			StructEntry(UsedType(GetType("bool"), false),  "error", false, 1, 0),
-			StructEntry(UsedType(GetType("Array"), false), "msg", false, 3, 1)
+			StructEntry(UsedType(GetType("core.bool"), false),  "error", false, 1, 0),
+			StructEntry(UsedType(GetType("core.Array"), false), "msg", false, 3, 1)
 		]);
 		NewConst("core", "Exception.bool",   0);
 		NewConst("core", "Exception.msg",    1);
 		NewConst("core", "Exception.sizeOf", 3 + 1);
 
 		foreach (ref type ; types) {
-			NewConst(format("%s.sizeOf", type.name), cast(long) type.size);
+			NewConst("core", format("%s.sizeOf", type.name), cast(long) type.size);
 		}
 
-		globals ~= Global(
-			"core", "_cal_exception", UsedType(GetType("Exception"), false), false, 0,
+		/*globals ~= Global(
+			"core", "__cal_exception", UsedType(GetType("Exception"), false), false, 0,
 			new GlobalExtra(globalStack)
 		);
-		globalStack += globals[$ - 1].Size();
+		globalStack += globals[$ - 1].Size();*/
+
+		NewConst("core", "__LUA_EXCEPTION", cast(ulong) exception);
 	}
 
 	override string[] GetVersions() => ["Lua", "CallistoScript", "IO", "Time", "Exit"];
@@ -81,6 +85,8 @@ class BackendLua : CompilerBackend {
 	override bool HandleOption(string opt, ref string[] versions, Preprocessor preproc) => false;
 
 	override void Init() {
+		if (output.mode == OutputMode.Module) return;
+
 		output ~= "mem = {};\n";
 		output ~= "for i = 1, 1048576 do\n";
 		output ~= "    table.insert(mem, 0);\n";
@@ -91,6 +97,8 @@ class BackendLua : CompilerBackend {
 		output ~= "regA = 0;\n";
 		output ~= "regB = 0;\n";
 		output ~= "dspRestore = 0;\n";
+		output ~= format("exception = %d;\n", globalStack);
+		globalStack += 4;
 
 		output ~= "
 			function cal_pop()
@@ -102,13 +110,18 @@ class BackendLua : CompilerBackend {
 
 	override void End() {
 		// call destructors
-		foreach (name, global ; globals) {
+		foreach (ref global ; globals) {
 			if (!global.type.hasDeinit || global.type.ptr) continue;
 			auto globalExtra = cast(GlobalExtra*) global.extra;
 
 			output ~= format("mem[dsp] = %d\n", globalExtra.addr);
 			output ~= "dsp = dsp + 1\n";
-			output ~= format("type_deinit_%s()\n", global.type.name.Sanitise());
+			output ~= format(
+				"%s()\n", ExtLabel(
+					global.type.mod, "type_deinit_", "%s",
+					global.type.name.Sanitise()
+				)
+			);
 		}
 
 		output ~= "end\n";
@@ -147,6 +160,23 @@ class BackendLua : CompilerBackend {
 
 	override void BeginMain() {
 		output ~= "function calmain()\n";
+		
+		// call constructors
+		foreach (global ; globals) {
+			if (global.type.hasInit && !global.type.ptr) {
+				if (global.mod != output.GetModName()) continue;
+
+				auto extra = cast(GlobalExtra*) global.extra;
+
+				output ~= format("mem[dsp] = %d\n", extra.addr);
+				output ~= format(
+					"%s()\n", ExtLabel(
+						global.type.mod, "__type_init_", "%s",
+						global.type.name.Sanitise()
+					)
+				);
+			}
+		}
 	}
 
 	void PushVariableValue(
@@ -212,7 +242,7 @@ class BackendLua : CompilerBackend {
 					output ~= format("mem[vsp] = dsp - %d\n", word.params.length);
 				}
 
-				output ~= format("func__%s();\n", node.name.Sanitise());
+				output ~= format("%s();\n", Label(word));
 
 				if (word.error && GetWord(thisFunc).error) {
 					output ~= "dspRestore = mem[vsp]\n";
@@ -223,8 +253,6 @@ class BackendLua : CompilerBackend {
 			if (word.error) {
 				if (WordExists("__lua_exception")) {
 					bool crash;
-					auto exception = GetGlobal("_cal_exception");
-					auto extra     = cast(GlobalExtra*) exception.extra;
 
 					if (inScope) {
 						crash = !GetWord(thisFunc).error;
@@ -234,12 +262,12 @@ class BackendLua : CompilerBackend {
 					}
 
 					if (crash) {
-						output ~= format("if mem[%d] ~= 0 then\n", extra.addr);
-						output ~= format("func__%s()\n", Sanitise("__lua_exception"));
+						output ~= format("if mem[%d] ~= 0 then\n", exception);
+						output ~= format("%s()\n", Label(GetWord("__lua_exception")));
 						output ~= "end\n";
 					}
 					else {
-						output ~= format("if mem[%d] ~= 0 then\n", extra.addr);
+						output ~= format("if mem[%d] ~= 0 then\n", exception);
 						output ~= "dsp = dspRestore\n";
 						CompileReturn(node);
 						output ~= "end\n";
@@ -271,6 +299,10 @@ class BackendLua : CompilerBackend {
 		else if (IsStructMember(node.name)) {
 			string name    = node.name[0 .. node.name.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.name);
+
+			if (CountAll(name)) {
+				Error(node.error, "Multiple matches for identifier '%s'", name);
+			}
 
 			if (structVar.structure) {
 				Error(node.error, "Can't push the value of an array or structure");
@@ -332,14 +364,32 @@ class BackendLua : CompilerBackend {
 			params ~= UsedType(GetType(type.name), type.ptr);
 		}
 
+		output.StartSection(SectionType.FuncDef);
+		if (output.mode == OutputMode.Module) {
+			auto sect   = output.ThisSection!FuncDefSection();
+			sect.pub    = true; // TODO: add private functions
+			sect.inline = node.inline;
+			sect.calls  = []; // TODO: add this for inline functions (IMPORTANT)
+			sect.name   = node.name;
+			sect.params = params.length;
+			sect.ret    = node.returnTypes.length;
+		}
+
 		if (node.inline) {
-			auto globalExtra = cast(GlobalExtra*) GetGlobal("_cal_exception").extra;
-			output ~= format("mem[%d] = 0\n", globalExtra.addr);
+			output ~= format("mem[%d] = 0\n", exception);
 
 			words ~= Word(
 				output.GetModName(), node.name, WordType.Callisto, false, true,
 				node.nodes, node.errors, params
 			);
+
+			if (output.mode == OutputMode.Module) {
+				auto sect = output.ThisSection!FuncDefSection();
+
+				foreach (ref inode ; node.nodes) {
+					sect.assembly ~= inode.toString() ~ '\n';
+				}
+			}
 		}
 		else {
 			assert(!inScope);
@@ -350,10 +400,11 @@ class BackendLua : CompilerBackend {
 				node.errors, params
 			);
 
-			output ~= format("function func__%s()\n", node.name.Sanitise());
+			output ~= format(
+				"function %s()\n", Label("func__", "%s", node.name.Sanitise())
+			);
 
-			auto exceptionExtra = cast(GlobalExtra*) GetGlobal("_cal_exception").extra;
-			output ~= format("mem[%d] = 0\n", exceptionExtra.addr);
+			output ~= format("mem[%d] = 0\n", exception);
 
 			// allocate parameters
 			size_t paramSize = node.params.length;
@@ -406,7 +457,12 @@ class BackendLua : CompilerBackend {
 				if (var.type.hasDeinit && !var.type.ptr) {
 					output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 					output ~= "dsp = dsp + 1\n";
-					output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+					output ~= format(
+						"%s()\n", ExtLabel(
+							var.type.mod, "type_deinit_", "%s",
+							var.type.name.Sanitise()
+						)
+					);
 				}
 			}
 			output ~= format("vsp = vsp + %d\n", scopeSize);
@@ -415,6 +471,8 @@ class BackendLua : CompilerBackend {
 			inScope   = false;
 			variables = [];
 		}
+
+		output.FinishSection();
 	}
 
 	override void CompileIf(IfNode node) {
@@ -428,7 +486,9 @@ class BackendLua : CompilerBackend {
 			}
 
 			output ~= "if cal_pop() == 0 then\n";
-			output ~= format("goto if_%d_%d\n", blockNum, condCounter + 1);
+			output ~= format(
+				"goto %s\n", Label("if_", "%d_%d", blockNum, condCounter + 1)
+			);
 			output ~= "end\n";
 
 			// create scope
@@ -446,17 +506,24 @@ class BackendLua : CompilerBackend {
 
 				output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 				output ~= "dsp = dsp + 1\n";
-				output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+				output ~= format(
+					"%s()\n", ExtLabel(
+						var.type.mod, "type_deinit_", "%s",
+						var.type.name.Sanitise()
+					)
+				);
 			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format("vsp = vsp + %d\n", GetStackSize() - oldSize);
 			}
 			variables = oldVars;
 
-			output ~= format("goto if_%d_end\n", blockNum);
+			output ~= format("goto %s\n", Label("if_", "%d_end", blockNum));
 
 			++ condCounter;
-			output ~= format("::if_%d_%d::\n", blockNum, condCounter);
+			output ~= format(
+				"::%s::\n", Label("if_", "%d_%d", blockNum, condCounter)
+			);
 		}
 
 		if (node.hasElse) {
@@ -475,7 +542,12 @@ class BackendLua : CompilerBackend {
 
 				output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 				output ~= "dsp = dsp + 1\n";
-				output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+				output ~= format(
+					"%s()\n", ExtLabel(
+						var.type.mod, "type_deinit_", "%s",
+						var.type.name.Sanitise()
+					)
+				);
 			}
 			if (GetStackSize() - oldSize > 0) {
 				output ~= format("vsp = vsp + %d\n", GetStackSize() - oldSize);
@@ -483,7 +555,7 @@ class BackendLua : CompilerBackend {
 			variables = oldVars;
 		}
 
-		output ~= format("::if_%d_end::\n", blockNum);
+		output ~= format("::%s::\n", Label("if_", "%d_end", blockNum));
 	}
 
 	override void CompileWhile(WhileNode node) {
@@ -491,8 +563,8 @@ class BackendLua : CompilerBackend {
 		uint blockNum = blockCounter;
 		currentLoop   = blockNum;
 
-		output ~= format("goto while_%d_condition\n", blockNum);
-		output ~= format("::while_%d::\n", blockNum);
+		output ~= format("goto %s\n", Label("while_", "%d_condition", blockNum));
+		output ~= format("::%s::\n", Label("while_", "%d", blockNum));
 
 		// make scope
 		auto oldVars = variables.dup;
@@ -506,14 +578,19 @@ class BackendLua : CompilerBackend {
 		}
 
 		// restore scope
-		output ~= format("::while_%d_next::\n", blockNum);
+		output ~= format("::%s::\n", Label("while_", "%d_next", blockNum));
 		foreach (ref var ; variables) {
 			if (oldVars.canFind(var)) continue;
 			if (!var.type.hasDeinit || var.type.ptr) continue;
 
 			output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 			output ~= "dsp = dsp + 1\n";
-			output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+			output ~= format(
+				"%s()\n", ExtLabel(
+					var.type.mod, "type_deinit_", "%s",
+					var.type.name.Sanitise()
+				)
+			);
 		}
 		if (GetStackSize() - oldSize > 0) {
 			output ~= format("vsp = vsp + %d\n", GetStackSize() - oldSize);
@@ -521,16 +598,16 @@ class BackendLua : CompilerBackend {
 		variables = oldVars;
 
 		inWhile  = false;
-		output  ~= format("::while_%d_condition::\n", blockNum);
+		output  ~= format("::%s::\n", Label("while_", "%d_condition", blockNum));
 
 		foreach (ref inode ; node.condition) {
 			compiler.CompileNode(inode);
 		}
 
 		output ~= "if cal_pop() ~= 0 then\n";
-		output ~= format("goto while_%d;\n", blockNum);
+		output ~= format("goto %s;\n", Label("while_", "%d", blockNum));
 		output ~= "end\n";
-		output ~= format("::while_%d_end::\n", blockNum);
+		output ~= format("::%s::\n", Label("while_", "%d_end", blockNum));
 	}
 
 	override void CompileLet(LetNode node) {
@@ -578,7 +655,11 @@ class BackendLua : CompilerBackend {
 			if (var.type.hasInit && !var.type.ptr) { // call constructor
 				output ~= "mem[dsp] = vsp\n";
 				output ~= "dsp = dsp + 1\n";
-				output ~= format("type_init_%s()\n", var.type.name.Sanitise());
+				output ~= format(
+					"%s()\n", ExtLabel(
+						var.type.mod, "type_init_", "%s", var.type.name.Sanitise()
+					)
+				);
 			}
 		}
 		else {
@@ -590,6 +671,7 @@ class BackendLua : CompilerBackend {
 			extra.addr         = globalStack;
 
 			Global global;
+			global.mod        = output.GetModName();
 			global.name       = node.name;
 			global.type.type  = GetType(node.varType.name);
 			global.type.ptr   = node.varType.ptr;
@@ -605,12 +687,6 @@ class BackendLua : CompilerBackend {
 					node.error,
 					"Anonymous variables can only be created inside a function"
 				);
-			}
-
-			if (global.type.hasInit && !global.type.ptr) { // call constructor
-				output ~= format("mem[dsp] = %d\n", extra.addr);
-				output ~= "dsp = dsp + 1\n";
-				output ~= format("type_init_%s()\n", global.type.name.Sanitise());
 			}
 		}
 	}
@@ -640,6 +716,9 @@ class BackendLua : CompilerBackend {
 
 		if (!TypeExists(node.arrayType.name)) {
 			Error(node.error, "Type '%s' doesn't exist", node.arrayType.name);
+		}
+		if (CountTypes(node.arrayType.name) > 1) {
+			Error(node.error, "Multiple matches for type '%s'", node.arrayType.name);
 		}
 
 		array.type.type = GetType(node.arrayType.name);
@@ -690,7 +769,7 @@ class BackendLua : CompilerBackend {
 			variables ~= var;
 
 			// create metadata variable
-			var.type   = UsedType(GetType("Array"), false);
+			var.type   = UsedType(GetType("core.Array"), false);
 			var.offset = 0;
 			var.array  = false;
 
@@ -717,7 +796,7 @@ class BackendLua : CompilerBackend {
 	override void CompileString(StringNode node) {
 		auto arrayNode = new ArrayNode(node.error);
 
-		arrayNode.arrayType = new TypeNode(node.error, "cell", false);
+		arrayNode.arrayType = new TypeNode(node.error, "core.cell", false);
 		arrayNode.constant  = node.constant;
 
 		foreach (ref ch ; node.value) {
@@ -739,7 +818,12 @@ class BackendLua : CompilerBackend {
 			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 				output ~= "dsp = dsp + 1\n";
-				output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+				output ~= format(
+					"%s()\n", ExtLabel(
+						var.type.mod, "type_deinit_", "%s",
+						var.type.name.Sanitise()
+					)
+				);
 			}
 		}
 		output ~= format("vsp = vsp + %d\n", scopeSize);
@@ -752,7 +836,7 @@ class BackendLua : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format("goto ::while_%d_end::\n", currentLoop);
+		output ~= format("goto ::%s::\n", Label("while_", "%d_end", currentLoop));
 	}
 
 	override void CompileContinue(WordNode node) {
@@ -760,7 +844,7 @@ class BackendLua : CompilerBackend {
 			Error(node.error, "Not in while loop");
 		}
 
-		output ~= format("goto ::while_%d_next::\n", currentLoop);
+		output ~= format("goto ::%s::\n", Label("while_", "%d_next", currentLoop));
 	}
 
 	override void CompileExtern(ExternNode node) {
@@ -782,6 +866,10 @@ class BackendLua : CompilerBackend {
 	}
 
 	override void CompileAddr(AddrNode node) {
+		if (CountAll(node.func) > 1) {
+			Error(node.error, "Multiple matches for identifier '%s'", node.func);
+		}
+
 		if (WordExists(node.func)) {
 			Error(node.error, "Can't get addresses of functions in CallistoScript");
 		}
@@ -800,6 +888,10 @@ class BackendLua : CompilerBackend {
 			string name      = node.func[0 .. node.func.countUntil(".")];
 			auto   structVar = GetStructVariable(node, node.func);
 			size_t offset    = structVar.offset;
+
+			if (CountAll(node.func) > 1) {
+				Error(node.error, "Multiple matches for identifier '%s'", node.func);
+			}
 
 			if (GlobalExists(name)) {
 				auto var   = GetGlobal(name);
@@ -851,7 +943,7 @@ class BackendLua : CompilerBackend {
 				}
 
 				type.hasInit = true;
-				labelName = format("type_init_%s", Sanitise(node.structure));
+				labelName = Label("type_init_", "%s", Sanitise(node.structure));
 				break;
 			}
 			case "deinit": {
@@ -860,7 +952,7 @@ class BackendLua : CompilerBackend {
 				}
 
 				type.hasDeinit = true;
-				labelName = format("type_deinit_%s", Sanitise(node.structure));
+				labelName = Label("type_deinit_", "%s", Sanitise(node.structure));
 				break;
 			}
 			default: Error(node.error, "Unknown method '%s'", node.method);
@@ -884,7 +976,12 @@ class BackendLua : CompilerBackend {
 			if (var.type.hasDeinit && !var.type.ptr) {
 				output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 				output ~= "dsp = dsp + 1\n";
-				output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+				output ~= format(
+					"%s()\n", ExtLabel(
+						var.type.mod, "type_deinit_", "%s",
+						var.type.name.Sanitise()
+					)
+				);
 			}
 		}
 		output ~= format("vsp = vsp + %d\n", scopeSize);
@@ -937,6 +1034,10 @@ class BackendLua : CompilerBackend {
 	}
 
 	override void CompileSet(SetNode node) {
+		if (CountAll(node.var) > 1) {
+			Error(node.error, "Multiple matches for identifier '%s'", node.var);
+		}
+
 		if (VariableExists(node.var)) {
 			auto var = GetVariable(node.var);
 
@@ -958,6 +1059,10 @@ class BackendLua : CompilerBackend {
 		else if (IsStructMember(node.var)) {
 			string name    = node.var[0 .. node.var.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.var);
+
+			if (CountAll(name) > 1) {
+				Error(node.error, "Multiple matches for identifier '%s'", node.var);
+			}
 
 			if (structVar.structure) {
 				Error(node.error, "Can't push the value of an array or structure");
@@ -987,6 +1092,9 @@ class BackendLua : CompilerBackend {
 		if (!WordExists(node.func)) {
 			Error(node.error, "Function '%s' doesn't exist", node.func);
 		}
+		if (CountWords(node.func) > 1) {
+			Error(node.error, "Multiple matches for function '%s'", node.func);
+		}
 
 		auto word = GetWord(node.func);
 
@@ -1006,7 +1114,7 @@ class BackendLua : CompilerBackend {
 			}
 		}
 		else {
-			output ~= format("func__%s()\n", node.func.Sanitise());
+			output ~= format("%s()\n", Label(word));
 		}
 
 		output ~= "regA = mem[vsp]\n";
@@ -1014,11 +1122,8 @@ class BackendLua : CompilerBackend {
 
 		++ blockCounter;
 
-		auto global      = GetGlobal("_cal_exception");
-		auto globalExtra = cast(GlobalExtra*) global.extra;
-
-		output ~= format("if mem[%d] == 0 then\n", globalExtra.addr);
-		output ~= format("goto catch_%d_end\n", blockCounter);
+		output ~= format("if mem[%d] == 0 then\n", exception);
+		output ~= format("goto %s\n", Label("catch_", "%d_end", blockCounter));
 		output ~= "end\n";
 
 		// function errored, assume that all it did was consume parameters
@@ -1039,14 +1144,19 @@ class BackendLua : CompilerBackend {
 
 			output ~= format("mem[dsp] = vsp + %d\n", var.offset);
 			output ~= "dsp = dsp + 1\n";
-			output ~= format("type_deinit_%s()\n", var.type.name.Sanitise());
+			output ~= format(
+				"%s()\n", ExtLabel(
+					var.type.mod, "type_deinit_", "%s",
+					var.type.name.Sanitise()
+				)
+			);
 		}
 		if (GetStackSize() - oldSize > 0) {
 			output ~= format("vsp = vsp + %d\n", GetStackSize() - oldSize);
 		}
 		variables = oldVars;
 
-		output ~= format("::catch_%d_end::\n", blockCounter);
+		output ~= format("::%s::\n", Label("catch_", "%d_end", blockCounter));
 	}
 
 	override void CompileThrow(WordNode node) {
@@ -1057,17 +1167,14 @@ class BackendLua : CompilerBackend {
 			Error(node.error, "Can't use throw in an inline function");
 		}
 
-		auto global = GetGlobal("_cal_exception");
-		auto extra  = cast(GlobalExtra*) global.extra;
-
 		// set exception error
-		output ~= format("mem[%d] = -1\n", extra.addr);
+		output ~= format("mem[%d] = -1\n", exception);
 
 		// copy exception message
 		output ~= "dsp = dsp - 1\n";
 		output ~= "for i = 1, 3 do\n";
 		output ~= format(
-			"mem[%d + i] = mem[mem[dsp] + (i - 1)]\n", extra.addr
+			"mem[%d + i] = mem[mem[dsp] + (i - 1)]\n", exception
 		);
 		output ~= "end\n";
 

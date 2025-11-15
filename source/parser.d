@@ -582,7 +582,16 @@ class UnsafeNode : Node {
 	}
 
 	override string toString() {
-		string ret = format("unsafe %d -> %d", paramTypes.length, retTypes.length);
+		string ret = "unsafe";
+
+		foreach (ref param ; paramTypes) {
+			ret ~= format(" %s _", param);
+		}
+		ret ~= " ->";
+		foreach (ref type ; retTypes) {
+			ret ~= format(" %s _", type);
+		}
+		ret ~= " begin\n";
 
 		foreach (ref node ; nodes) {
 			ret ~= node.toString() ~ '\n';

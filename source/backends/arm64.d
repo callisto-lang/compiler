@@ -52,9 +52,9 @@ class BackendARM64 : CompilerBackend {
 
 		// built in structs
 		types ~= Type("core", "Array", 24, false, true, [
-			StructEntry(UsedType(GetType("usize"), false), "length", false, 8, 0),
-			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 8, 8),
-			StructEntry(UsedType(GetType("addr"), false),  "elements", false, 8, 16)
+			StructEntry(UsedType(GetType("core.usize"), false), "length", false, 8, 0),
+			StructEntry(UsedType(GetType("core.usize"), false), "memberSize", false, 8, 8),
+			StructEntry(UsedType(GetType("core.addr"), false),  "elements", false, 8, 16)
 		]);
 		NewConst("core", "Array.length",     0);
 		NewConst("core", "Array.memberSize", 8);
@@ -62,8 +62,8 @@ class BackendARM64 : CompilerBackend {
 		NewConst("core", "Array.sizeOf",     8 * 3);
 
 		types ~= Type("core", "Exception", 24 + 8, false, true, [
-			StructEntry(UsedType(GetType("bool"), false),  "error", false, 8, 0),
-			StructEntry(UsedType(GetType("Array"), false), "msg", false, 8 * 3, 8)
+			StructEntry(UsedType(GetType("core.bool"), false),  "error", false, 8, 0),
+			StructEntry(UsedType(GetType("core.Array"), false), "msg", false, 8 * 3, 8)
 		]);
 		NewConst("core", "Exception.bool",   0);
 		NewConst("core", "Exception.msg",    8);
@@ -198,12 +198,7 @@ class BackendARM64 : CompilerBackend {
 		// call constructors
 		foreach (global ; globals) {
 			if (global.type.hasInit && !global.type.ptr) {
-				if (
-					(output.mode == OutputMode.Module) &&
-					(global.mod != output.GetModName())
-				) {
-					continue;
-				}
+				if (global.mod != output.GetModName()) continue;
 
 				LoadAddress("x9", Label("__global_", global.name.Sanitise()));
 				output ~= "str x9, [x19], #8\n";
@@ -1095,7 +1090,7 @@ class BackendARM64 : CompilerBackend {
 	override void CompileString(StringNode node) {
 		auto arrayNode = new ArrayNode(node.error);
 
-		arrayNode.arrayType = new TypeNode(node.error, "u8", false);
+		arrayNode.arrayType = new TypeNode(node.error, "core.u8", false);
 		arrayNode.constant  = node.constant;
 
 		foreach (ref ch ; node.value) {

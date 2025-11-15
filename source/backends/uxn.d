@@ -37,9 +37,9 @@ class BackendUXN : CompilerBackend {
 
 		// built in structs
 		types ~= Type("core", "Array", 6, false, true, [
-			StructEntry(UsedType(GetType("usize"), false), "length", false, 2, 0),
-			StructEntry(UsedType(GetType("usize"), false), "memberSize", false, 2, 2),
-			StructEntry(UsedType(GetType("addr"), false),  "elements", false, 2, 4)
+			StructEntry(UsedType(GetType("core.usize"), false), "length", false, 2, 0),
+			StructEntry(UsedType(GetType("core.usize"), false), "memberSize", false, 2, 2),
+			StructEntry(UsedType(GetType("core.addr"), false),  "elements", false, 2, 4)
 		]);
 		NewConst("core", "Array.length",     0);
 		NewConst("core", "Array.memberSize", 2);
@@ -47,8 +47,8 @@ class BackendUXN : CompilerBackend {
 		NewConst("core", "Array.sizeOf",     2 * 3);
 
 		types ~= Type("core", "Exception", 6 + 2, false, true, [
-			StructEntry(UsedType(GetType("bool"), false),  "error", false, 2, 0),
-			StructEntry(UsedType(GetType("Array"), false), "msg", false, 6, 0)
+			StructEntry(UsedType(GetType("core.bool"), false),  "error", false, 2, 0),
+			StructEntry(UsedType(GetType("core.Array"), false), "msg", false, 6, 0)
 		]);
 		NewConst("core", "Exception.bool",   0);
 		NewConst("core", "Exception.msg",    2);
@@ -114,9 +114,14 @@ class BackendUXN : CompilerBackend {
 	}
 
 	override void BeginMain() {
-		output ~= "@calmain\n";
+		output.StartSection(SectionType.TopLevel);
+		if (output.mode != OutputMode.Module) {
+			output ~= "@calmain\n";
+		}
 
 		foreach (global ; globals) {
+			if (global.mod != output.GetModName()) continue;
+
 			if (global.type.hasInit && !global.type.ptr) {
 				output ~= format(
 					";%s\n", Label("global_", "%s", global.name.Sanitise())
@@ -197,6 +202,10 @@ class BackendUXN : CompilerBackend {
 			output ~= "JMP2r\n";
 		}
 
+		// end top level code
+		output.FinishSection();
+
+		output.StartSection(SectionType.Data);
 		foreach (var ; globals) {
 			if (var.mod != output.GetModName()) continue;
 			output ~= format("@%s", Label("global_", "%s", var.name.Sanitise()));
@@ -226,6 +235,8 @@ class BackendUXN : CompilerBackend {
 				);
 			}
 		}
+
+		output.FinishSection();
 
 		if (output.mode != OutputMode.Module) {
 			output ~= "@memcpy  01\n";
@@ -486,6 +497,17 @@ class BackendUXN : CompilerBackend {
 			params ~= UsedType(GetType(type.name), type.ptr);
 		}
 
+		output.StartSection(SectionType.FuncDef);
+		if (output.mode == OutputMode.Module) {
+			auto sect   = output.ThisSection!FuncDefSection();
+			sect.pub    = true; // TODO: add private functions
+			sect.inline = node.inline;
+			sect.calls  = []; // TODO: add this for inline functions (IMPORTANT)
+			sect.name   = node.name;
+			sect.params = params.length;
+			sect.ret    = node.returnTypes.length;
+		}
+
 		if (node.inline) {
 			if (node.errors) {
 				output ~= "#0000 ;exception STA2\n";
@@ -495,6 +517,14 @@ class BackendUXN : CompilerBackend {
 				output.GetModName(), node.name, WordType.Callisto, false, true,
 				node.nodes, node.errors, params
 			);
+
+			if (output.mode == OutputMode.Module) {
+				auto sect = output.ThisSection!FuncDefSection();
+
+				foreach (ref inode ; node.nodes) {
+					sect.assembly ~= inode.toString() ~ '\n';
+				}
+			}
 		}
 		else {
 			assert(!inScope);
@@ -585,6 +615,8 @@ class BackendUXN : CompilerBackend {
 			variables  = [];
 			inScope    = false;
 		}
+
+		output.FinishSection();
 	}
 
 	override void CompileIf(IfNode node) {
@@ -763,6 +795,7 @@ class BackendUXN : CompilerBackend {
 		}
 		else {
 			Global global;
+			global.mod         = output.GetModName();
 			global.type        = UsedType(GetType(node.varType.name), node.varType.ptr);
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
@@ -775,6 +808,8 @@ class BackendUXN : CompilerBackend {
 					"Anonymous variables can only be created inside a function"
 				);
 			}
+
+			output.AddGlobal(global);
 		}
 	}
 
@@ -783,6 +818,9 @@ class BackendUXN : CompilerBackend {
 
 		if (!TypeExists(node.arrayType.name)) {
 			Error(node.error, "Type '%s' doesn't exist", node.arrayType.name);
+		}
+		if (CountTypes(node.arrayType.name) > 1) {
+			Error(node.error, "Multiple matches for type '%s'", node.arrayType.name);
 		}
 
 		array.type = UsedType(GetType(node.arrayType.name), node.arrayType.ptr);
@@ -853,7 +891,7 @@ class BackendUXN : CompilerBackend {
 			variables ~= var;
 
 			// create metadata variable
-			var.type   = UsedType(GetType("Array"), false);
+			var.type   = UsedType(GetType("core.Array"), false);
 			var.offset = 0;
 			var.array  = false;
 
@@ -882,7 +920,7 @@ class BackendUXN : CompilerBackend {
 	override void CompileString(StringNode node) {
 		auto arrayNode = new ArrayNode(node.error);
 
-		arrayNode.arrayType = new TypeNode(node.error, "u8", false);
+		arrayNode.arrayType = new TypeNode(node.error, "core.u8", false);
 		arrayNode.constant  = node.constant;
 
 		foreach (ref ch ; node.value) {
@@ -1052,6 +1090,13 @@ class BackendUXN : CompilerBackend {
 		assert(!inScope);
 		inScope = true;
 
+		output.StartSection(SectionType.Implement);
+		if (output.mode == OutputMode.Module) {
+			auto sect   = cast(ImplementSection) output.sect;
+			sect.type   = type.name;
+			sect.method = node.method;
+		}
+
 		output ~= format("@%s\n", labelName);
 
 		foreach (ref inode ; node.nodes) {
@@ -1086,6 +1131,8 @@ class BackendUXN : CompilerBackend {
 		output    ~= "JMP2r\n";
 		inScope    = false;
 		variables  = [];
+
+		output.FinishSection();
 	}
 
 	void SetVariable(
@@ -1189,6 +1236,9 @@ class BackendUXN : CompilerBackend {
 	override void CompileTryCatch(TryCatchNode node) {
 		if (!WordExists(node.func)) {
 			Error(node.error, "Function '%s' doesn't exist", node.func);
+		}
+		if (CountWords(node.func) > 1) {
+			Error(node.error, "Multiple matches for function '%s'", node.func);
 		}
 
 		auto word = GetWord(node.func);

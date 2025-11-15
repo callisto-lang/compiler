@@ -8,6 +8,7 @@ import callisto.util;
 import callisto.error;
 import callisto.mod.mod;
 import callisto.mod.sections;
+import callisto.linkers.uxn;
 import callisto.linkers.rm86;
 import callisto.linkers.arm64;
 import callisto.linkers.x86_64;
@@ -19,7 +20,11 @@ struct Func {
 	string name;
 	bool   inline;
 
-	string Label() => format("__func__%s__sep__%s", mod, name.Sanitise());
+	string Label(bool prefix = true) {
+		return format(
+			"%sfunc__%s__sep__%s", prefix? "__" : "", mod, name.Sanitise()
+		);
+	}
 }
 
 class Linker {
@@ -237,6 +242,7 @@ int LinkerProgram(string[] args) {
 		case ModCPU.x86_64: linker = new LinkerX86_64(); break;
 		case ModCPU.RM86:   linker = new LinkerRM86();   break;
 		case ModCPU.ARM64:  linker = new LinkerARM64();  break;
+		case ModCPU.Uxn:    linker = new LinkerUXN();    break;
 		default: {
 			stderr.writefln("Unsupported architecture '%s'", cpu);
 			return 1;
