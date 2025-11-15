@@ -14,8 +14,10 @@ Lua, while keeping its low level features (like direct access to memory).
 
 ## Build
 ```
-dub build
+dub build --compiler=ldc
 ```
+
+Compiling with LDC is required because DMD freezes
 
 The compiler executable will be called `cac`
 

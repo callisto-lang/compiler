@@ -19,7 +19,8 @@ enum ModCPU : SectionInt {
 	Uxn     = 0x0004,
 	Fox32   = 0x0005,
 	M68k    = 0x0006,
-	RISCV   = 0x0007
+	RISCV   = 0x0007,
+	Lua     = 0x0008
 }
 
 enum ModOS : SectionInt {

@@ -9,6 +9,7 @@ import callisto.error;
 import callisto.mod.mod;
 import callisto.mod.sections;
 import callisto.linkers.uxn;
+import callisto.linkers.lua;
 import callisto.linkers.rm86;
 import callisto.linkers.arm64;
 import callisto.linkers.x86_64;
@@ -243,6 +244,7 @@ int LinkerProgram(string[] args) {
 		case ModCPU.RM86:   linker = new LinkerRM86();   break;
 		case ModCPU.ARM64:  linker = new LinkerARM64();  break;
 		case ModCPU.Uxn:    linker = new LinkerUXN();    break;
+		case ModCPU.Lua:    linker = new LinkerLua();    break;
 		default: {
 			stderr.writefln("Unsupported architecture '%s'", cpu);
 			return 1;

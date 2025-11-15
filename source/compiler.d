@@ -425,7 +425,8 @@ class CompilerBackend {
 	}
 
 	string ExtLabel(string mod, string prefix, string label) {
-		auto modPrefix = output.mode == OutputMode.Module? format("%s__sep__", mod) : "";
+		auto modPrefix = output.mode == OutputMode.Module?
+			format("%s__sep__", Sanitise(mod)) : "";
 		return format("%s%s%s", prefix, modPrefix, label);
 	}
 

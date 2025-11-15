@@ -27,7 +27,7 @@ import callisto.backends.rm86;
 import callisto.backends.arm64;
 import callisto.backends.x86_64;
 
-const static string appVersion = "Beta 0.12.7";
+const static string appVersion = "Beta 0.13.0";
 
 const static string usage = "
 Callisto Compiler
@@ -241,9 +241,8 @@ int main(string[] args) {
 							break;
 						}
 						case "lua": {
-							writeln("Language subset 'CallistoScript' in use");
 							backend = new BackendLua();
-							modCPU  = ModCPU.None;
+							modCPU  = ModCPU.Lua;
 							break;
 						}
 						default: {

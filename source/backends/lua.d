@@ -97,8 +97,6 @@ class BackendLua : CompilerBackend {
 		output ~= "regA = 0;\n";
 		output ~= "regB = 0;\n";
 		output ~= "dspRestore = 0;\n";
-		output ~= format("exception = %d;\n", globalStack);
-		globalStack += 4;
 
 		output ~= "
 			function cal_pop()
@@ -124,9 +122,15 @@ class BackendLua : CompilerBackend {
 			);
 		}
 
-		output ~= "end\n";
+		if (output.mode != OutputMode.Module) {
+			output ~= "end\n";
+		}
+
+		// end top level code
+		output.FinishSection();
 
 		// create arrays
+		output.StartSection(SectionType.Data);
 		foreach (ref array ; arrays) {
 			// create metadata
 			auto arrayExtra = cast(ArrayExtra*) array.extra;
@@ -153,13 +157,19 @@ class BackendLua : CompilerBackend {
 				end
 			", array.values.length, arrayExtra.elements);
 		}
+		output.FinishSection();
 
-		output ~= "regA = 0\n";
-		output ~= "calmain();\n";
+		if (output.mode != OutputMode.Module) {
+			output ~= "regA = 0\n";
+			output ~= "calmain();\n";
+		}
 	}
 
 	override void BeginMain() {
-		output ~= "function calmain()\n";
+		output.StartSection(SectionType.TopLevel);
+		if (output.mode != OutputMode.Module) {
+			output ~= "function calmain()\n";
+		}
 		
 		// call constructors
 		foreach (global ; globals) {
@@ -376,7 +386,8 @@ class BackendLua : CompilerBackend {
 		}
 
 		if (node.inline) {
-			output ~= format("mem[%d] = 0\n", exception);
+			// why was this here??
+			//output ~= format("mem[%d] = 0\n", exception);
 
 			words ~= Word(
 				output.GetModName(), node.name, WordType.Callisto, false, true,
@@ -688,6 +699,8 @@ class BackendLua : CompilerBackend {
 					"Anonymous variables can only be created inside a function"
 				);
 			}
+
+			output.AddGlobal(global);
 		}
 	}
 
@@ -963,6 +976,13 @@ class BackendLua : CompilerBackend {
 		assert(!inScope);
 		inScope = true;
 
+		output.StartSection(SectionType.Implement);
+		if (output.mode == OutputMode.Module) {
+			auto sect   = cast(ImplementSection) output.sect;
+			sect.type   = type.name;
+			sect.method = node.method;
+		}
+
 		output ~= format("function %s()\n", labelName);
 
 		foreach (ref inode ; node.nodes) {
@@ -989,6 +1009,8 @@ class BackendLua : CompilerBackend {
 
 		inScope    = false;
 		variables  = [];
+
+		output.FinishSection();
 	}
 
 	void SetGlobal(

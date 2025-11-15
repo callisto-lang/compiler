@@ -61,7 +61,7 @@ class Output {
 	string GetModName() => mode == OutputMode.Module? mod.name : "";
 
 	string GetModPrefix() {
-		return mode == OutputMode.Module? format("%s__sep__", mod.name) : "";
+		return mode == OutputMode.Module? format("%s__sep__", Sanitise(mod.name)) : "";
 	}
 
 	void StartSection(SectionType type) {

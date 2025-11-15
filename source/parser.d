@@ -336,6 +336,8 @@ class ArrayNode : Node {
 	override string toString() {
 		string ret = constant? "c[" : "[";
 
+		ret ~= format("%s%s ", arrayType.ptr? "ptr " : "", arrayType.name);
+
 		foreach (ref node ; elements) {
 			ret ~= node.toString() ~ ' ';
 		}
