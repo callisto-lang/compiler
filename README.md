@@ -17,14 +17,13 @@ Lua, while keeping its low level features (like direct access to memory).
 dub build --compiler=ldc
 ```
 
-Compiling with LDC is required because DMD freezes. If you get `Executable file
-not found`, then run with `--compiler=ldc2` instead.
-
 The compiler executable will be called `cac`
 
 > [!WARNING]  
 > Compilation may freeze due to a bug in the Digital Mars D compiler. If this happens,
-> compile with this command: `dub build --compiler=ldc`
+> compile with this command: `dub build --compiler=ldc`.
+>
+> If that doesn't work, then run with `--compiler=ldc2` instead.
 
 ## Run example programs
 Make sure you get the standard library
