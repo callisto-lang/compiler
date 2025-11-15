@@ -737,7 +737,7 @@ class BackendX86_64 : CompilerBackend {
 					}
 				}
 				else {
-					if (word.error && GetWord(thisFunc).error) {
+					if (inScope && word.error && GetWord(thisFunc).error) {
 						size_t paramSize = word.params.length * 8;
 
 						if (paramSize != 0) {
@@ -753,7 +753,7 @@ class BackendX86_64 : CompilerBackend {
 
 					output.AddCall(node.name);
 
-					if (word.error && GetWord(thisFunc).error) {
+					if (inScope && word.error && GetWord(thisFunc).error) {
 						output ~= "pop r14\n";
 					}
 				}
