@@ -6,9 +6,8 @@ func fib cell n -> cell res begin
 		n
 	else
 		n 1 - fib
-		n 2 - fib
-		+
+		n 2 - fib +
 	end
 end
 
-9 fib print_dec new_line
+45 fib print_dec new_line

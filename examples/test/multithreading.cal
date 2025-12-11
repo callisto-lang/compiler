@@ -46,7 +46,6 @@ func new_thread addr function begin
 	dup printdec new_line
 
 	if 0 = then
-		# stinky callisto runtime just to get stuff working
 		asm
 			"sub rsp, 4096"
 			"mov r15, rsp"

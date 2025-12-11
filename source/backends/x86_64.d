@@ -1376,7 +1376,7 @@ class BackendX86_64 : CompilerBackend {
 				scopeSize += var.StackSize();
 
 				if (var.type.hasDeinit && !var.type.ptr) {
-					output ~= format("lea rax, [rsp + %d\n]", var.offset);
+					output ~= format("lea rax, [rsp + %d]\n", var.offset);
 					output ~= "mov [r15], rax\n";
 					output ~= "add r15, 8\n";
 					output ~= format(

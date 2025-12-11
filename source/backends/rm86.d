@@ -583,7 +583,7 @@ class BackendRM86 : CompilerBackend {
 				scopeSize += var.StackSize();
 
 				if (var.type.hasDeinit && !var.type.ptr) {
-					output ~= format("lea ax, [sp + %d\n]", var.offset);
+					output ~= format("lea ax, [sp + %d]\n", var.offset);
 					output ~= "mov [si], ax\n";
 					output ~= "add si, 2\n";
 					output ~= format(
@@ -639,7 +639,7 @@ class BackendRM86 : CompilerBackend {
 				if (oldVars.canFind(var)) continue;
 				if (!var.type.hasDeinit || var.type.ptr) continue;
 
-				output ~= format("lea ax, [sp + %d\n]", var.offset);
+				output ~= format("lea ax, [sp + %d]\n", var.offset);
 				output ~= "mov [si], ax\n";
 				output ~= "add si, 2\n";
 				output ~= format(
@@ -673,7 +673,7 @@ class BackendRM86 : CompilerBackend {
 				if (oldVars.canFind(var)) continue;
 				if (!var.type.hasDeinit || var.type.ptr) continue;
 
-				output ~= format("lea ax, [sp + %d\n]", var.offset);
+				output ~= format("lea ax, [sp + %d]\n", var.offset);
 				output ~= "mov [si], ax\n";
 				output ~= "add si, 2\n";
 				output ~= format(
@@ -716,7 +716,7 @@ class BackendRM86 : CompilerBackend {
 			if (oldVars.canFind(var)) continue;
 			if (!var.type.hasDeinit || var.type.ptr) continue;
 
-			output ~= format("lea ax, [sp + %d\n]", var.offset);
+			output ~= format("lea ax, [sp + %d]\n", var.offset);
 			output ~= "mov [si], ax\n";
 			output ~= "add si, 2\n";
 			output ~= format(
@@ -938,7 +938,7 @@ class BackendRM86 : CompilerBackend {
 			scopeSize += var.Size();
 
 			if (var.type.hasDeinit && !var.type.ptr) {
-				output ~= format("lea ax, [sp + %d\n]", var.offset);
+				output ~= format("lea ax, [sp + %d]\n", var.offset);
 				output ~= "mov [si], ax\n";
 				output ~= "add si, 2\n";
 				output ~= format(
@@ -1136,7 +1136,7 @@ class BackendRM86 : CompilerBackend {
 			scopeSize += var.StackSize();
 
 			if (var.type.hasDeinit) {
-				output ~= format("lea ax, [sp + %d\n]", var.offset);
+				output ~= format("lea ax, [sp + %d]\n", var.offset);
 				output ~= "mov [si], ax\n";
 				output ~= "add si, 2\n";
 				output ~= format(
@@ -1322,7 +1322,7 @@ class BackendRM86 : CompilerBackend {
 			if (oldVars.canFind(var)) continue;
 			if (!var.type.hasDeinit || var.type.ptr) continue;
 
-			output ~= format("lea ax, [sp + %d\n]", var.offset);
+			output ~= format("lea ax, [sp + %d]\n", var.offset);
 			output ~= "mov [si], ax\n";
 			output ~= "add si, 2\n";
 			output ~= format(
