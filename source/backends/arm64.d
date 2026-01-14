@@ -615,7 +615,7 @@ class BackendARM64 : CompilerBackend {
 			string name    = node.name[0 .. node.name.countUntil(".")];
 			auto structVar = GetStructVariable(node, node.name);
 
-			if (CountAll(name)) {
+			if (CountAll(name) > 1) {
 				Error(node.error, "Multiple matches for identifier '%s'", name);
 			}
 
