@@ -29,7 +29,7 @@ Integers are little endian. Strings are null-terminated.
 | -------------- | ------------ | ------------------------------------------------------- |
 | 0              | 3            | ASCII magic bytes containing "MOD"                      |
 | 3              | 1            | Flags                                                   |
-| 4              | 8            | Version number, currently 0x0000                        |
+| 4              | 8            | Version number, currently 0x0001                        |
 | 12             | 8            | CPU architecture ID (see below)                         |
 | 20             | 8            | Operating system ID (see below)                         |
 | 28             | 8            | Number of sections                                      |
@@ -179,7 +179,8 @@ Enum entries follow this header.
 | Offset (bytes) | Size (bytes) | Description                                        |
 | -------------- | ------------ | -------------------------------------------------- |
 | 0              | 1            | Type - set to 0x0B                                 |
-| 1              | ?            | Structure name                                     |
+| 1              | 1            | 1 = public structure, 0 = private                  |
+| 2              | ?            | Structure name                                     |
 | ?              | ?            | String - parent structure, empty if none           |
 | ?              | 8            | Number of structure entries                        |
 | ?              | ?            | Structure entries                                  |

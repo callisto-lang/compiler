@@ -132,6 +132,7 @@ class FuncDefNode : Node {
 	bool       manual;
 	bool       unsafe;
 	TypeNode[] returnTypes;
+	bool       priv;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.FuncDef;
@@ -269,6 +270,7 @@ class LetNode : Node {
 	string   name;
 	bool     array;
 	size_t   arraySize;
+	bool     priv;
 
 	this(ErrorInfo perror) {
 		type  = NodeType.Let;
@@ -372,6 +374,7 @@ struct StructMember {
 }
 
 class StructNode : Node {
+	bool           priv;
 	string         name;
 	StructMember[] members;
 	bool           inherits;
@@ -408,6 +411,7 @@ class ConstNode : Node {
 }
 
 class EnumNode : Node {
+	bool     priv;
 	string   name;
 	string   enumType;
 	string[] names;
@@ -441,6 +445,7 @@ class RestrictNode : Node {
 }
 
 class UnionNode : Node {
+	bool     priv;
 	string   name;
 	string[] types;
 
@@ -461,6 +466,7 @@ class UnionNode : Node {
 }
 
 class AliasNode : Node {
+	bool   priv;
 	string to;
 	string from;
 	bool   overwrite;
@@ -480,6 +486,7 @@ enum ExternType {
 }
 
 class ExternNode : Node {
+	bool       priv;
 	string     func;
 	ExternType externType;
 	string     asName;
@@ -741,11 +748,12 @@ class Parser {
 			Expect(TokenType.Identifier);
 
 			switch (tokens[i].contents) {
-				case "error":  ret.errors  = true; break;
-				case "raw":    ret.raw     = true; break;
-				case "man":    ret.manual  = true; break;
-				case "unsafe": ret.unsafe  = true; break;
-				default:       readingAttr = false;
+				case "error":   ret.errors  = true; break;
+				case "raw":     ret.raw     = true; break;
+				case "man":     ret.manual  = true; break;
+				case "unsafe":  ret.unsafe  = true; break;
+				case "private": ret.priv    = true; break;
+				default:        readingAttr = false;
 			}
 		}
 
@@ -959,6 +967,13 @@ class Parser {
 		Next();
 		Expect(TokenType.Identifier);
 
+		if (tokens[i].contents == "private") {
+			ret.priv = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
 		if (tokens[i].contents == "array") {
 			Next();
 			Expect(TokenType.Integer);
@@ -1062,6 +1077,14 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "private") {
+			ret.priv = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
 		ret.name = tokens[i].contents;
 		Next();
 
@@ -1171,6 +1194,14 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "private") {
+			ret.priv = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
 		ret.name = tokens[i].contents;
 		ret.enumType = "cell";
 
@@ -1228,6 +1259,14 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "private") {
+			ret.priv = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
+
 		ret.name = tokens[i].contents;
 		Next();
 		Expect(TokenType.Identifier);
@@ -1246,12 +1285,19 @@ class Parser {
 	}
 
 	Node ParseAlias() {
-		auto ret = new AliasNode(GetError());
-		parsing  = NodeType.Alias;
+		auto ret   = new AliasNode(GetError());
+		parsing    = NodeType.Alias;
 		parseStart = tokens[i];
 
 		Next();
 		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "private") {
+			ret.priv = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
 
 		if (tokens[i].contents == "overwrite") {
 			ret.overwrite = true;
@@ -1275,6 +1321,13 @@ class Parser {
 
 		Next();
 		Expect(TokenType.Identifier);
+
+		if (tokens[i].contents == "private") {
+			ret.priv = true;
+
+			Next();
+			Expect(TokenType.Identifier);
+		}
 
 		if (tokens[i].contents == "raw") {
 			ret.externType = ExternType.Raw;

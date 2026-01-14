@@ -680,7 +680,7 @@ class BackendARM64 : CompilerBackend {
 		if (output.mode == OutputMode.Module) {
 			auto sect   = output.ThisSection!FuncDefSection();
 			// TODO: the stuff that x86_64 says
-			sect.pub    = true;
+			sect.pub    = !node.priv;
 			sect.inline = node.inline;
 			sect.calls  = [];
 			sect.name   = node.name;
@@ -991,6 +991,7 @@ class BackendARM64 : CompilerBackend {
 			global.arraySize   = node.arraySize;
 			global.name        = node.name;
 			global.mod         = output.GetModName();
+			global.pub         = !node.priv;
 			globals           ~= global;
 
 			if (global.name == "") {

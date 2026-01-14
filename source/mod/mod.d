@@ -73,7 +73,7 @@ class Module {
 	void Write(string path) {
 		auto file = File(path, "wb");
 
-		header.ver        = 0x0000;
+		header.ver        = 0x0001;
 		header.sectionNum = cast(SectionInt) sections.length;
 		header.Write(file);
 

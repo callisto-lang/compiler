@@ -489,7 +489,7 @@ class BackendRM86 : CompilerBackend {
 		output.StartSection(SectionType.FuncDef);
 		if (output.mode == OutputMode.Module) {
 			auto sect   = output.ThisSection!FuncDefSection();
-			sect.pub    = true; // TODO: add private functions
+			sect.pub    = !node.priv;
 			sect.inline = node.inline;
 			sect.calls  = []; // TODO: add this for inline functions (IMPORTANT)
 			sect.name   = node.name;
@@ -807,6 +807,7 @@ class BackendRM86 : CompilerBackend {
 			global.arraySize   = node.arraySize;
 			global.name        = node.name;
 			global.mod         = output.GetModName();
+			global.pub         = !node.priv;
 			globals           ~= global;
 
 			if (global.name == "") {

@@ -140,6 +140,7 @@ class Output {
 
 	void AddGlobal(Global global) {
 		if (mode != OutputMode.Module) return;
+		if (!global.pub)               return;
 
 		auto section = new LetSection();
 		section.array = global.array;

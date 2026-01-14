@@ -662,6 +662,7 @@ class BackendX86_64 : CompilerBackend {
 
 	override void CompileWord(WordNode node) {
 		if (CountAll(node.name) > 1) {
+			PrintAll(node.name);
 			Error(node.error, "Multiple matches for identifier '%s'", node.name);
 		}
 
@@ -905,7 +906,7 @@ class BackendX86_64 : CompilerBackend {
 		output.StartSection(SectionType.FuncDef);
 		if (output.mode == OutputMode.Module) {
 			auto sect   = output.ThisSection!FuncDefSection();
-			sect.pub    = true; // TODO: add private functions
+			sect.pub    = !node.priv;
 			sect.inline = node.inline;
 			sect.calls  = []; // TODO: add this for inline functions (IMPORTANT)
 			sect.name   = node.name;
@@ -1249,6 +1250,7 @@ class BackendX86_64 : CompilerBackend {
 			global.arraySize   = node.arraySize;
 			global.name        = node.name;
 			global.mod         = output.GetModName();
+			global.pub         = !node.priv;
 			globals           ~= global;
 
 			if (global.name == "") {

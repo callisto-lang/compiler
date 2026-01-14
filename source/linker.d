@@ -198,6 +198,14 @@ int LinkerProgram(string[] args) {
 		auto mod = new Module();
 		mod.Read(path, false);
 
+		SectionInt thisVer = 0x0001;
+		if (mod.header.ver < thisVer) {
+			ErrorNoInfo("Module '%s' is outdated", path.baseName());
+		}
+		if (mod.header.ver > thisVer) {
+			ErrorNoInfo("Module '%s' is built with a newer compiler", path.baseName());
+		}
+
 		if (printSections) {
 			foreach (ref sect ; mod.sections) {
 				writeln(sect);

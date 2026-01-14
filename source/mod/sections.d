@@ -613,6 +613,7 @@ struct ModStructEntry {
 }
 
 class StructSection : Section {
+	bool             pub;
 	string           name;
 	string           inherits;
 	ModStructEntry[] entries;
@@ -640,6 +641,7 @@ class StructSection : Section {
 	}
 
 	override void Read(File file, bool skip) {
+		pub      = file.ReadByte() != 0;
 		name     = file.ReadString();
 		inherits = file.ReadString();
 
@@ -650,6 +652,7 @@ class StructSection : Section {
 	}
 
 	override void Write(File file) {
+		file.WriteByte(pub? 1 : 0);
 		file.WriteString(name);
 		file.WriteString(inherits);
 		file.WriteInt(cast(SectionInt) entries.length);

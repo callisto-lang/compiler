@@ -504,7 +504,7 @@ class BackendUXN : CompilerBackend {
 		output.StartSection(SectionType.FuncDef);
 		if (output.mode == OutputMode.Module) {
 			auto sect   = output.ThisSection!FuncDefSection();
-			sect.pub    = true; // TODO: add private functions
+			sect.pub    = !node.priv;
 			sect.inline = node.inline;
 			sect.calls  = []; // TODO
 			sect.name   = node.name;
@@ -804,6 +804,7 @@ class BackendUXN : CompilerBackend {
 			global.array       = node.array;
 			global.arraySize   = node.arraySize;
 			global.name        = node.name;
+			global.pub         = !node.priv;
 			globals           ~= global;
 
 			if (global.name == "") {

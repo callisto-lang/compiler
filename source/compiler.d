@@ -68,6 +68,7 @@ struct Variable {
 }
 
 struct Global {
+	bool     pub;
 	string   mod;
 	string   name;
 	UsedType type;
@@ -458,11 +459,30 @@ class CompilerBackend {
 			CountWords(name) + CountTypes(name) + CountGlobals(name) + CountConsts(name);
 	}
 
+	final void PrintAll(string name) {
+		foreach (ref word ; words) {
+			if (word.name == name) writefln("%s\n", word);
+		}
+
+		foreach (ref type ; types) {
+			if (type.name == name) writefln("%s\n", word);
+		}
+
+		foreach (ref global ; globals) {
+			if (global.name == name) writefln("%s\n", global);
+		}
+
+		foreach (ref con ; consts) {
+			if (con.name == name) writefln("%s\n", con);
+		}
+	}
+
 	final Word GetWord(string name) {
 		foreach (ref word ; words) {
 			if (MatchMod(word.mod, word.name, name)) return word;
 		}
 
+		stderr.writeln("FATAL! Word '%s' does not exist", name);
 		assert(0);
 	}
 
