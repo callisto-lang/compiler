@@ -1,5 +1,16 @@
-# The Callisto compiler
-Callisto is a stack-based imperative programming language with stack safety enforced
+<div align="center">
+  <img style="text-align:center;border-radius:50%;" src="https://callisto.mesyeti.uk/logo_shadow.png" height="128px" width="128px">
+
+  # The Callisto Programming Language
+
+  [Website](https://callisto.mesyeti.uk/) |
+  [Docs](https://callisto.mesyeti.uk/docs) |
+  [Awesome List](https://github.com/callisto-lang/awesome-callisto) |
+  [Discord](https://discord.com/invite/QHAtc4GWq7)
+
+</div>
+
+**Callisto** is a stack-based imperative programming language with stack safety enforced
 by the compiler (which is optional).
 
 It also has a subset called CallistoScript made to compile to scripting languages like
@@ -41,7 +52,5 @@ cac examples/exampleNameHere.cal -i std
 The output executable will be called `out`. Any example programs that require extra flags
 for compilation will have a compile command in a comment at the top of the source file.
 
-## Community
+## IRC Channel
 Join `#callisto-lang` on irc.libera.chat.
-
-Join `QHAtc4GWq7` on Discord
